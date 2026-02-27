@@ -295,30 +295,46 @@ class ChatPanel(VerticalScroll):
         self._streaming_msg: StreamingMessage | None = None
         self._thinking_msg: ThinkingSpinner | None = None
         self._active_tool_msg: ToolMessage | None = None
+        self._pending: list = []  # widgets buffered before on_mount
+
+    def on_mount(self) -> None:
+        """Flush any widgets that were queued before the panel was attached."""
+        if self._pending:
+            for widget in self._pending:
+                self.mount(widget)
+            self._pending.clear()
+            self.scroll_end(animate=False)
+
+    def _safe_mount(self, widget) -> None:
+        """Mount a widget, or queue it if the panel is not yet attached."""
+        if self.is_attached:
+            self.mount(widget)
+        else:
+            self._pending.append(widget)
 
     def add_user_message(self, content: str) -> None:
         self.end_streaming()
         self.end_thinking()
-        self.mount(ChatMessage(content, role="user"))
+        self._safe_mount(ChatMessage(content, role="user"))
         self.scroll_end(animate=False)
 
     def add_assistant_message(self, content: str) -> None:
         self.end_streaming()
         self.end_thinking()
-        self.mount(ChatMessage(content, role="assistant"))
+        self._safe_mount(ChatMessage(content, role="assistant"))
         self.scroll_end(animate=False)
 
     def add_tool_message(self, tool_name: str, content: str) -> None:
         self.end_streaming()
         self.end_thinking()
-        self.mount(ChatMessage(f"{tool_name}: {content}", role="tool"))
+        self._safe_mount(ChatMessage(f"{tool_name}: {content}", role="tool"))
         self.scroll_end(animate=False)
 
     def add_tool_start(self, tool_name: str, args: dict | str) -> None:
         self.end_streaming()
         self.end_thinking()
         msg = ToolMessage(tool_name, args)
-        self.mount(msg)
+        self._safe_mount(msg)
         self._active_tool_msg = msg
         self.scroll_end(animate=False)
 
@@ -331,26 +347,26 @@ class ChatPanel(VerticalScroll):
     def add_thinking_message(self, content: str) -> None:
         self.end_streaming()
         self.end_thinking()
-        self.mount(ChatMessage(content, role="thinking"))
+        self._safe_mount(ChatMessage(content, role="thinking"))
         self.scroll_end(animate=False)
 
     def add_error_message(self, content: str) -> None:
         self.end_streaming()
         self.end_thinking()
-        self.mount(ChatMessage(content, role="error"))
+        self._safe_mount(ChatMessage(content, role="error"))
         self.scroll_end(animate=False)
 
     def add_system_message(self, content: str) -> None:
         self.end_streaming()
         self.end_thinking()
-        self.mount(ChatMessage(content, role="system"))
+        self._safe_mount(ChatMessage(content, role="system"))
         self.scroll_end(animate=False)
 
     def start_streaming(self) -> StreamingMessage:
         self.end_thinking()
         if not self._streaming_msg:
             self._streaming_msg = StreamingMessage(role="assistant")
-            self.mount(self._streaming_msg)
+            self._safe_mount(self._streaming_msg)
             self.scroll_end(animate=False)
         return self._streaming_msg
 
@@ -371,7 +387,7 @@ class ChatPanel(VerticalScroll):
         self.end_streaming()
         if not self._thinking_msg:
             self._thinking_msg = ThinkingSpinner()
-            self.mount(self._thinking_msg)
+            self._safe_mount(self._thinking_msg)
             self.scroll_end(animate=False)
 
     def append_to_thinking(self, text: str) -> None:

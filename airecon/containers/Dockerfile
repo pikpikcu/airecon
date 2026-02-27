@@ -170,10 +170,11 @@ RUN mkdir -p /home/pentester/.npm-global && \
     npm install -g jwt-cracker
 
 # ── Symlink pipx and npm binaries to /usr/local/bin ──
-# Ensures Ollama can discover all tools via default system PATH
+# pipx stores symlinks (not regular files) in .local/bin — must use -type l
+# npm may store either files or symlinks — cover both
 USER root
-RUN find /home/pentester/.local/bin -maxdepth 1 -type f -executable -exec ln -sf {} /usr/local/bin/ \; 2>/dev/null || true && \
-    find /home/pentester/.npm-global/bin -maxdepth 1 -type f -o -type l | xargs -I{} ln -sf {} /usr/local/bin/ 2>/dev/null || true
+RUN find /home/pentester/.local/bin -maxdepth 1 \( -type f -o -type l \) -exec ln -sf {} /usr/local/bin/ \; 2>/dev/null || true && \
+    find /home/pentester/.npm-global/bin -maxdepth 1 \( -type f -o -type l \) -exec ln -sf {} /usr/local/bin/ \; 2>/dev/null || true
 USER pentester
 
 # ── Additional tools from git ──
@@ -235,8 +236,27 @@ RUN apt-get autoremove -y 2>/dev/null; \
     apt-get autoclean 2>/dev/null; \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
+# ── User shell profile — sets full PATH for login shells (bash --login -c) ──
+# Uses printf to avoid heredoc which confuses some Dockerfile linters.
+USER pentester
+RUN printf '%s\n' \
+    '# AIRecon sandbox environment' \
+    'export GOPATH=/home/pentester/go' \
+    'export GOROOT=/usr/local/go' \
+    'export GEM_HOME=/home/pentester/.gem' \
+    'export NPM_CONFIG_PREFIX=/home/pentester/.npm-global' \
+    'export PIPX_HOME=/home/pentester/.local/pipx' \
+    'export PATH="/home/pentester/go/bin:/home/pentester/.local/bin:/home/pentester/.cargo/bin:/home/pentester/.npm-global/bin:/home/pentester/.gem/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"' \
+    'export LANG=C.UTF-8' \
+    'export TERM=xterm-256color' \
+    > /home/pentester/.bashrc && \
+    echo 'source ~/.bashrc' > /home/pentester/.bash_profile
+
 # ── Environment ──
-ENV PATH="/home/pentester/go/bin:/home/pentester/.local/bin:/home/pentester/.npm-global/bin:$PATH"
+ENV PATH="/home/pentester/go/bin:/home/pentester/.local/bin:/home/pentester/.cargo/bin:/home/pentester/.npm-global/bin:/home/pentester/.gem/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ENV GOPATH=/home/pentester/go
+ENV GOROOT=/usr/local/go
+ENV GEM_HOME=/home/pentester/.gem
 ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 

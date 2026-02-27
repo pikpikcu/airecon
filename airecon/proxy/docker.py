@@ -190,33 +190,48 @@ class DockerEngine:
 
         timeout = timeout or self.cfg.command_timeout
 
-        # Full PATH covering all tool installation locations in the container:
-        # - Go tools:   /home/pentester/go/bin  (httpx, katana, subfinder, dnsx, etc.)
-        # - pipx tools: /home/pentester/.local/bin  (arjun, dirsearch, wafw00f, ghauri, etc.)
-        # - npm tools:  /home/pentester/.npm-global/bin  (retire, eslint, jwt-cracker, etc.)
-        # - system:     /usr/local/bin, /usr/bin, /bin, /usr/sbin, /sbin
-        # - kali tools: /usr/share/seclists, exploitdb etc. are files not bins, but
-        #                searchsploit is at /usr/bin/searchsploit
+        # Full PATH covering all tool installation locations in the container.
+        # Order matters: user-installed tools take priority over system tools.
+        # - Go tools:    /home/pentester/go/bin  (httpx, katana, subfinder, dnsx, etc.)
+        # - pipx tools:  /home/pentester/.local/bin  (arjun, dirsearch, wafw00f, semgrep, etc.)
+        # - Rust tools:  /home/pentester/.cargo/bin  (if any cargo installs were done)
+        # - npm tools:   /home/pentester/.npm-global/bin  (retire, eslint, jwt-cracker, etc.)
+        # - Ruby gems:   /home/pentester/.gem/bin  (user-level gem installs)
+        # - system:      /usr/local/bin  (symlinks from Dockerfile for all user tools)
+        #                /usr/local/sbin, /usr/sbin, /usr/bin, /sbin, /bin
         CONTAINER_PATH = (
             "/home/pentester/go/bin"
             ":/home/pentester/.local/bin"
+            ":/home/pentester/.cargo/bin"
             ":/home/pentester/.npm-global/bin"
+            ":/home/pentester/.gem/bin"
             ":/usr/local/sbin:/usr/local/bin"
             ":/usr/sbin:/usr/bin:/sbin:/bin"
         )
 
+        # Wrap in a login shell so /etc/profile and ~/.bash_profile are sourced.
+        # This ensures user-level tool installs (pipx, go, npm, cargo) are
+        # discoverable even for tools that check $PATH themselves (e.g. via `which`).
+        # bash -l = login shell  →  reads /etc/profile → /etc/profile.d/*.sh → ~/.bash_profile
+        # The explicit PATH env var above acts as a reliable fallback.
         cmd = [
             "docker", "exec",
             "-u", "pentester",
-            "-w", "/",
+            "-w", "/workspace",
             "-i",
             "-e", f"PATH={CONTAINER_PATH}",
             "-e", "GOPATH=/home/pentester/go",
+            "-e", "GOROOT=/usr/local/go",
             "-e", "HOME=/home/pentester",
+            "-e", "USER=pentester",
+            "-e", "SHELL=/bin/bash",
+            "-e", "LANG=C.UTF-8",
+            "-e", "TERM=xterm-256color",
             "-e", "PIPX_HOME=/home/pentester/.local/pipx",
             "-e", "NPM_CONFIG_PREFIX=/home/pentester/.npm-global",
+            "-e", "GEM_HOME=/home/pentester/.gem",
             self._container_name,
-            "bash", "-c", command,
+            "bash", "--login", "-c", command,
         ]
 
 
