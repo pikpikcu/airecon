@@ -1,0 +1,34 @@
+[tool.poetry]
+name = "airecon"
+version = "0.1.4"
+description = "AI-powered security reconnaissance: Ollama + Kali Linux Docker sandbox + Textual TUI"
+authors = ["pikpikcu"]
+readme = "README.md"
+packages = [{include = "airecon"}]
+include = ["airecon/proxy/skills/**/*.md", "airecon/containers/**/*"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+textual = "^8.0.0"
+httpx = "^0.28.1"
+fastapi = "^0.133.1"
+uvicorn = {extras = ["standard"], version = "^0.41.0"}
+sse-starlette = "^3.2.0"
+rich = "^14.3.0"
+pydantic = "^2.12.5"
+playwright = "^1.58.0"
+ollama = "^0.6.1"
+cvss = "^3.6"
+duckduckgo-search = "^8.1.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+pytest-asyncio = "^0.23.0"
+textual-dev = "^1.7.0"
+
+[tool.poetry.scripts]
+airecon = "airecon.__main__:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

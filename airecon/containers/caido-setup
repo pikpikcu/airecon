@@ -1,0 +1,102 @@
+#!/bin/bash
+set -e
+
+CAIDO_PORT=48080
+CAIDO_LOG="/tmp/caido_startup.log"
+PID_FILE="/tmp/airecon_caido.pid"
+
+if kill -0 $(cat "$PID_FILE" 2>/dev/null) 2>/dev/null; then
+    echo "✅ Caido is already running."
+    exit 0
+fi
+
+if [ ! -f /home/pentester/certs/ca.p12 ]; then
+  echo "❌ ERROR: CA certificate file /home/pentester/certs/ca.p12 not found."
+  exit 1
+fi
+
+echo "[Caido] Starting Web Proxy on port ${CAIDO_PORT}..."
+sudo -u pentester caido-cli --listen 0.0.0.0:${CAIDO_PORT} \
+          --allow-guests \
+          --no-logging \
+          --import-ca-cert /home/pentester/certs/ca.p12 \
+          --import-ca-cert-pass "" \
+          --no-open > "$CAIDO_LOG" 2>&1 &
+
+CAIDO_PID=$!
+echo $CAIDO_PID > "$PID_FILE"
+
+echo "[Caido] Waiting for GraphQL API to become responsive..."
+CAIDO_READY=false
+for i in {1..15}; do
+  if ! kill -0 $CAIDO_PID 2>/dev/null; then
+    echo "❌ Caido process died unexpectedly."
+    cat "$CAIDO_LOG"
+    exit 1
+  fi
+
+  if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:${CAIDO_PORT}/graphql/ | grep -qE "^(200|400)$"; then
+    CAIDO_READY=true
+    break
+  fi
+  sleep 1
+done
+
+if [ "$CAIDO_READY" = false ]; then
+  echo "❌ Caido API timeout."
+  exit 1
+fi
+
+echo "[Caido] Authenticating as Guest..."
+TOKEN=""
+for attempt in 1 2 3; do
+  RESPONSE=$(curl -sL -X POST \
+    -H "Content-Type: application/json" \
+    -d '{"query":"mutation LoginAsGuest { loginAsGuest { token { accessToken } } }"}' \
+    http://127.0.0.1:${CAIDO_PORT}/graphql)
+
+  TOKEN=$(echo "$RESPONSE" | jq -r '.data.loginAsGuest.token.accessToken // empty')
+  
+  if [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ]; then
+    break
+  fi
+  sleep 2
+done
+
+if [ -z "$TOKEN" ] || [ "$TOKEN" == "null" ]; then
+  echo "❌ Failed to fetch API Guest token."
+  exit 1
+fi
+
+echo "[Caido] Creating project 'airecon_sandbox'..."
+CREATE_PROJECT_RESPONSE=$(curl -sL -X POST \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"query":"mutation CreateProject { createProject(input: {name: \"airecon_sandbox\", temporary: true}) { project { id } } }"}' \
+  http://127.0.0.1:${CAIDO_PORT}/graphql)
+
+PROJECT_ID=$(echo $CREATE_PROJECT_RESPONSE | jq -r '.data.createProject.project.id')
+
+if [ -z "$PROJECT_ID" ] || [ "$PROJECT_ID" == "null" ]; then
+  echo "❌ Failed to create sandbox project."
+  exit 1
+fi
+
+echo "[Caido] Selecting project..."
+curl -sL -o /dev/null -X POST \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"query":"mutation SelectProject { selectProject(id: \"'$PROJECT_ID'\") { currentProject { project { id } } } }"}' \
+  http://127.0.0.1:${CAIDO_PORT}/graphql
+
+echo "[Caido] Injecting CA into local Chrome Browser Trust Store..."
+sudo -u pentester mkdir -p /home/pentester/.pki/nssdb
+sudo -u pentester certutil -N -d sql:/home/pentester/.pki/nssdb --empty-password
+sudo -u pentester certutil -A -n "Testing Root CA" -t "C,," -i /home/pentester/certs/ca.crt -d sql:/home/pentester/.pki/nssdb
+
+echo ""
+echo "---------------------------------------------------------"
+echo "✅ Caido Web Proxy successfully booted!"
+echo "📡 Management UI: http://127.0.0.1:${CAIDO_PORT}"
+echo "🔑 Access Token: $TOKEN"
+echo "---------------------------------------------------------"

@@ -1,0 +1,11 @@
+textual>=8.0.0
+httpx>=0.28.1
+fastapi>=0.133.1
+uvicorn[standard]>=0.41.0
+sse-starlette>=3.2.0
+rich>=14.3.3
+pydantic>=2.12.5
+playwright>=1.58.0
+ollama>=0.6.1
+cvss>=3.6
+duckduckgo-search>=8.1.1

@@ -1,0 +1,515 @@
+/* ═══════════════════════════════════════════════════════════════════
+   AIRecon TUI — Claude Code CLI Style
+   Color Palette:
+     Base:    #0a0e17 (deep navy), #0d1117 (panel), #161b22 (surface)
+     Border:  #21262d (subtle), #30363d (medium)
+     Text:    #c9d1d9 (primary), #8b949e (secondary), #484f58 (muted)
+     Accent:  #00d4aa (teal), #58a6ff (blue), #3b82f6 (link)
+     Warn:    #f59e0b (amber), #ef4444 (red), #f97316 (orange)
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Global ── */
+Screen {
+    background: #0a0e17;
+    color: #c9d1d9;
+    padding: 0;
+    margin: 0;
+}
+
+/* ── Header ── */
+Header {
+    background: #0d1117;
+    color: #00d4aa;
+    text-style: bold;
+    border-bottom: solid #21262d;
+    height: 3;
+    dock: top;
+}
+
+/* ── Footer ── */
+Footer {
+    background: #0d1117;
+    color: #8b949e;
+    border-top: solid #21262d;
+    dock: bottom;
+}
+
+/* ── Main Chat Area ── */
+#chat-area {
+    height: 100%;
+    background: transparent;
+    border: round #21262d;
+    margin: 0;
+    padding: 0;
+}
+
+#chat-area:focus-within {
+    border: round #00d4aa;
+}
+
+/* ── Chat Panel ── */
+ChatPanel {
+    height: 1fr;
+    background: #0a0e17;
+    padding: 0 1;
+    border: none;
+    margin: 0;
+    scrollbar-color: #00d4aa;
+    scrollbar-color-hover: #2dd4bf;
+    scrollbar-color-active: #5eead4;
+}
+
+/* ── Command Input ── */
+CommandInput {
+    background: #0d1117;
+    border: none;
+    border-top: solid #21262d;
+    height: 3;
+    padding: 0 1;
+    dock: bottom;
+    margin: 0;
+    color: #c9d1d9;
+}
+
+CommandInput:focus {
+    border-top: solid #00d4aa;
+    background: #161b22;
+}
+
+CommandInput > .text-area--cursor {
+    background: #00d4aa;
+    color: #0a0e17;
+}
+
+CommandInput > .text-area--selection {
+    background: #1a3a4a;
+    color: #c9d1d9;
+}
+
+/* ═══════════════════════════════════════════
+   Chat Messages (Claude Code CLI Style)
+   ═══════════════════════════════════════════ */
+
+ChatMessage {
+    margin: 0 0;
+    padding: 0 1;
+    width: 100%;
+    height: auto;
+    background: transparent;
+}
+
+/* ── Role Labels ── */
+.role-label {
+    text-style: bold;
+    margin: 1 0 0 0;
+    height: 1;
+}
+
+.role-label-user { color: #00d4aa; }
+.role-label-assistant { color: #58a6ff; }
+.role-label-tool { color: #8b949e; }
+.role-label-thinking { color: #f59e0b; }
+.role-label-error { color: #ef4444; }
+.role-label-system { color: #484f58; }
+
+/* ── Message Body ── */
+.msg-body {
+    color: #c9d1d9;
+    margin: 0 0 0 2;
+    padding: 0;
+    height: auto;
+}
+
+/* User Messages */
+.user-message {
+    background: transparent;
+}
+.user-message .msg-body {
+    color: #e6edf3;
+}
+
+/* Assistant Messages */
+.assistant-message {
+    background: transparent;
+}
+.assistant-message .msg-body {
+    color: #c9d1d9;
+}
+
+/* Thinking Messages */
+.thinking-message {
+    background: transparent;
+}
+.thinking-message .msg-body {
+    color: #f59e0b;
+    text-style: italic;
+}
+
+/* Error Messages */
+.error-message {
+    background: transparent;
+}
+.error-message .msg-body {
+    color: #fca5a5;
+}
+
+/* System Messages */
+.system-message {
+    background: transparent;
+}
+.system-message .role-label {
+    text-align: center;
+    width: 100%;
+}
+.system-message .msg-body {
+    color: #484f58;
+    text-align: center;
+    text-style: italic;
+}
+
+/* ═══════════════════════════════════════════
+   Tool Execution Cards
+   ═══════════════════════════════════════════ */
+
+ToolMessage {
+    margin: 1 1;
+    padding: 1 2;
+    background: #161b22;
+    border: round #21262d;
+    height: auto;
+}
+
+ToolMessage:hover {
+    background: #1c2333;
+    border: round #30363d;
+}
+
+/* State borders */
+ToolMessage.running {
+    border: round #f59e0b;
+    background: #161b22;
+}
+ToolMessage.done {
+    border: none;
+    background: transparent;
+    padding: 0 1;
+    margin: 0 1;
+}
+ToolMessage.error {
+    border: round #ef4444;
+    background: #1a0d0d;
+    padding: 1 2;
+    margin: 1 1;
+}
+
+.tool-summary {
+    height: 1;
+    margin: 0;
+    padding: 0;
+}
+
+.tool-header {
+    height: auto;
+    margin: 0;
+    padding: 0;
+}
+
+ToolMessage LoadingIndicator {
+    height: 1;
+    margin: 0 1;
+    color: #f59e0b;
+}
+
+.tool-output {
+    color: #8b949e;
+    margin: 1 0 0 2;
+    padding: 0;
+    height: auto;
+}
+
+.tool-footer {
+    height: 1;
+    margin: 1 0 0 0;
+    padding: 0;
+}
+
+/* ═══════════════════════════════════════════
+   Streaming Messages
+   ═══════════════════════════════════════════ */
+
+StreamingMessage {
+    margin: 0 0;
+    padding: 0 1;
+    width: 100%;
+    background: transparent;
+    color: #c9d1d9;
+}
+
+StreamingMessage.thinking {
+    background: transparent;
+    color: #f59e0b;
+    text-style: italic;
+}
+
+StreamingMessage .role-label {
+    text-style: bold;
+    margin: 1 0 0 0;
+    height: 1;
+}
+
+StreamingMessage .streaming-content {
+    margin: 0 0 0 2;
+    height: auto;
+}
+
+StreamingMessage .streaming-indicator {
+    color: #00d4aa;
+    margin-left: 2;
+}
+
+/* ═══════════════════════════════════════════
+   Thinking Spinner (hidden thinking)
+   ═══════════════════════════════════════════ */
+
+ThinkingSpinner {
+    height: 1;
+    width: auto;
+    margin: 1 1;
+    padding: 0 1;
+    background: transparent;
+    align: left middle;
+}
+
+#thinking-spinner {
+    width: 4;
+    height: 1;
+    color: #00d4aa;
+}
+
+.thinking-label {
+    color: #8b949e;
+    text-style: italic;
+    width: auto;
+    height: 1;
+}
+
+/* ═══════════════════════════════════════════
+   Workspace Panel (Right Sidebar)
+   ═══════════════════════════════════════════ */
+
+#workspace-panel {
+    background: #0d1117;
+    border-left: solid #21262d;
+    width: 30%;
+    min-width: 45;
+    max-width: 50%;
+    height: 100%;
+    dock: right;
+    margin: 0;
+    padding: 0;
+}
+
+#workspace-section {
+    height: 3fr;
+    width: 100%;
+    border-bottom: solid #21262d;
+}
+
+#vuln-section {
+    height: 2fr;
+    width: 100%;
+}
+
+/* Section Headers */
+#workspace-header {
+    height: 1;
+    background: #161b22;
+    color: #00d4aa;
+    text-style: bold;
+    text-align: center;
+    border-bottom: solid #21262d;
+    padding-left: 1;
+}
+
+#vuln-header {
+    height: 1;
+    background: #161b22;
+    color: #f97316;
+    text-style: bold;
+    text-align: center;
+    border-bottom: solid #21262d;
+    padding-left: 1;
+}
+
+/* Trees */
+DirectoryTree {
+    background: transparent;
+    color: #8b949e;
+}
+DirectoryTree:focus {
+    background: transparent;
+    border: none;
+}
+DirectoryTree > .tree--cursor {
+    background: #161b22;
+    color: #c9d1d9;
+    text-style: bold;
+}
+DirectoryTree > .tree--highlight {
+    background: #1c2333;
+}
+
+/* Vulnerability Placeholder */
+#vuln-placeholder {
+    height: 1fr;
+    color: #484f58;
+    background: transparent;
+    text-align: center;
+    content-align: center middle;
+    text-style: italic;
+}
+
+/* ═══════════════════════════════════════════
+   Scrollbars
+   ═══════════════════════════════════════════ */
+
+ScrollBar {
+    background: #0d1117;
+    width: 1;
+}
+ScrollBar > .scrollbar--thumb {
+    background: #30363d;
+}
+ScrollBar > .scrollbar--thumb:hover {
+    background: #484f58;
+}
+
+/* ═══════════════════════════════════════════
+   Status Bar
+   ═══════════════════════════════════════════ */
+
+StatusBar {
+    dock: bottom;
+    background: #0d1117;
+    color: #8b949e;
+    height: 1;
+    border-top: solid #21262d;
+}
+
+StatusBar Label {
+    width: 1fr;
+    padding: 0 1;
+    content-align: left middle;
+}
+
+StatusBar LoadingIndicator {
+    width: 14;
+    height: 1;
+    color: #f59e0b;
+    display: none;
+    content-align: right middle;
+}
+
+StatusBar.thinking LoadingIndicator {
+    display: block;
+}
+
+/* ═══════════════════════════════════════════
+   File Preview Modal
+   ═══════════════════════════════════════════ */
+
+FilePreviewScreen {
+    align: center middle;
+    background: rgba(10, 14, 23, 0.92);
+}
+
+#preview-dialog {
+    width: 90%;
+    height: 90%;
+    background: #0d1117;
+    border: round #21262d;
+    padding: 0;
+    layout: vertical;
+}
+
+#preview-header {
+    dock: top;
+    height: 3;
+    background: #161b22;
+    color: #00d4aa;
+    text-style: bold;
+    content-align: center middle;
+    border-bottom: solid #21262d;
+}
+
+#preview-area {
+    height: 1fr;
+    background: #0a0e17;
+    border: none;
+    margin: 0;
+}
+
+#preview-content {
+    width: 100%;
+    height: auto;
+    padding: 1 2;
+    color: #c9d1d9;
+}
+
+#preview-footer {
+    dock: bottom;
+    height: auto;
+    padding: 1;
+    background: #0d1117;
+    border-top: solid #21262d;
+}
+
+#prompt-input {
+    width: 1fr;
+    margin-right: 1;
+    background: #161b22;
+    border: solid #30363d;
+    height: 3;
+    color: #c9d1d9;
+}
+
+#prompt-input:focus {
+    border: solid #00d4aa;
+}
+
+#action-bar {
+    height: 3;
+    align: right middle;
+    margin-top: 1;
+}
+
+/* Buttons */
+FilePreviewScreen Button {
+    margin-left: 1;
+    background: #21262d;
+    color: #c9d1d9;
+    border: none;
+}
+
+FilePreviewScreen Button:hover {
+    background: #30363d;
+}
+
+FilePreviewScreen .btn-run {
+    background: #00d4aa;
+    color: #0a0e17;
+    text-style: bold;
+}
+
+FilePreviewScreen .btn-run:hover {
+    background: #2dd4bf;
+}
+
+FilePreviewScreen .btn-close {
+    background: #ef4444;
+    color: #ffffff;
+}
+
+FilePreviewScreen .btn-close:hover {
+    background: #f87171;
+}
