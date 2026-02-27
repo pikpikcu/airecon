@@ -203,10 +203,14 @@ RUN git clone https://github.com/aravind0x7/JS-Snooper.git 2>/dev/null || true &
     git clone https://github.com/PortSwigger/param-miner.git 2>/dev/null || true
 
 # ── Symlink git tools to /usr/local/bin ──
+# Rules:
+#   1. Only symlink files that have a shebang (#!/) — skip utility modules like nmap.py
+#   2. Never overwrite an existing file in /usr/local/bin (real system/go/pipx binaries take priority)
 USER root
 RUN find /home/pentester/tools -type f \( -name "*.sh" -o -name "*.py" \) -exec chmod +x {} \; 2>/dev/null || true && \
-    find /home/pentester/tools -type f -name "*.sh" -exec sh -c 'ln -sf "$1" "/usr/local/bin/$(basename ${1%.*})"' _ {} \; 2>/dev/null || true && \
-    find /home/pentester/tools -type f -name "*.py" -exec sh -c 'ln -sf "$1" "/usr/local/bin/$(basename ${1%.*})"' _ {} \; 2>/dev/null || true
+    find /home/pentester/tools -type f \( -name "*.sh" -o -name "*.py" \) -exec sh -c \
+        'head -1 "$1" | grep -q "^#!" && name=$(basename "${1%.*}") && [ ! -e "/usr/local/bin/$name" ] && ln -sf "$1" "/usr/local/bin/$name"' \
+        _ {} \; 2>/dev/null || true
 USER pentester
 
 # ── Trivy, Trufflehog & git-secrets ──
