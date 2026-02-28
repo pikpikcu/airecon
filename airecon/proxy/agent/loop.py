@@ -388,19 +388,23 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin, _WorkspaceMixin, _ExecutorMixi
                 sequential_tasks: list[tuple[int, dict]] = []
 
                 for idx, tc in enumerate(tool_calls_acc):
-                    name = tc["function"]["name"]
-                    if name in _SEQUENTIAL_TOOLS or not self.engine.has_tool(name):
-                        sequential_tasks.append((idx, tc))
+                    tn = tc["function"]["name"]
+                    args = self._normalize_tool_args(tn, tc["function"]["arguments"], user_message)
+                    # Yield tool start FIRST so UI spinner shows immediately
+                    yield AgentEvent(type="tool_start", data={"tool_id": str(idx), "tool": tn, "arguments": args})
+                    
+                    if tn in _SEQUENTIAL_TOOLS or not self.engine.has_tool(tn):
+                        sequential_tasks.append((idx, tc, args))
                     else:
-                        parallel_tasks.append((idx, tc))
+                        parallel_tasks.append((idx, tc, args))
 
                 # Execute parallel tasks concurrently if there are multiple
                 all_results: dict[int, tuple] = {}  # idx -> (tc, tool_name, arguments, valid, ...)
 
                 if len(parallel_tasks) > 1:
-                    async def _run_parallel(idx: int, tc: dict) -> tuple:
+                    async def _run_parallel(idx: int, tc: dict, args_ready: dict) -> tuple:
                         tn = tc["function"]["name"]
-                        args = self._normalize_tool_args(tn, tc["function"]["arguments"], user_message)
+                        args = args_ready
                         valid, arg_err = self._validate_tool_args(tn, args)
                         if not valid:
                             return (idx, tc, tn, args, False, 0.0, {"success": False, "error": arg_err}, None, False)
@@ -412,7 +416,7 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin, _WorkspaceMixin, _ExecutorMixi
                         self.state.missing_tool_count = 0
                         return (idx, tc, tn, args, True, d, r, o, s)
 
-                    coros = [_run_parallel(i, t) for i, t in parallel_tasks]
+                    coros = [_run_parallel(i, t, a) for i, t, a in parallel_tasks]
                     results = await asyncio.gather(*coros, return_exceptions=True)
                     for res in results:
                         if isinstance(res, Exception):
@@ -425,9 +429,8 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin, _WorkspaceMixin, _ExecutorMixi
                     sequential_tasks.sort(key=lambda x: x[0])
 
                 # Execute sequential tasks one by one
-                for idx, tc in sequential_tasks:
+                for idx, tc, args in sequential_tasks:
                     tn = tc["function"]["name"]
-                    args = self._normalize_tool_args(tn, tc["function"]["arguments"], user_message)
                     valid, arg_err = self._validate_tool_args(tn, args)
                     if not valid:
                         all_results[idx] = (idx, tc, tn, args, False, 0.0, {"success": False, "error": arg_err}, None, False)
@@ -481,11 +484,10 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin, _WorkspaceMixin, _ExecutorMixi
                     _, tc, tool_name, arguments, was_valid, duration, result, output_file, success = res
 
                     if not was_valid:
-                        yield AgentEvent(type="tool_start", data={"tool": tool_name, "arguments": arguments})
                         arg_error = result.get("error", "Unknown validation error")
                         yield AgentEvent(
                             type="tool_end",
-                            data={"tool": tool_name, "success": False, "duration": 0.0,
+                            data={"tool_id": str(idx), "tool": tool_name, "success": False, "duration": 0.0,
                                   "result_preview": f"VALIDATION ERROR: {arg_error}",
                                   "output_file": None, "tool_counts": self.state.tool_counts},
                         )
@@ -497,11 +499,10 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin, _WorkspaceMixin, _ExecutorMixi
                         )
                         continue
 
-                    yield AgentEvent(type="tool_start", data={"tool": tool_name, "arguments": arguments})
-
                     yield AgentEvent(
                         type="tool_end",
                         data={
+                            "tool_id": str(idx),
                             "tool": tool_name,
                             "success": success,
                             "duration": round(duration, 2),

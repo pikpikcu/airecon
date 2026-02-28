@@ -576,18 +576,17 @@ class AIReconApp(App):
                                 self._last_scroll_time = _now
 
                     elif event_type == "tool_start":
+                        tool_id = str(event.get("tool_id", "0"))
                         tool_name = event.get("tool", "unknown")
                         arguments = event.get("arguments", {})
                         logger.info(f"Tool Start: {tool_name} args={arguments}")
-                        # Explicitly close any open streaming/thinking bubble first
-                        # so the green spinner dot doesn't keep spinning while tool runs
                         chat.end_streaming()
                         chat.end_thinking()
                         streaming_started = False
-                        chat.add_tool_start(tool_name, arguments)
-                        chat.scroll_end(animate=False)
+                        chat.add_tool_start(tool_id, tool_name, arguments)
 
                     elif event_type == "tool_end":
+                        tool_id = str(event.get("tool_id", "0"))
                         success = event.get("success", False)
                         duration = event.get("duration", 0.0)
                         output_file = event.get("output_file", "")
@@ -596,10 +595,10 @@ class AIReconApp(App):
                         
                         logger.info(f"Tool End: success={success} duration={duration}")
 
-                        # CRITICAL: Capture the specific ToolMessage reference NOW,
-                        # before the next tool_start overwrites _active_tool_msg.
-                        captured_tool_msg = chat._active_tool_msg
-                        chat._active_tool_msg = None  # Release immediately
+                        # Retrieve specific ToolMessage reference by ID
+                        if not hasattr(chat, "_active_tools"):
+                            chat._active_tools = {}
+                        captured_tool_msg = chat._active_tools.pop(tool_id, None)
 
                         # Schedule UI updates safely on the main thread
                         def update_ui_on_tool_end(
@@ -607,7 +606,7 @@ class AIReconApp(App):
                             _s=success, _d=duration, _r=result_preview, _o=output_file,
                             _tc=tool_counts,
                         ):
-                            # 1. Update the specific tool card (not _active_tool_msg)
+                            # 1. Update the specific tool card
                             if _msg:
                                 _msg.update_result(_s, _d, _r, _o)
                             chat.scroll_end(animate=False)

@@ -330,18 +330,22 @@ class ChatPanel(VerticalScroll):
         self._safe_mount(ChatMessage(f"{tool_name}: {content}", role="tool"))
         self.scroll_end(animate=False)
 
-    def add_tool_start(self, tool_name: str, args: dict | str) -> None:
+    def add_tool_start(self, tool_id: str, tool_name: str, args: dict | str) -> None:
         self.end_streaming()
         self.end_thinking()
         msg = ToolMessage(tool_name, args)
         self._safe_mount(msg)
-        self._active_tool_msg = msg
+        if not hasattr(self, "_active_tools"):
+            self._active_tools = {}
+        self._active_tools[tool_id] = msg
         self.scroll_end(animate=False)
 
-    def update_tool_end(self, success: bool, duration: float, output: str, output_file: str = "") -> None:
-        if self._active_tool_msg:
-            self._active_tool_msg.update_result(success, duration, output, output_file)
-            self._active_tool_msg = None
+    def update_tool_end(self, tool_id: str, success: bool, duration: float, output: str, output_file: str = "") -> None:
+        if not hasattr(self, "_active_tools"):
+            self._active_tools = {}
+        msg = self._active_tools.pop(tool_id, None)
+        if msg:
+            msg.update_result(success, duration, output, output_file)
             self.scroll_end(animate=False)
 
     def add_thinking_message(self, content: str) -> None:
