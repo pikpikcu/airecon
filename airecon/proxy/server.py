@@ -73,7 +73,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="AIRecon Proxy",
-    version="0.1.0",
+    version="0.1.4",
     description="Ollama + Docker Sandbox Bridge",
     lifespan=lifespan,
 )

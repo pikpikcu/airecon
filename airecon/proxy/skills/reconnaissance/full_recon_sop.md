@@ -49,33 +49,71 @@ ADVANCED EXECUTION:
 
 ---
 
-## Nuclei Hard Gate (NON-NEGOTIABLE)
+## Definitions (NON-NEGOTIABLE — Read Before Starting)
 
-nuclei is FORBIDDEN as a first step. You may ONLY run nuclei AFTER:
-    1. Phase 1 complete: at least 2 discovery tools ran and produced subdomain/IP lists.
-    2. Phase 2 complete: at least 2 enumeration tools ran (port scan + tech fingerprint).
-    3. At least ONE manual probe (curl, httpx, or browser_action) confirmed live targets.
+### "Live Host" Definition
+A host is LIVE if httpx returns ANY of these HTTP status codes: 200, 201, 204, 301, 302, 307, 400, 401, 403, 404, 405, 429, 500, 503.
+A host is DEAD only if: connection refused, connection timeout, DNS NXDOMAIN.
+    Concrete check: httpx -l output/resolved.txt -status-code -o output/live_hosts.txt
+    A "live host" = any line in live_hosts.txt that contains an HTTP status code.
+    DO NOT skip 401/403 targets — they are often the most interesting.
 
-Violating this rule is a critical failure. nuclei is a validation tool, NOT a discovery tool.
+### "Phase Complete" Criteria
+Phase N is complete when ALL of the following are TRUE:
+    ✓ Minimum number of DISTINCT tools have been run (see each phase)
+    ✓ Each tool produced at least one output file in output/
+    ✓ All output files have been verified non-empty: wc -l output/<file>
+    ✗ FAIL: Running a tool that crashes or produces empty output does NOT count as complete
+    ✗ FAIL: Running the same tool twice with different flags counts as 1 tool, not 2
+
+### "Distinct Tool" Definition
+A "distinct tool" is counted by the BINARY NAME, not the flags:
+    ✓ subfinder + amass = 2 distinct tools
+    ✗ subfinder -d target1 + subfinder -d target2 = 1 tool (same binary)
+    ✗ nmap -sV + nmap -sC = 1 tool (same binary)
+
+---
+
+## Nuclei Hard Gate (ENFORCED BY SYSTEM — CANNOT BE BYPASSED)
+
+nuclei is FORBIDDEN as a first step. The system will BLOCK nuclei unless ALL conditions are met:
+    1. Phase 1 complete: at least 2 discovery tools ran AND produced output files with content.
+       Verify: wc -l output/subdomains_subfinder.txt output/resolved.txt
+    2. Phase 2 complete: at least 2 enumeration tools ran AND produced output files with content.
+       Verify: wc -l output/nmap_scan.gnmap output/live_hosts.txt
+    3. Live probe: at least ONE manual probe confirmed live hosts.
+       Verify: curl -I --max-time 5 <first_live_host_from_httpx> OR httpx returning non-empty live_hosts.txt
+
+If the system blocks nuclei, run the missing Phase tools first, then retry.
 
 MINIMUM TOOL DIVERSITY MANDATE: Each phase MUST use the minimum number of distinct tools listed.
-You may NOT proceed to the next phase until the current phase minimum is met.
+You may NOT proceed to the next phase until: (a) minimum tools run AND (b) output files are non-empty.
 
 ---
 
 ## Phase 1 — Discovery & Scope (minimum 3 distinct tools)
 
+COMPLETE CRITERIA: output/resolved.txt exists AND wc -l output/resolved.txt shows > 0 lines.
+
     subfinder -d <target> -o output/subdomains_subfinder.txt
     amass enum -passive -d <target> -o output/subdomains_amass.txt
-      OR  assetfinder --subs-only <target>
+      OR  assetfinder --subs-only <target> | tee output/subdomains_assetfinder.txt
     gau <target> | grep -oP '^https?://[^/]+' | sort -u | tee output/hosts_gau.txt
     cat output/subdomains_*.txt | sort -u | dnsx -silent -o output/resolved.txt
     httpx -l output/resolved.txt -title -tech-detect -status-code -o output/live_hosts.txt
-    RECURSIVE ANALYSIS: Treat EACH live subdomain as a new target. Do not just scan example.com.
+
+POST-PHASE CHECK (MANDATORY):
+    wc -l output/resolved.txt output/live_hosts.txt
+    If both files have >0 lines → Phase 1 COMPLETE.
+    If any file is empty → re-run the corresponding tool with different flags or wordlist.
+
+RECURSIVE ANALYSIS: Treat EACH live subdomain as a new target. Do not just scan example.com.
 
 ---
 
 ## Phase 2 — Enumeration (minimum 3 distinct tools)
+
+COMPLETE CRITERIA: At least 2 of (nmap_scan.gnmap, live_hosts.txt with tech, urls_katana.txt) exist AND are non-empty.
 
     sudo nmap -sV -sC --open -iL output/resolved.txt -oA output/nmap_scan
       OR  naabu -l output/resolved.txt -o output/ports.txt
@@ -85,6 +123,13 @@ You may NOT proceed to the next phase until the current phase minimum is met.
     waybackurls < output/resolved.txt | tee output/wayback.txt
     tlsx -l output/resolved.txt -o output/tls.txt
     cut-cdn -l output/resolved.txt -o output/no_cdn.txt
+
+POST-PHASE CHECK (MANDATORY):
+    wc -l output/urls_katana.txt output/wayback.txt
+    ls -la output/nmap_scan.gnmap 2>/dev/null || ls -la output/ports.txt 2>/dev/null
+    If at least 2 distinct enumeration tool outputs are non-empty → Phase 2 COMPLETE.
+    THEN run live probe: curl -sI --max-time 10 $(head -1 output/live_hosts.txt | awk '{print $1}')
+    Confirm HTTP response is received (any status code) → Live probe COMPLETE.
 
 ---
 
