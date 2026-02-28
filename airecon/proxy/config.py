@@ -38,7 +38,7 @@ DEFAULT_CONFIG = {
     "ollama_model": "qwen3.5:122b",
     "ollama_timeout": 1900.0,
     "ollama_num_ctx": 131072,
-    "ollama_temperature": 0.6,
+    "ollama_temperature": 0.2,
     "ollama_num_predict": 16384,
     "ollama_enable_thinking": True,
     "proxy_host": "127.0.0.1",
