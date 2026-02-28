@@ -43,6 +43,7 @@ RUN apt-get update && \
     dnsrecon dnsenum whois nikto wpscan whatweb \
     joomscan hydra medusa hashcat john exploitdb \
     wafw00f zaproxy sublist3r massdns seclists \
+    assetfinder findomain \
     # Utilities
     jq parallel ripgrep grep less procps \
     libcap2-bin tmux \
@@ -97,7 +98,6 @@ RUN go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest && \
     go install -v github.com/jaeles-project/gospider@latest && \
     go install -v github.com/tomnomnom/gau@latest && \
     go install -v github.com/tomnomnom/waybackurls@latest && \
-    go install -v github.com/tomnomnom/assetfinder@latest && \
     go install -v github.com/tomnomnom/httprobe@latest && \
     go install -v github.com/tomnomnom/meg@latest && \
     go install -v github.com/tomnomnom/gf@latest && \
@@ -114,7 +114,17 @@ RUN go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest && \
     go install -v github.com/xhzeem/toxicache@latest && \
     go install -v github.com/zricethezav/gitleaks/v8@latest && \
     go install -v github.com/ImAyrix/cut-cdn@latest && \
-    go install -v github.com/ffuf/ffuf@latest
+    go install -v github.com/ffuf/ffuf@latest && \
+    go install -v github.com/tomnomnom/qsreplace@latest && \
+    go install -v github.com/lc/subjs@latest && \
+    go install -v github.com/projectdiscovery/urlfinder/cmd/urlfinder@latest && \
+    go install -v github.com/dwisiswant0/crlfuzz/cmd/crlfuzz@latest && \
+    go install -v github.com/wdahlenburg/VhostFinder@latest && \
+    go install -v github.com/intigriti/misconfig-mapper/cmd/misconfig-mapper@latest && \
+    go install -v github.com/trickest/dsieve@master && \
+    go install -v github.com/praetorian-inc/fingerprintx/cmd/fingerprintx@latest && \
+    go install -v github.com/pwnesia/dnstake/cmd/dnstake@latest && \
+    go install -v github.com/hakluke/hakoriginfinder@latest
 
 # ── Copy Go binaries to /usr/local/bin so they are always in default PATH ──
 # Ollama subprocess calls (which/command -v) don't always inherit custom PATH
@@ -166,7 +176,13 @@ RUN pipx install arjun && \
     pipx install pacu && \
     pipx install scoutsuite && \
     pipx install git+https://github.com/Pennyw0rth/NetExec.git && \
-    pipx install git+https://github.com/initstring/cloud_enum.git
+    pipx install git+https://github.com/initstring/cloud_enum.git && \
+    pipx install git+https://github.com/codingo/Interlace.git && \
+    pipx install git+https://github.com/doyensec/GQLSpection.git && \
+    pipx install git+https://github.com/xnl-h4ck3r/xnLinkFinder.git && \
+    pipx install git+https://github.com/xnl-h4ck3r/xnldorker.git && \
+    pipx install git+https://github.com/MandConsultingGroup/porch-pirate.git && \
+    pipx install git+https://github.com/roys/cewler.git
 
 # ── Node.js Tools & Linters ──
 ENV NPM_CONFIG_PREFIX=/home/pentester/.npm-global
@@ -209,7 +225,12 @@ RUN git clone https://github.com/aravind0x7/JS-Snooper.git 2>/dev/null || true &
     git clone https://github.com/digininja/GitHunter.git 2>/dev/null || true && \
     git clone https://github.com/fransr/postMessage-tracker.git 2>/dev/null || true && \
     git clone https://github.com/kiranreddyrebel/PostMessage_Fuzz_Tool.git 2>/dev/null || true && \
-    git clone https://github.com/PortSwigger/param-miner.git 2>/dev/null || true
+    git clone https://github.com/PortSwigger/param-miner.git 2>/dev/null || true && \
+    git clone https://github.com/Tuhinshubhra/CMSeeK.git 2>/dev/null || true && \
+    git clone https://github.com/devploit/nomore403.git 2>/dev/null || true && \
+    git clone https://github.com/UndeadSec/SwaggerSpy.git 2>/dev/null || true && \
+    git clone https://github.com/MattKeeley/Spoofy.git 2>/dev/null || true && \
+    git clone https://github.com/Arcanum-Sec/msftrecon.git 2>/dev/null || true
 
 # ── Symlink git tools to /usr/local/bin ──
 # Rules:
@@ -268,7 +289,7 @@ RUN printf '%s\n' \
     'export PATH="/home/pentester/go/bin:/home/pentester/.local/bin:/home/pentester/.cargo/bin:/home/pentester/.npm-global/bin:/home/pentester/.gem/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"' \
     'export LANG=C.UTF-8' \
     'export TERM=xterm-256color' \
-    > /home/pentester/.bashrc && \
+    >> /home/pentester/.bashrc && \
     echo 'source ~/.bashrc' > /home/pentester/.bash_profile
 
 # ── Environment ──

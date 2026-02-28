@@ -32,10 +32,12 @@ If a tool is NOT installed, install it immediately. Do NOT skip the task.
 ## Subdomain Discovery
 
     subfinder, amass (v3.23.3), assetfinder, dnsx, shuffledns, massdns, sublist3r, hakip2host, cut-cdn
+    dnstake, dsieve, VhostFinder
 
 ## DNS & IP Intelligence
 
     dnsx, tlsx, dig, nslookup, whois, dnsrecon, dnsenum, nrich, notify (Slack/Discord alerts)
+    hakoriginfinder
 
 ## Port Scanning
 
@@ -45,10 +47,11 @@ If a tool is NOT installed, install it immediately. Do NOT skip the task.
 ## Web Crawling & URL Discovery
 
     katana, gospider, gau, waybackurls, meg, httprobe, httpx, waymore, dirsearch, feroxbuster
+    subjs, urlfinder, xnLinkFinder
 
 ## Technology Fingerprinting
 
-    whatweb, httpx (-tech-detect flag), tlsx, wafw00f, nikto, wapiti
+    whatweb, httpx (-tech-detect flag), tlsx, wafw00f, nikto, wapiti, fingerprintx
     wappalyzer (npm):   wappalyzer https://target.com
     retire (npm):       retire --js --jspath output/js_files/
     eslint, jshint, js-beautify (deobfuscate + lint JS)
@@ -57,6 +60,7 @@ If a tool is NOT installed, install it immediately. Do NOT skip the task.
 
     wpscan:    wpscan --url https://target.com --enumerate p,u,t
     joomscan:  joomscan -u https://target.com
+    CMSeeK:    python3 /home/pentester/tools/CMSeeK/cmseek.py -u https://target.com
 
 ## JavaScript Analysis
 
@@ -71,6 +75,7 @@ If a tool is NOT installed, install it immediately. Do NOT skip the task.
 ## Parameter, Fuzzing & Directory Brute-Force
 
     ffuf, feroxbuster, x8, headi, arjun, dalfox (XSS), dirsearch
+    qsreplace, cewler
 
 ## Browser & Agentic Tools
 
@@ -98,7 +103,7 @@ If a tool is NOT installed, install it immediately. Do NOT skip the task.
 
 ## GraphQL Testing
 
-    inql (pipx)
+    inql (pipx), gqlspection (pipx)
     python3 /home/pentester/tools/GraphQLmap/graphqlmap.py
 
 ## CORS Testing
@@ -112,6 +117,7 @@ If a tool is NOT installed, install it immediately. Do NOT skip the task.
 ## Git Exposure & Secrets
 
     git-dumper (pipx), gitleaks, trufflehog, git-secrets
+    porch-pirate (pipx)
     /home/pentester/tools/GitHunter/
 
 ## PostMessage & DOM XSS
@@ -130,7 +136,7 @@ If a tool is NOT installed, install it immediately. Do NOT skip the task.
 ## Vulnerability Scanning
 
     nuclei (GATE: after Phases 1+2 only), nikto, wapiti, sqlmap, dalfox,
-    csprecon, nosqli, toxicache, semgrep, trivy
+    csprecon, nosqli, toxicache, semgrep, trivy, crlfuzz, misconfig-mapper
 
 ## Secret & Leak Detection
 
@@ -141,10 +147,12 @@ If a tool is NOT installed, install it immediately. Do NOT skip the task.
 ## Exploitation & Payloads
 
     sqlmap, ghauri, dalfox, nosqli, headi, interactsh-client (OOB/blind callback listener), caido-cli
+    interlace, xnldorker
 
 ## Proxy & Traffic Interception
 
     caido-setup (auto-boot Caido on port 48080), zaproxy
+    nomore403, SwaggerSpy, Spoofy, msftrecon
 
 ## Wordlists & Payloads
 

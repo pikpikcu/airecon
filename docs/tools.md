@@ -475,6 +475,9 @@ All tools in this section are called via `execute(command="...")`. The sandbox r
 | **hakip2host** | Go | `<IP>` | `hakip2host 93.184.216.34` — reverse map IP to domains |
 | **cut-cdn** | pipx | `-l hosts.txt -o no_cdn.txt` | Filter out CDN-owned IPs for direct scanning |
 | **dnsx** | Go (`~/go/bin`) | `-l subdomains.txt -silent -o resolved.txt` | `cat subs.txt \| dnsx -silent -a -o resolved.txt` |
+| **dnstake** | Go | `-l subs.txt` | Check for missing DNS records (subdomain takeover) |
+| **dsieve** | Go | `-i subs.txt -f 3:4` | Filter and extract specific subdomain levels |
+| **VhostFinder** | Go | `-w words.txt -ip IP` | Find hidden virtual hosts bypassing WAF |
 
 **Typical subdomain workflow:**
 
@@ -509,6 +512,7 @@ httpx -l /workspace/example.com/output/resolved.txt -title -tech-detect -status-
 | **dnsenum** | `--noreverse example.com` | DNS bruteforce and zone transfer |
 | **nrich** | `< ips.txt` | Enrich IP list with ASN, org, country info |
 | **notify** | `-i report.md -provider slack` | Send alerts to Slack/Discord/Telegram |
+| **hakoriginfinder** | Go / `-h HOST -l ips.txt` | Discover origin IPs behind Cloudflare/WAF |
 
 **Certificate transparency for free subdomains:**
 
@@ -565,6 +569,9 @@ naabu -l /workspace/example.com/output/resolved.txt -p - -o /workspace/example.c
 | **waymore** | `-i example.com -mode U -oU urls.txt` | Enhanced Wayback + Common Crawl URL discovery |
 | **dirsearch** | `-l hosts.txt -w wordlist -o dirs.txt` | Directory/path brute-force |
 | **feroxbuster** | `-u URL -w wordlist --auto-bail -o dirs.txt` | Recursive directory scanner with smart recursion |
+| **subjs** | Go | `< urls.txt` | Fast extraction of JS file links from a list of URLs |
+| **urlfinder** | Go | `-d domain` | Fast URL discovery and crawling |
+| **xnLinkFinder** | pipx | `-i URL` | Advanced endpoint discovery from JS and HTML |
 
 **URL collection pipeline:**
 
@@ -599,6 +606,8 @@ echo "Total unique URLs: $(wc -l < $WORKSPACE/output/urls_all.txt)"
 | **wappalyzer** | `https://example.com` | npm global — detailed technology stack JSON |
 | **retire** | `--js --jspath output/js/ --outputformat json` | Detects outdated/vulnerable JavaScript libraries |
 | **tlsx** | `-l hosts -san -cn -version -cipher -o tls.txt` | TLS version, cipher suites, certificate details |
+| **fingerprintx** | Go | `< ips.txt` | Fast port-based service and technology fingerprinting |
+| **CMSeeK** | `~/tools/CMSeeK/cmseek.py` | Extensive CMS detection and vulnerability scanner |
 
 ```bash
 # Full fingerprinting sweep
@@ -677,6 +686,8 @@ eslint --no-eslintrc --rule '{"no-eval": "error"}' $WORKSPACE/output/app_deobfus
 | **headi** | `-u URL -o headers.txt` | HTTP header injection parameter discovery |
 | **dalfox** | `file urls.txt --output xss.txt` | XSS scanner with DOM-based detection |
 | **wfuzz** | `-c -z file,wordlist -u URL/FUZZ` | Legacy fuzzer with powerful filtering |
+| **qsreplace** | Go | `< urls.txt \| qsreplace "XSS"` | Replaces all query parameters with a custom payload |
+| **cewler** | pipx | `-u URL -d 2` | Generates a custom wordlist from target site content |
 
 **ffuf advanced examples:**
 
@@ -738,6 +749,8 @@ headi -u https://example.com -o /workspace/example.com/output/header_injection.t
 | **trivy** | `image airecon-sandbox` or `fs /path` | Container and filesystem vulnerability scanner |
 | **bandit** | `-r /path/to/python/code` | Python SAST scanner |
 | **interactsh-client** | `-server oast.fun -n 5` | OOB callback listener for blind SSRF, XXE, RCE |
+| **crlfuzz** | Go | `-l urls.txt` | Fast CRLF injection / HTTP Response Splitting scanner |
+| **misconfig-mapper** | Go | `-target subs.txt` | Detects S3 buckets, CNAME dangling, and cloud misconfigs |
 
 **Nuclei best-practice invocation:**
 
@@ -791,6 +804,8 @@ curl -s "https://example.com/fetch?url=http://abc123.oast.fun"
 | **interactsh-client** | `-v` (verbose callbacks) | OOB interaction server for blind vuln confirmation |
 | **caido-cli** | See Caido section below | Web proxy for request replay and manipulation |
 | **testssl.sh** | `--parallel --severity HIGH example.com` | SSL/TLS exploitation: BEAST, POODLE, Heartbleed |
+| **interlace** | pipx | Multi-threaded execution wrapper for single-target tools (`-tL hosts.txt -c "nmap _target_"`) |
+| **xnldorker** | pipx | Automated Google Dorking and sensitive exposure discovery |
 
 **SQLmap full exploitation chain:**
 
@@ -878,6 +893,7 @@ joomscan -u https://example.com \
 | **gf** | `<pattern> < urls.txt` | Pattern grep: `secrets`, `sqli`, `xss`, `ssrf`, `lfi`, `idor`, etc. |
 | **semgrep** | `--config p/security-audit .` | SAST with OWASP rule sets |
 | **bandit** | `-r /path -f json -o output/bandit.json` | Python-specific security issues (hardcoded passwords, `eval`, `exec`) |
+| **porch-pirate** | pipx | Searches for leaked Postman collections containing secrets |
 
 **gf patterns available:**
 
@@ -904,6 +920,7 @@ cat /workspace/example.com/output/urls_all.txt | gf ssrf | tee ssrf_candidates.t
 | **GraphQLmap** | `/home/pentester/tools/GraphQLmap/graphqlmap.py` | Interactive GraphQL injection and enumeration |
 | **jwt_tool** | `/home/pentester/tools/jwt_tool/jwt_tool.py` | Full JWT attack suite |
 | **jwt-cracker** | npm global | Brute-force JWT HMAC secrets |
+| **gqlspection** | pipx | Introspection and generation of GraphQL attack queries |
 
 **JWT testing with jwt_tool:**
 
@@ -1122,6 +1139,10 @@ All git-cloned tools are at `/home/pentester/tools/`. Run `ls /home/pentester/to
 | **postMessage-tracker** | `/home/pentester/tools/postMessage-tracker/` | Track `window.postMessage` flows |
 | **PostMessage_Fuzz_Tool** | `/home/pentester/tools/PostMessage_Fuzz_Tool/` | Fuzz postMessage listeners for DOM XSS |
 | **PayloadsAllTheThings** | `/home/pentester/tools/PayloadsAllTheThings/` | Payload reference for all vuln types |
+| **nomore403** | `/home/pentester/tools/nomore403/` | Bypass 403 Forbidden endpoints |
+| **SwaggerSpy** | `/home/pentester/tools/SwaggerSpy/swaggerspy.py` | Extract APIs from Swagger/OpenAPI documents |
+| **Spoofy** | `/home/pentester/tools/Spoofy/spoofy.py` | SPF/DMARC/DKIM vulnerability checking |
+| **msftrecon** | `/home/pentester/tools/msftrecon/` | Microsoft cloud/tenant recon |
 
 ---
 
