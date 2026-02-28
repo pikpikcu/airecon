@@ -6,6 +6,7 @@ from textual.containers import Vertical, VerticalScroll, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static, Input
 from textual.message import Message
+from rich.text import Text
 import re
 
 # Strip ANSI VT100 escape sequences
@@ -36,16 +37,17 @@ class FilePreviewScreen(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="preview-dialog"):
-            # Header with file path
+            # Header with file path — wrapped in Text() to prevent markup parsing
             display_path = self.file_path
             if len(display_path) > 60:
                 display_path = "…" + display_path[-57:]
-            yield Static(f"  {display_path}", id="preview-header")
+            yield Static(Text(f"  {display_path}"), id="preview-header")
 
-            # Content area: Static inside VerticalScroll (no TextArea)
+            # Content area: use Text() so square brackets in tool output
+            # (HTTP headers, nmap output, etc.) are never parsed as Rich markup
             with VerticalScroll(id="preview-area"):
                 yield Static(
-                    self.content or "Loading…",
+                    Text(self.content or "Loading…"),
                     id="preview-content",
                 )
 
@@ -96,9 +98,9 @@ class FilePreviewScreen(ModalScreen):
             self._set_content(f"✗ Error loading file: {e}")
 
     def _set_content(self, text: str) -> None:
-        """Update the preview content Static widget."""
+        """Update the preview content Static widget as plain text (no markup parsing)."""
         try:
-            self.query_one("#preview-content", Static).update(text)
+            self.query_one("#preview-content", Static).update(Text(text))
         except Exception:
             pass
 
