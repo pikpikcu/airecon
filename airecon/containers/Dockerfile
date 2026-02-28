@@ -33,7 +33,7 @@ RUN apt-get update && \
     libnss3 libnspr4 libdbus-1-3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
     libatspi2.0-0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libxkbcommon0 \
     libpango-1.0-0 libcairo2 libasound2t64 fonts-unifont fonts-noto-color-emoji \
-    fonts-freefont-ttf fonts-dejavu-core ttf-bitstream-vera libnss3-tools \
+    fonts-freefont-ttf fonts-dejavu-core ttf-bitstream-vera libnss3-tools libpcap-dev \
     # Networking
     net-tools dnsutils whois iproute2 iputils-ping netcat-traditional \
     # Active Directory / SMB / Pivoting / Exploitation
@@ -92,11 +92,9 @@ RUN go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest && \
     go install -v github.com/projectdiscovery/tlsx/cmd/tlsx@latest && \
     go install -v github.com/projectdiscovery/cvemap/cmd/vulnx@latest && \
     go install -v github.com/projectdiscovery/interactsh/cmd/interactsh-client@latest && \
-    go install -v github.com/assetnote/kiterunner@latest && \
     go install -v github.com/nicocha30/ligolo-ng/cmd/proxy@latest && \
     go install -v github.com/jpillora/chisel@latest && \
     go install -v github.com/jaeles-project/gospider@latest && \
-    go install -v github.com/tomnomnom/gau@latest && \
     go install -v github.com/tomnomnom/waybackurls@latest && \
     go install -v github.com/tomnomnom/httprobe@latest && \
     go install -v github.com/tomnomnom/meg@latest && \
@@ -140,6 +138,13 @@ RUN (curl -fsL "https://github.com/Sh1Yo/x8/releases/latest/download/x8-linux.ta
 RUN (curl -fsL "https://gitlab.com/api/v4/projects/33695681/packages/generic/nrich/latest/nrich_latest_x86_64-unknown-linux-musl.tar.gz" -o nrich.tar.gz && \
     tar -xzf nrich.tar.gz && chmod +x nrich && mv nrich /usr/local/bin/ && rm -f nrich.tar.gz) || \
     echo "[WARN] nrich installation skipped (release asset not found)"
+
+# ── Kiterunner (pre-compiled binary) ──
+RUN wget -qO /tmp/kiterunner.tar.gz https://github.com/assetnote/kiterunner/releases/download/v1.0.2/kiterunner_1.0.2_linux_amd64.tar.gz && \
+    tar -xzf /tmp/kiterunner.tar.gz -C /tmp && \
+    mv /tmp/kr /usr/local/bin/kr && \
+    chmod +x /usr/local/bin/kr && \
+    rm -f /tmp/kiterunner.tar.gz
 
 # ── Amass v3.23.3 (pinned — v4+ changed CLI, -o flag broken) ──
 RUN ARCH=$(uname -m) && \
@@ -282,7 +287,6 @@ USER pentester
 RUN printf '%s\n' \
     '# AIRecon sandbox environment' \
     'export GOPATH=/home/pentester/go' \
-    'export GOROOT=/usr/local/go' \
     'export GEM_HOME=/home/pentester/.gem' \
     'export NPM_CONFIG_PREFIX=/home/pentester/.npm-global' \
     'export PIPX_HOME=/home/pentester/.local/pipx' \
@@ -295,7 +299,6 @@ RUN printf '%s\n' \
 # ── Environment ──
 ENV PATH="/home/pentester/go/bin:/home/pentester/.local/bin:/home/pentester/.cargo/bin:/home/pentester/.npm-global/bin:/home/pentester/.gem/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 ENV GOPATH=/home/pentester/go
-ENV GOROOT=/usr/local/go
 ENV GEM_HOME=/home/pentester/.gem
 ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
