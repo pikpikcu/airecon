@@ -25,12 +25,13 @@ logger = logging.getLogger("airecon.server")
 ollama_client: OllamaClient | None = None
 engine: DockerEngine | None = None
 agent: AgentLoop | None = None
+_chat_lock: asyncio.Lock | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup/shutdown lifecycle."""
-    global ollama_client, engine, agent
+    global ollama_client, engine, agent, _chat_lock
 
     cfg = get_config()
     logger.info(f"Starting AIRecon Proxy on {cfg.proxy_host}:{cfg.proxy_port}")
@@ -60,6 +61,8 @@ async def lifespan(app: FastAPI):
         await agent.initialize()
     except Exception as e:
         logger.warning(f"Agent initialization warning: {e}")
+
+    _chat_lock = asyncio.Lock()
 
     yield
 
@@ -125,6 +128,14 @@ async def get_status() -> JSONResponse:
     })
 
 
+@app.get("/api/progress")
+async def get_progress() -> JSONResponse:
+    """Real-time progress data: target, findings, tool counts, phase status."""
+    if not agent:
+        return JSONResponse({"error": "Agent not initialized"}, status_code=503)
+    return JSONResponse(agent.get_progress())
+
+
 @app.get("/api/tools")
 async def list_tools() -> JSONResponse:
     """List available tools."""
@@ -174,20 +185,31 @@ async def chat(request: ChatRequest) -> EventSourceResponse | JSONResponse:
     else:
         # Non-streaming: collect all events
         events = []
-        async for event in agent.process_message(request.message):
-            events.append({"type": event.type, **event.data})
+        if _chat_lock:
+            async with _chat_lock:
+                async for event in agent.process_message(request.message):
+                    events.append({"type": event.type, **event.data})
+        else:
+            async for event in agent.process_message(request.message):
+                events.append({"type": event.type, **event.data})
         return JSONResponse({"events": events})
 
 
 async def _stream_agent_events(message: str) -> AsyncIterator[dict]:
     """Stream agent events as SSE."""
-    async for event in agent.process_message(message):
-        # We put 'type' inside data so TUI can parse it easily from the JSON body
-        # We also keep 'event' field for standard SSE clients
-        yield {
-            "event": event.type,
-            "data": json.dumps({"type": event.type, **event.data}, default=str),
-        }
+    if _chat_lock:
+        async with _chat_lock:
+            async for event in agent.process_message(message):
+                yield {
+                    "event": event.type,
+                    "data": json.dumps({"type": event.type, **event.data}, default=str),
+                }
+    else:
+        async for event in agent.process_message(message):
+            yield {
+                "event": event.type,
+                "data": json.dumps({"type": event.type, **event.data}, default=str),
+            }
 
 
 @app.post("/api/reset")

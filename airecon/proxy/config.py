@@ -38,8 +38,8 @@ DEFAULT_CONFIG = {
     "ollama_model": "qwen3.5:122b",
     "ollama_timeout": 1900.0,
     "ollama_num_ctx": 131072,
-    "ollama_temperature": 0.2,
-    "ollama_num_predict": 16384,
+    "ollama_temperature": 0.5,
+    "ollama_num_predict": 8192,
     "ollama_enable_thinking": True,
     "proxy_host": "127.0.0.1",
     "proxy_port": 3000,
@@ -53,6 +53,7 @@ DEFAULT_CONFIG = {
     "agent_missing_tool_retry_limit": 2,
     "allow_destructive_testing": True,
     "browser_page_load_delay": 1.0,
+    "ollama_keep_alive": "30m",
 }
 
 @dataclass(frozen=True)
@@ -97,6 +98,9 @@ class Config:
 
     # Browser
     browser_page_load_delay: float
+
+    # Ollama model keep_alive (how long to keep model in VRAM)
+    ollama_keep_alive: str
 
     @classmethod
     def load(cls, config_path: str | Path | None = None) -> Config:
@@ -162,12 +166,52 @@ class Config:
 
 # Singleton
 _config: Config | None = None
+_config_mtime: float = 0.0
+_config_path: Path | None = None
+
+
+def _get_config_path(config_path: str | Path | None = None) -> Path:
+    """Resolve the config file path."""
+    if config_path:
+        return Path(config_path)
+    return Path.home() / APP_DIR_NAME / CONFIG_FILENAME
 
 
 def get_config(config_path: str | None = None) -> Config:
-    """Get or create the global config instance, optionally loading from a path."""
-    global _config
+    """Get or create the global config instance.
+
+    Auto-reloads if the config file has been modified since last load.
+    """
+    global _config, _config_mtime, _config_path
+
+    if _config_path is None:
+        _config_path = _get_config_path(config_path)
+
+    # Check if config file was modified (hot-reload)
+    if _config is not None:
+        try:
+            current_mtime = _config_path.stat().st_mtime if _config_path.exists() else 0.0
+            if current_mtime > _config_mtime:
+                logger.info(f"Config file changed — reloading from {_config_path}")
+                _config = Config.load(_config_path)
+                _config_mtime = current_mtime
+        except Exception:
+            pass  # Keep existing config if stat fails
+
     if _config is None:
         _config = Config.load(config_path)
+        try:
+            _config_mtime = _config_path.stat().st_mtime if _config_path.exists() else 0.0
+        except Exception:
+            _config_mtime = 0.0
+
     return _config
+
+
+def reload_config() -> Config:
+    """Force reload config from disk. Returns the new config."""
+    global _config, _config_mtime
+    _config = None
+    _config_mtime = 0.0
+    return get_config()
 

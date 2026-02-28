@@ -1,8 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import re
 from typing import Any
+
+from .output_parser import parse_tool_output
+
+logger = logging.getLogger("airecon.agent")
+
+# Cache for --help output per tool binary (avoids re-running)
+_help_cache: dict[str, str] = {}
 
 
 class _FormatterMixin:
@@ -14,7 +23,7 @@ class _FormatterMixin:
         success: bool,
         command: str = "",
     ) -> str:
-        MAX_TOTAL = 8000
+        MAX_TOTAL = 4000  # Reduced from 8000 — structured parsing extracts key data
 
         if not success:
             error_msg  = result.get("error",  "") or ""
@@ -31,7 +40,13 @@ class _FormatterMixin:
                 parts.append(f"STDOUT: {stdout_msg.strip()[:2000]}")
 
             combined = (error_msg + stderr_msg + stdout_msg).lower()
-            tool_bin  = command.strip().split()[0] if command.strip() else "tool"
+            # Extract real tool binary from command (strip cd prefix, sudo, etc.)
+            cmd_clean = re.sub(r"^cd\s+/workspace/[^\s]+\s*&&\s*", "", command.strip())
+            tokens = cmd_clean.split()
+            tool_bin = tokens[0] if tokens else "tool"
+            if tool_bin == "sudo" and len(tokens) > 1:
+                tool_bin = tokens[1]
+
             if "command not found" in combined or (
                 "no such file" in combined and "or directory" in combined and tool_bin
             ):
@@ -48,7 +63,12 @@ class _FormatterMixin:
                     "Verify reachability: curl -I --max-time 5 <url>"
                 )
             elif any(k in combined for k in ("invalid option", "unknown flag", "unrecognized", "syntax error")):
-                parts.append(f"TIP: Flag/syntax error. Check: {tool_bin} --help | head -40")
+                # AUTO-CORRECT: Run --help and inject valid flags
+                help_text = self._auto_help_lookup(tool_bin)
+                if help_text:
+                    parts.append(f"AUTO-CORRECTION — valid flags for '{tool_bin}':\n{help_text}")
+                else:
+                    parts.append(f"TIP: Flag/syntax error. Check: {tool_bin} --help | head -40")
             elif "no route to host" in combined:
                 parts.append("TIP: Network unreachable from container. Check Docker network settings.")
             else:
@@ -74,6 +94,24 @@ class _FormatterMixin:
                     "- Or the tool ran silently\n"
                     "DO NOT invent results. If a file was written, read it with: cat output/<file>"
                 )
+
+            # Try structured parsing first
+            parsed = parse_tool_output(command, stdout)
+            if parsed and parsed.total_count > 0:
+                parts = [parsed.summary]
+                if parsed.items:
+                    parts.append("Key items:")
+                    for item in parsed.items:
+                        parts.append(f"  {item}")
+                    if parsed.total_count > len(parsed.items):
+                        parts.append(f"  ... and {parsed.total_count - len(parsed.items)} more")
+                parts.append(f"\nTOTAL: {parsed.total_count} items. Full output saved to file.")
+                body = "\n".join(parts)
+                if len(body) > MAX_TOTAL:
+                    body = body[:MAX_TOTAL] + "\n... (truncated)"
+                return body
+
+            # Fallback: raw truncation
             lines = stdout.strip().split("\n")
             total = len(lines)
             if total > 100:
@@ -172,3 +210,76 @@ class _FormatterMixin:
             return text
         except Exception:
             return "Result (unserializable). Check output file."
+
+    def _auto_help_lookup(self, tool_binary: str) -> str | None:
+        """Run <tool> --help inside Docker and extract valid flags.
+
+        Returns compact help text or None if lookup fails.
+        Caches results to avoid re-running for the same tool.
+        """
+        global _help_cache
+        if tool_binary in _help_cache:
+            return _help_cache[tool_binary]
+
+        # Skip if engine not available
+        engine = getattr(self, "engine", None)
+        if not engine:
+            return None
+
+        try:
+            # Run --help via Docker (sync wrapper for async engine)
+            result = asyncio.get_event_loop().run_until_complete(
+                engine.execute_tool("execute", {"command": f"{tool_binary} --help 2>&1 | head -60"})
+            )
+        except RuntimeError:
+            # If we're already in an async loop, use a thread
+            import concurrent.futures
+            try:
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    future = pool.submit(
+                        asyncio.run,
+                        engine.execute_tool("execute", {"command": f"{tool_binary} --help 2>&1 | head -60"})
+                    )
+                    result = future.result(timeout=10)
+            except Exception:
+                _help_cache[tool_binary] = ""
+                return None
+        except Exception:
+            _help_cache[tool_binary] = ""
+            return None
+
+        stdout = result.get("stdout", "") or result.get("result", "") or ""
+        if not stdout.strip() or len(stdout) < 20:
+            _help_cache[tool_binary] = ""
+            return None
+
+        # Extract flag lines (lines starting with -, or containing --)
+        lines = stdout.strip().split("\n")
+        flag_lines = []
+        usage_lines = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("-") or "  -" in line:
+                flag_lines.append(stripped)
+            elif stripped.lower().startswith("usage:") or stripped.lower().startswith("synopsis"):
+                usage_lines.append(stripped)
+
+        if not flag_lines and not usage_lines:
+            # No flags found — return first 30 lines as-is
+            compact = "\n".join(lines[:30])
+            _help_cache[tool_binary] = compact
+            return compact
+
+        parts = []
+        if usage_lines:
+            parts.append("USAGE: " + usage_lines[0])
+        if flag_lines:
+            parts.append("VALID FLAGS:")
+            for f in flag_lines[:25]:  # Cap at 25 flags
+                parts.append(f"  {f}")
+
+        compact = "\n".join(parts)
+        _help_cache[tool_binary] = compact
+        logger.info(f"Auto-help lookup for '{tool_binary}': {len(flag_lines)} flags found")
+        return compact
+

@@ -79,7 +79,7 @@ class OllamaClient:
             "model": self.model,
             "messages": messages,
             "stream": True,
-            "keep_alive": -1,
+            "keep_alive": get_config().ollama_keep_alive,
         }
         if think:
             kwargs["think"] = think

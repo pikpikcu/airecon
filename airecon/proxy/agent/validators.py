@@ -32,7 +32,7 @@ class _ValidatorMixin:
                     f"Invalid browser action '{action}'. "
                     f"Valid actions: {sorted(self._VALID_BROWSER_ACTIONS)}"
                 )
-            if action in ("goto", "launch", "new_tab") and not arguments.get("url", "").strip():
+            if action in ("goto", "new_tab") and not arguments.get("url", "").strip():
                 return False, f"browser_action '{action}' requires a non-empty 'url'."
             if action == "click" and not arguments.get("coordinate", "").strip():
                 return False, "browser_action 'click' requires 'coordinate' (format: 'x,y')."

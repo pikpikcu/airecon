@@ -29,6 +29,10 @@ textual-dev = "^1.7.0"
 [tool.poetry.scripts]
 airecon = "airecon.__main__:main"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

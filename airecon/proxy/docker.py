@@ -346,13 +346,15 @@ class DockerEngine:
     async def force_stop(self) -> None:
         """Force stop all running commands in the container and the local proc."""
         # 1. Kill the Python-side asyncio subprocess immediately
-        if self._current_proc:
+        # Use a local variable to avoid TOCTOU race with execute() clearing _current_proc
+        proc = self._current_proc
+        self._current_proc = None
+        if proc:
             try:
-                self._current_proc.kill()
-                await asyncio.wait_for(self._current_proc.wait(), timeout=2.0)
+                proc.kill()
+                await asyncio.wait_for(proc.wait(), timeout=2.0)
             except Exception:
                 pass
-            self._current_proc = None
 
         # 2. Kill ALL user processes inside the container (SIGTERM then SIGKILL)
         if self._container_name and self._connected:

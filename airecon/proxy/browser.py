@@ -107,7 +107,11 @@ class BrowserInstance:
         if not self._loop or not self.is_running:
             raise RuntimeError("Browser instance is not running")
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
-        return cast("dict[str, Any]", future.result(timeout=30))
+        try:
+            return cast("dict[str, Any]", future.result(timeout=60))
+        except TimeoutError:
+            future.cancel()
+            raise RuntimeError("Browser action timed out after 60s")
 
     async def _setup_console_logging(self, page: Page, tab_id: str) -> None:
         self.console_logs[tab_id] = []
@@ -280,6 +284,8 @@ class BrowserInstance:
         with self._execution_lock: return self._run_async(self._wait(duration, tab_id))
 
     async def _wait(self, duration: float, tab_id: str | None = None) -> dict[str, Any]:
+        if duration is None or duration < 0:
+            duration = 1.0
         await asyncio.sleep(duration)
         return await self._get_page_state(tab_id)
 
@@ -287,6 +293,8 @@ class BrowserInstance:
         with self._execution_lock: return self._run_async(self._execute_js(js_code, tab_id))
 
     async def _execute_js(self, js_code: str, tab_id: str | None = None) -> dict[str, Any]:
+        if not js_code:
+            raise ValueError("js_code is required for execute_js action")
         if not tab_id: tab_id = self.current_page_id
         if not tab_id or tab_id not in self.pages: raise ValueError(f"Tab '{tab_id}' not found")
         page = self.pages[tab_id]
@@ -363,6 +371,8 @@ class BrowserInstance:
         with self._execution_lock: return self._run_async(self._save_pdf(file_path, tab_id))
 
     async def _save_pdf(self, file_path: str, tab_id: str | None = None) -> dict[str, Any]:
+        if not file_path:
+            raise ValueError("file_path is required for save_pdf action")
         if not tab_id: tab_id = self.current_page_id
         if not tab_id or tab_id not in self.pages: raise ValueError(f"Tab '{tab_id}' not found")
         if not Path(file_path).is_absolute(): file_path = str(get_workspace_root() / file_path)
@@ -408,16 +418,64 @@ class BrowserInstance:
 
 # Singleton Manager
 class BrowserTabManager:
+    MAX_TABS = 3  # Prevent Ollama from opening too many tabs
+
     def __init__(self) -> None:
         self._browser: BrowserInstance | None = None
         self._lock = threading.Lock()
+        self._restart_count = 0
         atexit.register(self.close)
 
     def _get_browser(self) -> BrowserInstance:
         with self._lock:
             if self._browser is None or not self._browser.is_alive():
+                if self._browser is not None:
+                    logger.warning("Browser died — auto-restarting...")
+                    self._restart_count += 1
+                    try:
+                        self._browser.close()
+                    except Exception:
+                        pass
                 self._browser = BrowserInstance()
             return self._browser
+
+    def _safe_action(self, action_name: str, fn, *args, **kwargs) -> dict[str, Any]:
+        """Wrapper that catches all browser errors, auto-restarts on crash."""
+        try:
+            result = fn(*args, **kwargs)
+            if not isinstance(result, dict):
+                result = {"result": result}
+            return result
+        except Exception as e:
+            error_str = str(e).lower()
+            is_crash = any(k in error_str for k in (
+                "target closed", "browser has been closed", "connection refused",
+                "execution context was destroyed", "page crashed",
+                "navigation failed", "session closed",
+            ))
+            if is_crash and self._restart_count < 5:
+                logger.warning(f"Browser crashed during '{action_name}': {e}. Auto-restarting...")
+                with self._lock:
+                    try:
+                        if self._browser:
+                            self._browser.close()
+                    except Exception:
+                        pass
+                    self._browser = None
+                    self._restart_count += 1
+                # Retry once after restart
+                try:
+                    browser = self._get_browser()
+                    result = fn(*args, **kwargs)
+                    if not isinstance(result, dict):
+                        result = {"result": result}
+                    result["warning"] = "Browser was auto-restarted after crash"
+                    return result
+                except Exception as e2:
+                    return {"error": f"Browser crashed and retry failed: {e2}"}
+            else:
+                logger.error(f"Browser action '{action_name}' failed: {e}")
+                return {"error": f"Browser action failed: {e}"}
 
     def launch_browser(self, url: str | None = None) -> dict[str, Any]:
         browser = self._get_browser()
@@ -427,95 +485,103 @@ class BrowserTabManager:
             return result
         except ValueError as e:
             if "already launched" in str(e):
-                # Browser already running — navigate to URL if given, else return current state
                 if url:
                     return self.goto_url(url)
                 return {"message": "Browser already running", "success": True}
             raise
 
     def goto_url(self, url: str, tab_id: str | None = None) -> dict[str, Any]:
-        result = self._get_browser().goto(url, tab_id)
-        result["message"] = f"Navigated to {url}"
+        result = self._safe_action("goto", self._get_browser().goto, url, tab_id)
+        result.setdefault("message", f"Navigated to {url}")
         return result
 
     def click(self, coordinate: str, tab_id: str | None = None) -> dict[str, Any]:
-        result = self._get_browser().click(coordinate, tab_id)
-        result["message"] = f"Clicked at {coordinate}"
+        result = self._safe_action("click", self._get_browser().click, coordinate, tab_id)
+        result.setdefault("message", f"Clicked at {coordinate}")
         return result
 
     def type_text(self, text: str, tab_id: str | None = None) -> dict[str, Any]:
-        result = self._get_browser().type_text(text, tab_id)
-        result["message"] = f"Typed text"
+        result = self._safe_action("type", self._get_browser().type_text, text, tab_id)
+        result.setdefault("message", "Typed text")
         return result
 
     def scroll(self, direction: str, tab_id: str | None = None) -> dict[str, Any]:
-        result = self._get_browser().scroll(direction, tab_id)
-        result["message"] = f"Scrolled {direction}"
+        result = self._safe_action("scroll", self._get_browser().scroll, direction, tab_id)
+        result.setdefault("message", f"Scrolled {direction}")
         return result
 
     def back(self, tab_id: str | None = None) -> dict[str, Any]:
-        result = self._get_browser().back(tab_id)
-        result["message"] = "Navigated back"
+        result = self._safe_action("back", self._get_browser().back, tab_id)
+        result.setdefault("message", "Navigated back")
         return result
 
     def forward(self, tab_id: str | None = None) -> dict[str, Any]:
-        result = self._get_browser().forward(tab_id)
-        result["message"] = "Navigated forward"
+        result = self._safe_action("forward", self._get_browser().forward, tab_id)
+        result.setdefault("message", "Navigated forward")
         return result
 
     def new_tab(self, url: str | None = None) -> dict[str, Any]:
-        result = self._get_browser().new_tab(url)
-        result["message"] = f"Created new tab {result.get('tab_id', '')}"
+        # Enforce tab limit
+        if self._browser:
+            tabs = self._browser.list_tabs()
+            tab_count = tabs.get("count", 0)
+            if tab_count >= self.MAX_TABS:
+                return {
+                    "error": f"Tab limit reached ({self.MAX_TABS}). Close an existing tab first.",
+                    "tabs": tabs.get("tabs", {}),
+                }
+        result = self._safe_action("new_tab", self._get_browser().new_tab, url)
+        result.setdefault("message", f"Created new tab {result.get('tab_id', '')}")
         return result
 
     def switch_tab(self, tab_id: str) -> dict[str, Any]:
-        result = self._get_browser().switch_tab(tab_id)
-        result["message"] = f"Switched to tab {tab_id}"
+        result = self._safe_action("switch_tab", self._get_browser().switch_tab, tab_id)
+        result.setdefault("message", f"Switched to tab {tab_id}")
         return result
 
     def close_tab(self, tab_id: str) -> dict[str, Any]:
-        result = self._get_browser().close_tab(tab_id)
-        result["message"] = f"Closed tab {tab_id}"
+        result = self._safe_action("close_tab", self._get_browser().close_tab, tab_id)
+        result.setdefault("message", f"Closed tab {tab_id}")
         return result
 
     def wait_browser(self, duration: float, tab_id: str | None = None) -> dict[str, Any]:
-        result = self._get_browser().wait(duration, tab_id)
-        result["message"] = f"Waited {duration}s"
+        result = self._safe_action("wait", self._get_browser().wait, duration, tab_id)
+        result.setdefault("message", f"Waited {duration}s")
         return result
 
     def execute_js(self, js_code: str, tab_id: str | None = None) -> dict[str, Any]:
-        result = self._get_browser().execute_js(js_code, tab_id)
-        result["message"] = "JavaScript executed successfully"
+        result = self._safe_action("execute_js", self._get_browser().execute_js, js_code, tab_id)
+        result.setdefault("message", "JavaScript executed successfully")
         return result
 
     def double_click(self, coordinate: str, tab_id: str | None = None) -> dict[str, Any]:
-        result = self._get_browser().double_click(coordinate, tab_id)
-        result["message"] = f"Double clicked at {coordinate}"
+        result = self._safe_action("double_click", self._get_browser().double_click, coordinate, tab_id)
+        result.setdefault("message", f"Double clicked at {coordinate}")
         return result
 
     def hover(self, coordinate: str, tab_id: str | None = None) -> dict[str, Any]:
-        result = self._get_browser().hover(coordinate, tab_id)
-        result["message"] = f"Hovered at {coordinate}"
+        result = self._safe_action("hover", self._get_browser().hover, coordinate, tab_id)
+        result.setdefault("message", f"Hovered at {coordinate}")
         return result
 
     def press_key(self, key: str, tab_id: str | None = None) -> dict[str, Any]:
-        result = self._get_browser().press_key(key, tab_id)
-        result["message"] = f"Pressed key {key}"
+        result = self._safe_action("press_key", self._get_browser().press_key, key, tab_id)
+        result.setdefault("message", f"Pressed key {key}")
         return result
 
     def save_pdf(self, file_path: str, tab_id: str | None = None) -> dict[str, Any]:
-        result = self._get_browser().save_pdf(file_path, tab_id)
-        result["message"] = f"Page saved as PDF: {file_path}"
+        result = self._safe_action("save_pdf", self._get_browser().save_pdf, file_path, tab_id)
+        result.setdefault("message", f"Page saved as PDF: {file_path}")
         return result
 
     def get_console_logs(self, tab_id: str | None = None, clear: bool = False) -> dict[str, Any]:
-        result = self._get_browser().get_console_logs(tab_id, clear)
-        result["message"] = "Console logs retrieved"
+        result = self._safe_action("get_console_logs", self._get_browser().get_console_logs, tab_id, clear)
+        result.setdefault("message", "Console logs retrieved")
         return result
 
     def view_source(self, tab_id: str | None = None) -> dict[str, Any]:
-        result = self._get_browser().view_source(tab_id)
-        result["message"] = "Page source retrieved"
+        result = self._safe_action("view_source", self._get_browser().view_source, tab_id)
+        result.setdefault("message", "Page source retrieved")
         return result
     
     def list_tabs(self) -> dict[str, Any]:
@@ -527,6 +593,7 @@ class BrowserTabManager:
         if self._browser:
             self._browser.close()
             self._browser = None
+
 
 _manager = BrowserTabManager()
 

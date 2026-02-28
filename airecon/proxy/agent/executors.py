@@ -239,7 +239,8 @@ class _ExecutorMixin:
                         (host_workspace / subdir).mkdir(parents=True, exist_ok=True)
                     except Exception:
                         pass
-                cmd = re.sub(r"(?<!\S)/?workspace/[^/\s]+/", "", cmd)
+                # Do NOT strip workspace paths from the command — absolute paths
+                # inside the container are valid and stripping them breaks multi-path commands.
                 arguments["command"] = f"cd {workspace_dir} && {cmd}"
                 logger.info(f"Enforced workspace context: {arguments['command']}")
 

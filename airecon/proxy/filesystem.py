@@ -39,6 +39,12 @@ def create_file(path: str, content: str) -> dict[str, Any]:
 
 def read_file(path: str) -> dict[str, Any]:
     try:
+        # Allow reading absolute paths that exist on disk
+        # (e.g., skill files at /home/user/.../skills/*.md)
+        if os.path.isabs(path) and os.path.isfile(path):
+            content = Path(path).read_text(encoding="utf-8", errors="replace")
+            return {"success": True, "result": content}
+
         workspace_root = get_workspace_root().resolve()
 
         clean_path = str(path).lstrip("/")

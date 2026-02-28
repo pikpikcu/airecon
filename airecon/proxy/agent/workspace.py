@@ -49,7 +49,8 @@ class _WorkspaceMixin:
                     path = os.path.join(output_dir, f)
                     size = os.path.getsize(path)
                     lines = 0
-                    if ext in {".txt", ".csv", ".out", ".log", ".nmap"}:
+                    # Skip line-counting for large files to avoid slow reads
+                    if size < 1_000_000 and ext in {".txt", ".csv", ".out", ".log", ".nmap"}:
                         try:
                             with open(path, "r", errors="ignore") as fh:
                                 lines = sum(1 for _ in fh)
@@ -173,6 +174,7 @@ class _WorkspaceMixin:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             succeeded = result.get("success", False)
 
+            # Always save the full JSON record to command/
             json_filepath = os.path.join(command_dir, f"{tool_name}_{timestamp}.json")
             with open(json_filepath, "w") as f:
                 json.dump(
@@ -185,6 +187,15 @@ class _WorkspaceMixin:
                 self._last_output_file = json_filepath  # type: ignore[attr-defined]
                 return
 
+            # For 'execute' tool: do NOT save duplicate stdout as .txt in output/.
+            # The JSON in command/ already contains all data. The output/ folder
+            # should only contain files that tools explicitly create via -o flags.
+            if tool_name == "execute":
+                self._last_output_file = json_filepath  # type: ignore[attr-defined]
+                return
+
+            # For non-execute tools (browser_action, web_search, etc.):
+            # save meaningful output to output/
             txt_content = ""
             if isinstance(result, dict) and "result" in result:
                 res_data = result["result"]
@@ -195,10 +206,7 @@ class _WorkspaceMixin:
 
             if txt_content:
                 txt_filename = f"{tool_name}_{timestamp}.txt"
-                txt_filepath = os.path.join(
-                    command_dir if tool_name == "execute" else output_dir,
-                    txt_filename,
-                )
+                txt_filepath = os.path.join(output_dir, txt_filename)
                 with open(txt_filepath, "w") as f:
                     f.write(str(txt_content))
                 self._last_output_file = txt_filepath  # type: ignore[attr-defined]

@@ -7,6 +7,7 @@ from typing import Any
 logger = logging.getLogger("airecon.agent")
 
 MAX_TOOL_ITERATIONS = 2000
+MAX_TOOL_HISTORY = 100
 
 
 @dataclass
@@ -50,13 +51,17 @@ class AgentState:
             msg["thinking"] = thinking
         self.conversation.append(msg)
 
+        # Cap tool_history to prevent unbounded memory growth
+        if len(self.tool_history) > MAX_TOOL_HISTORY:
+            self.tool_history = self.tool_history[-MAX_TOOL_HISTORY:]
+
     def is_approaching_limit(self) -> bool:
         return self.iteration >= (self.max_iterations - 3)
 
     def increment_iteration(self) -> None:
         self.iteration += 1
 
-    def truncate_conversation(self, max_messages: int = 60) -> None:
+    def truncate_conversation(self, max_messages: int = 50) -> None:
         if len(self.conversation) <= max_messages:
             return
 
@@ -65,6 +70,8 @@ class AgentState:
             "[SYSTEM: ACTIVE_TARGET",
             "[SYSTEM: ADDITIONAL_TARGETS",
             "[SYSTEM: RECENT EXECUTIONS",
+            "[SYSTEM: EVALUATION CHECKPOINT",
+            "[SYSTEM: MANDATORY PLANNING",
         )
 
         core_system: list[dict] = []
@@ -85,7 +92,37 @@ class AgentState:
         if ephemeral_system:
             ephemeral_system = [ephemeral_system[-1]]
 
-        # Drop text-only assistant messages from middle first (least critical)
+        # STEP 1: Compress verbose tool results in older messages
+        # Keep last 20 messages uncompressed, compress older ones
+        compress_boundary = max(0, len(other_messages) - 20)
+        for i in range(compress_boundary):
+            msg = other_messages[i]
+            content = msg.get("content", "")
+            role = msg.get("role", "")
+
+            # Compress tool results to 1-line summaries
+            if role == "tool" and len(content) > 200:
+                # Extract key info
+                if "COMMAND FAILED" in content:
+                    first_line = content.split("\n")[0]
+                    msg["content"] = f"[COMPRESSED] {first_line}"
+                elif "TOTAL:" in content:
+                    # Find the TOTAL line
+                    for line in content.split("\n"):
+                        if "TOTAL:" in line:
+                            msg["content"] = f"[COMPRESSED] {line.strip()}"
+                            break
+                elif "Success" in content[:50]:
+                    first_line = content.split("\n")[0]
+                    msg["content"] = f"[COMPRESSED] {first_line[:150]}"
+                else:
+                    msg["content"] = f"[COMPRESSED] Tool result ({len(content)} chars)"
+
+            # Compress verbose assistant text (not tool calls)
+            elif role == "assistant" and not msg.get("tool_calls") and len(content) > 500:
+                msg["content"] = content[:200] + "... [truncated]"
+
+        # STEP 2: Drop text-only assistant messages from middle (least critical)
         assistant_text_only = [
             m for m in other_messages
             if m.get("role") == "assistant" and not m.get("tool_calls")
@@ -97,10 +134,10 @@ class AgentState:
         budget = max_messages - len(core_system) - len(ephemeral_system)
         if len(other_messages) <= budget:
             self.conversation = core_system + ephemeral_system + other_messages
-            logger.info(f"Truncated (text-only drop): {len(self.conversation)} messages")
+            logger.info(f"Truncated (compressed + text-drop): {len(self.conversation)} messages")
             return
 
-        # Still over budget — keep first user msg + tail of remaining
+        # STEP 3: Pair-aware truncation — keep assistant+tool_calls with their tool responses
         must_keep = []
         can_trim = []
         first_user_seen = False
@@ -113,14 +150,25 @@ class AgentState:
                 can_trim.append(msg)
 
         tail_budget = max(budget - len(must_keep), 10)
-        dropped_count = max(0, len(can_trim) - tail_budget)
-        trimmed = can_trim[-tail_budget:] if len(can_trim) > tail_budget else can_trim
+        if len(can_trim) > tail_budget:
+            tail = can_trim[-tail_budget:]
+            # Ensure we don't start mid-pair: if tail starts with a 'tool' message,
+            # include the preceding assistant message to keep the pair intact.
+            start_idx = len(can_trim) - tail_budget
+            while start_idx > 0 and tail and tail[0].get("role") == "tool":
+                start_idx -= 1
+                tail = can_trim[start_idx:]
+            trimmed = tail
+            dropped_count = len(can_trim) - len(trimmed)
+        else:
+            trimmed = can_trim
+            dropped_count = 0
 
         separator = {
             "role": "system",
             "content": (
-                f"[SYSTEM: {dropped_count} older messages removed to manage context. "
-                "Tool results and findings are preserved in the most recent messages below. "
+                f"[SYSTEM: {dropped_count} older messages compressed/removed to manage context. "
+                "Key findings are preserved in the session summary. "
                 "The original user request is preserved above.]"
             ),
         }
@@ -128,6 +176,7 @@ class AgentState:
         rebuilt = must_keep + ([separator] if dropped_count > 0 else []) + trimmed
         self.conversation = core_system + ephemeral_system + rebuilt
         logger.info(
-            f"Truncated (evidence-preserving): {len(self.conversation)} messages "
+            f"Truncated (pair-preserving): {len(self.conversation)} messages "
             f"(dropped {dropped_count} older messages)"
         )
+

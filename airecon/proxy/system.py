@@ -86,8 +86,8 @@ MANDATORY FIRST STEP: Before calling ANY tool, classify the user's request into 
     - "full recon on example.com"
     - "do a pentest on this target"
     - "bug bounty on example.com — find everything"
-  Rules: Follow the full SOP below. Chain all phases. Emit [TASK_COMPLETE] only when the ENTIRE
-    engagement is finished.
+  Rules: Follow the full SOP (auto-loaded as skill). Chain all phases. Emit [TASK_COMPLETE] only
+    when the ENTIRE engagement is finished.
 
 DEFAULT: If scope is ambiguous, classify as [SPECIFIC TASK]. Do less, not more.
 
@@ -247,25 +247,148 @@ Remember: A single high-impact vulnerability is worth more than dozens of low-se
 
 
 def _load_local_skills() -> str:
-    """Load local skills from airecon/proxy/skills/*.md and append to prompt."""
+    """Load local skills from airecon/proxy/skills/*.md and append to prompt.
+
+    Skills are listed as read_file references. The SOP and tool catalog will
+    be auto-loaded via auto_load_skills_for_message() when triggered by keywords.
+    """
     skills_dir = Path(__file__).resolve().parent / "skills"
     if not skills_dir.exists():
         return ""
 
-    parts: list[str] = []
+    # Skills to embed directly (always available without read_file)
+    EMBED_SKILLS = {"tool_catalog.md", "full_recon_sop.md"}
+
+    embedded_parts: list[str] = []
+    reference_parts: list[str] = []
 
     for path in sorted(skills_dir.rglob("*.md")):
-        parts.append(f"- {path.absolute().as_posix()}")
+        if path.name in EMBED_SKILLS:
+            try:
+                content = path.read_text(encoding="utf-8", errors="replace")
+                embedded_parts.append(
+                    f"\n<embedded_skill name=\"{path.name}\">\n{content}\n</embedded_skill>\n"
+                )
+            except Exception:
+                reference_parts.append(f"- {path.absolute().as_posix()}")
+        else:
+            reference_parts.append(f"- {path.absolute().as_posix()}")
+
+    result = ""
+
+    if embedded_parts:
+        result += (
+            "\n\n<core_skills>\n"
+            "The following skill documents are pre-loaded for you. "
+            "You do NOT need to read_file these — they are already available:\n"
+            + "".join(embedded_parts)
+            + "</core_skills>\n"
+        )
+
+    if reference_parts:
+        result += (
+            "\n\n<available_skills>\n"
+            "Additional skill documents available via read_file. "
+            "Load the relevant one when you need specialized guidance:\n"
+            + "\n".join(reference_parts)
+            + "\n</available_skills>\n"
+        )
+
+    return result
+
+
+# Keyword → skill file mapping for auto-loading
+_SKILL_KEYWORDS: dict[str, str] = {
+    "sql injection": "vulnerabilities/sql_injection.md",
+    "sqli": "vulnerabilities/sql_injection.md",
+    "xss": "vulnerabilities/xss.md",
+    "cross-site scripting": "vulnerabilities/xss.md",
+    "ssrf": "vulnerabilities/ssrf.md",
+    "csrf": "vulnerabilities/csrf.md",
+    "xxe": "vulnerabilities/xxe.md",
+    "idor": "vulnerabilities/idor.md",
+    "rce": "vulnerabilities/rce.md",
+    "remote code execution": "vulnerabilities/rce.md",
+    "lfi": "vulnerabilities/path_traversal_lfi_rfi.md",
+    "rfi": "vulnerabilities/path_traversal_lfi_rfi.md",
+    "path traversal": "vulnerabilities/path_traversal_lfi_rfi.md",
+    "file upload": "vulnerabilities/insecure_file_uploads.md",
+    "open redirect": "vulnerabilities/open_redirect.md",
+    "subdomain takeover": "vulnerabilities/subdomain_takeover.md",
+    "jwt": "vulnerabilities/authentication_jwt.md",
+    "api": "vulnerabilities/api_testing.md",
+    "graphql": "protocols/graphql.md",
+    "active directory": "protocols/active_directory.md",
+    "cloud": "technologies/cloud_security.md",
+    "aws": "technologies/cloud_security.md",
+    "firebase": "technologies/firebase_firestore.md",
+    "supabase": "technologies/supabase.md",
+    "race condition": "vulnerabilities/race_conditions.md",
+    "prototype pollution": "vulnerabilities/prototype_pollution.md",
+    "web cache": "vulnerabilities/web_cache_poisoning.md",
+    "cache poisoning": "vulnerabilities/web_cache_poisoning.md",
+    "privilege escalation": "vulnerabilities/privilege_escalation.md",
+    "mass assignment": "vulnerabilities/mass_assignment.md",
+    "business logic": "vulnerabilities/business_logic.md",
+    "information disclosure": "vulnerabilities/information_disclosure.md",
+    "tls": "reconnaissance/tls_ssl_recon.md",
+    "ssl": "reconnaissance/tls_ssl_recon.md",
+    "dns": "reconnaissance/dns_intelligence.md",
+    "javascript recon": "reconnaissance/js_recon.md",
+    "js recon": "reconnaissance/js_recon.md",
+    "nextjs": "frameworks/nextjs.md",
+    "fastapi": "frameworks/fastapi.md",
+    "exploitation": "vulnerabilities/exploitation.md",
+    "full recon": "reconnaissance/full_recon_sop.md",
+    "deep recon": "reconnaissance/full_recon_sop.md",
+    "comprehensive": "reconnaissance/full_recon_sop.md",
+    "pentest": "reconnaissance/full_recon_sop.md",
+    "penetration test": "reconnaissance/full_recon_sop.md",
+    "bug bounty": "reconnaissance/full_recon_sop.md",
+}
+
+
+def auto_load_skills_for_message(user_message: str) -> str:
+    """Auto-detect relevant skills from user message and return their content.
+
+    Returns skill content ready for injection into conversation context.
+    """
+    skills_dir = Path(__file__).resolve().parent / "skills"
+    if not skills_dir.exists():
+        return ""
+
+    msg_lower = user_message.lower()
+    matched_skills: set[str] = set()
+
+    for keyword, skill_path in _SKILL_KEYWORDS.items():
+        if keyword in msg_lower:
+            matched_skills.add(skill_path)
+
+    if not matched_skills:
+        return ""
+
+    # Limit to 2 skills to avoid context explosion
+    parts: list[str] = []
+    for skill_rel in list(matched_skills)[:2]:
+        skill_file = skills_dir / skill_rel
+        if skill_file.exists():
+            try:
+                content = skill_file.read_text(encoding="utf-8", errors="replace")
+                # Truncate very long skills
+                if len(content) > 4000:
+                    content = content[:4000] + "\n... (truncated, use read_file for full content)"
+                parts.append(
+                    f"[AUTO-LOADED SKILL: {skill_rel}]\n{content}"
+                )
+            except Exception:
+                pass
 
     if not parts:
         return ""
 
     return (
-        "\n\n<available_skills>\n"
-        "You have access to the following skill documents. If you need specific guidance on a topic, "
-        "use the read_file tool with the EXACT absolute path listed below:\n"
-        + "\n".join(parts)
-        + "\n</available_skills>\n"
+        "[SYSTEM: RELEVANT SKILLS AUTO-LOADED based on your request]\n"
+        + "\n---\n".join(parts)
     )
 
 
