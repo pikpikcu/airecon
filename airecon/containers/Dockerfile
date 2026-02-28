@@ -165,7 +165,7 @@ RUN pipx install arjun && \
     pipx install git+https://github.com/r0oth3x49/ghauri.git && \
     pipx install pacu && \
     pipx install scoutsuite && \
-    pipx install netexec && \
+    pipx install git+https://github.com/Pennyw0rth/NetExec.git && \
     pipx install git+https://github.com/initstring/cloud_enum.git
 
 # ── Node.js Tools & Linters ──
