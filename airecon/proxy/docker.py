@@ -13,7 +13,7 @@ import os
 import shutil
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .config import get_config, get_workspace_root
 
@@ -180,7 +180,12 @@ class DockerEngine:
 
     # ── Command Execution ──
 
-    async def execute(self, command: str, timeout: float | None = None) -> dict[str, Any]:
+    async def execute(
+        self, 
+        command: str, 
+        timeout: float | None = None,
+        on_output: Callable[[str], None] | None = None
+    ) -> dict[str, Any]:
         """Execute a command inside the container.
         
         Returns: {"success": bool, "stdout": str, "stderr": str, "exit_code": int}
@@ -242,15 +247,38 @@ class DockerEngine:
                 stderr=asyncio.subprocess.PIPE,
             )
             self._current_proc = proc  # track for force_stop()
+            
+            stdout_chunks = []
+            stderr_chunks = []
+            
+            async def _read_stream(stream: asyncio.StreamReader, is_stderr: bool) -> None:
+                while True:
+                    line = await stream.read(1024 * 4) # 4KB chunks
+                    if not line:
+                        break
+                    text = line.decode(errors="replace")
+                    if is_stderr:
+                        stderr_chunks.append(text)
+                    else:
+                        stdout_chunks.append(text)
+                    
+                    if on_output:
+                        on_output(text)
+
             try:
-                stdout, stderr = await asyncio.wait_for(
-                    proc.communicate(), timeout=timeout
+                await asyncio.wait_for(
+                    asyncio.gather(
+                        _read_stream(proc.stdout, False),
+                        _read_stream(proc.stderr, True),
+                        proc.wait()
+                    ),
+                    timeout=timeout
                 )
             finally:
                 self._current_proc = None  # clear after done
 
-            stdout_str = stdout.decode(errors="replace")
-            stderr_str = stderr.decode(errors="replace")
+            stdout_str = "".join(stdout_chunks)
+            stderr_str = "".join(stderr_chunks)
             success = proc.returncode == 0
 
             return {
@@ -331,7 +359,12 @@ class DockerEngine:
         """No filtering needed — we only have one tool."""
         return [EXECUTE_TOOL_DEF]
 
-    async def execute_tool(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    async def execute_tool(
+        self, 
+        tool_name: str, 
+        arguments: dict[str, Any],
+        on_output: Callable[[str], None] | None = None
+    ) -> dict[str, Any]:
         """Execute a tool call from the agent loop."""
         if tool_name != "execute":
             return {"success": False, "error": f"Unknown tool: {tool_name}. Use 'execute' instead."}
@@ -341,7 +374,7 @@ class DockerEngine:
         if timeout:
             timeout = float(timeout)
 
-        return await self.execute(command, timeout)
+        return await self.execute(command, timeout, on_output=on_output)
 
     async def force_stop(self) -> None:
         """Force stop all running commands in the container and the local proc."""

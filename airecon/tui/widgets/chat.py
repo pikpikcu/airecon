@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from textual.widgets import Static, LoadingIndicator
+from textual.widgets import Static, LoadingIndicator, RichLog
 from textual.containers import VerticalScroll, Vertical
 from textual.reactive import reactive
 from textual.message import Message
@@ -137,6 +137,19 @@ class ToolMessage(Vertical):
         # Spinner while running
         if self.status == "running":
             yield LoadingIndicator()
+            self._live_output = RichLog(markup=False, highlight=False, auto_scroll=True, classes="tool-live-output")
+            yield self._live_output
+
+    def append_output(self, text: str) -> None:
+        if not hasattr(self, "_live_output_buffer"):
+            self._live_output_buffer = ""
+        self._live_output_buffer += text
+        
+        if hasattr(self, "_live_output"):
+            while "\n" in self._live_output_buffer:
+                line, self._live_output_buffer = self._live_output_buffer.split("\n", 1)
+                clean_line = _strip_ansi(line).rstrip("\r")
+                self._live_output.write(clean_line)
 
     def update_result(self, success: bool, duration: float, output: str, output_file: str = ""):
         self.status = "done" if success else "error"
@@ -347,6 +360,13 @@ class ChatPanel(VerticalScroll):
         if msg:
             msg.update_result(success, duration, output, output_file)
             self.scroll_end(animate=False)
+
+    def append_tool_output(self, tool_id: str, text: str) -> None:
+        if hasattr(self, "_active_tools"):
+            msg = self._active_tools.get(tool_id)
+            if msg:
+                msg.append_output(text)
+                self.scroll_end(animate=False)
 
     def add_thinking_message(self, content: str) -> None:
         self.end_streaming()

@@ -6,7 +6,7 @@ import logging
 import os
 import re
 import time
-from typing import Any
+from typing import Any, Callable
 
 from ..browser import browser_action
 from ..config import get_config, get_workspace_root
@@ -204,6 +204,7 @@ class _ExecutorMixin:
         self,
         tool_name: str,
         arguments: dict[str, Any],
+        on_output: Callable[[str], None] | None = None
     ) -> tuple[bool, float, dict[str, Any], str | None]:
         self._last_output_file = None  # type: ignore[attr-defined]
 
@@ -246,7 +247,7 @@ class _ExecutorMixin:
 
         start_time = time.time()
         try:
-            result = await self.engine.execute_tool(tool_name, arguments)  # type: ignore[attr-defined]
+            result = await self.engine.execute_tool(tool_name, arguments, on_output=on_output)  # type: ignore[attr-defined]
             success = result.get("success", False)
             try:
                 self._save_tool_output(tool_name, arguments, result)  # type: ignore[attr-defined]

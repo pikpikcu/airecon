@@ -382,51 +382,17 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin, _WorkspaceMixin, _ExecutorMixi
                     tool_names_str = ", ".join(tc["function"]["name"] for tc in tool_calls_acc)
                     yield AgentEvent(type="text", data={"content": f"Executing: {tool_names_str}..."})
 
-                # Classify tools: parallelizable (execute) vs sequential (browser, fs, etc.)
-                _SEQUENTIAL_TOOLS = {"browser_action", "create_file", "read_file", "create_vulnerability_report"}
-                parallel_tasks: list[tuple[int, dict]] = []
-                sequential_tasks: list[tuple[int, dict]] = []
+                # All tools execute sequentially now to avoid races and allow streaming
+                sequential_tasks: list[tuple[int, dict, dict]] = []
 
                 for idx, tc in enumerate(tool_calls_acc):
                     tn = tc["function"]["name"]
                     args = self._normalize_tool_args(tn, tc["function"]["arguments"], user_message)
                     # Yield tool start FIRST so UI spinner shows immediately
                     yield AgentEvent(type="tool_start", data={"tool_id": str(idx), "tool": tn, "arguments": args})
-                    
-                    if tn in _SEQUENTIAL_TOOLS or not self.engine.has_tool(tn):
-                        sequential_tasks.append((idx, tc, args))
-                    else:
-                        parallel_tasks.append((idx, tc, args))
+                    sequential_tasks.append((idx, tc, args))
 
-                # Execute parallel tasks concurrently if there are multiple
                 all_results: dict[int, tuple] = {}  # idx -> (tc, tool_name, arguments, valid, ...)
-
-                if len(parallel_tasks) > 1:
-                    async def _run_parallel(idx: int, tc: dict, args_ready: dict) -> tuple:
-                        tn = tc["function"]["name"]
-                        args = args_ready
-                        valid, arg_err = self._validate_tool_args(tn, args)
-                        if not valid:
-                            return (idx, tc, tn, args, False, 0.0, {"success": False, "error": arg_err}, None, False)
-                        # Check output file dedup
-                        dedup_warn = self._check_output_dedup(args) if tn == "execute" else None
-                        if dedup_warn:
-                            return (idx, tc, tn, args, False, 0.0, {"success": False, "error": dedup_warn}, None, False)
-                        s, d, r, o = await self._execute_tool_and_record(tn, args)
-                        self.state.missing_tool_count = 0
-                        return (idx, tc, tn, args, True, d, r, o, s)
-
-                    coros = [_run_parallel(i, t, a) for i, t, a in parallel_tasks]
-                    results = await asyncio.gather(*coros, return_exceptions=True)
-                    for res in results:
-                        if isinstance(res, Exception):
-                            logger.error(f"Parallel tool error: {res}")
-                            continue
-                        all_results[res[0]] = res
-                else:
-                    # Single parallel task or none → add to sequential
-                    sequential_tasks.extend(parallel_tasks)
-                    sequential_tasks.sort(key=lambda x: x[0])
 
                 # Execute sequential tasks one by one
                 for idx, tc, args in sequential_tasks:
@@ -455,7 +421,28 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin, _WorkspaceMixin, _ExecutorMixi
                         s, d, r, o = await self._execute_web_search_tool(args)
                         self.state.missing_tool_count = 0
                     elif self.engine.has_tool(tn):
-                        s, d, r, o = await self._execute_tool_and_record(tn, args)
+                        out_queue: asyncio.Queue[str] = asyncio.Queue()
+                        
+                        def _on_chunk(text: str) -> None:
+                            out_queue.put_nowait(text)
+                            
+                        # create task
+                        t_task = asyncio.create_task(self._execute_tool_and_record(tn, args, on_output=_on_chunk))
+                        
+                        # Wait for task while yielding chunks
+                        while not t_task.done():
+                            try:
+                                chunk = await asyncio.wait_for(out_queue.get(), timeout=0.1)
+                                yield AgentEvent(type="tool_output", data={"tool_id": str(idx), "content": chunk})
+                            except asyncio.TimeoutError:
+                                pass
+                                
+                        # flush remaining
+                        while not out_queue.empty():
+                            chunk = out_queue.get_nowait()
+                            yield AgentEvent(type="tool_output", data={"tool_id": str(idx), "content": chunk})
+                            
+                        s, d, r, o = t_task.result()
                         self.state.missing_tool_count = 0
                     else:
                         self.state.missing_tool_count += 1

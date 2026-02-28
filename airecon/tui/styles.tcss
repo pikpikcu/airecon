@@ -220,11 +220,20 @@ ToolMessage LoadingIndicator {
     color: #f59e0b;
 }
 
-.tool-output {
+.tool-output, .tool-live-output {
     color: #8b949e;
     margin: 1 0 0 2;
     padding: 0;
     height: auto;
+}
+
+.tool-live-output {
+    height: auto;
+    max-height: 15;
+    background: transparent;
+    border: none;
+    margin: 1 0 0 2;
+    padding: 0;
 }
 
 .tool-footer {

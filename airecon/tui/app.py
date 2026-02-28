@@ -585,6 +585,20 @@ class AIReconApp(App):
                         streaming_started = False
                         chat.add_tool_start(tool_id, tool_name, arguments)
 
+                    elif event_type == "tool_output":
+                        tool_id = str(event.get("tool_id", "0"))
+                        content = event.get("content", "")
+                        if content:
+                            # Debounce scroll: at most once per 300ms
+                            import time as _tmod
+                            _now = _tmod.monotonic()
+                            if not hasattr(self, '_last_scroll_time'):
+                                self._last_scroll_time = 0.0
+                            chat.append_tool_output(tool_id, content)
+                            if _now - self._last_scroll_time >= 0.3:
+                                chat.scroll_end(animate=False)
+                                self._last_scroll_time = _now
+
                     elif event_type == "tool_end":
                         tool_id = str(event.get("tool_id", "0"))
                         success = event.get("success", False)
