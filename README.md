@@ -18,15 +18,6 @@ Commercial API-based models (OpenAI GPT-4, Claude, Gemini) become prohibitively 
 
 ![Architecture Diagram](images/architecture.png)
 
-| Layer | Component | Role |
-|-------|-----------|------|
-| UI | Textual TUI (`airecon/tui/`) | Interactive terminal interface with real-time streaming |
-| Proxy | FastAPI Server (`proxy/server.py`) | SSE endpoint bridging TUI ↔ agent loop |
-| Core | Agent Loop (`proxy/agent.py`) | LLM ↔ tool execution orchestrator |
-| LLM | Ollama (`proxy/ollama.py`) | Streaming inference with tool calling + thinking |
-| Sandbox | Docker Engine (`proxy/docker.py`) | Kali Linux container with 60+ preinstalled tools |
-| Tools | Browser, Web Search, Reporting, Filesystem | Local Python tool implementations |
-
 ## Model Requirements
 
 **Not all Ollama models will work.** AIRecon requires two hard capabilities:
