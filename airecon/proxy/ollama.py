@@ -67,36 +67,70 @@ class OllamaClient:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
         options: dict[str, Any] | None = None,
-        think: bool = False, 
+        think: bool = False,
+        max_retries: int = 2,
     ) -> AsyncIterator[Any]:
         """
         Streaming chat completion using SDK.
         Returns the raw chunk object from Ollama SDK.
+        Retries up to max_retries times on transient connection errors.
         """
-        try:
-            kwargs = {
-                "model": self.model,
-                "messages": messages,
-                "stream": True,
-                "keep_alive": -1, # Keep model loaded
-            }
-            
-            # Support for reasoning models in newer SDK versions
-            if think:
-                kwargs["think"] = think 
+        import asyncio
 
-            if tools:
-                kwargs["tools"] = tools
-            if options:
-                kwargs["options"] = options
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "stream": True,
+            "keep_alive": -1,  # Keep model loaded between calls
+        }
+        if think:
+            kwargs["think"] = think
+        if tools:
+            kwargs["tools"] = tools
+        if options:
+            kwargs["options"] = options
 
-            # SDK handles streaming and parsing natively
-            async for chunk in await self._client.chat(**kwargs):
-                yield chunk
+        last_err: Exception | None = None
+        for attempt in range(max_retries + 1):
+            try:
+                async for chunk in await self._client.chat(**kwargs):
+                    yield chunk
+                return  # success
 
-        except ollama.ResponseError as e:
-            logger.error(f"Ollama SDK Error: {e.error}")
-            raise
-        except Exception as e:
-            logger.exception(f"Unexpected SDK error: {e}")
-            raise
+            except ollama.ResponseError as e:
+                err_str = str(e.error)
+                # HTML response means Ollama's internal HTTP layer returned an error page —
+                # most often caused by a reverse-proxy (nginx/caddy) timing out, or Ollama
+                # itself crashing/OOM while loading the model.
+                if "invalid character '<'" in err_str or "failed to parse JSON" in err_str:
+                    raise ollama.ResponseError(
+                        "Ollama returned an HTML error page instead of JSON. "
+                        "This usually means Ollama crashed or ran out of memory. "
+                        "Try: `systemctl restart ollama` or reduce `ollama_num_ctx` in config.",
+                        status_code=e.status_code,
+                    )
+                logger.error(f"Ollama ResponseError (attempt {attempt + 1}): {e.error}")
+                raise
+
+            except Exception as e:
+                err_str = str(e).lower()
+                is_transient = any(k in err_str for k in (
+                    "connection reset", "connection refused", "eof", "broken pipe",
+                    "timeout", "timed out", "network", "connection error",
+                ))
+                if is_transient and attempt < max_retries:
+                    wait = 1.5 * (attempt + 1)
+                    logger.warning(
+                        f"Transient Ollama error (attempt {attempt + 1}/{max_retries + 1}), "
+                        f"retrying in {wait:.1f}s: {e}"
+                    )
+                    last_err = e
+                    await asyncio.sleep(wait)
+                    continue
+                logger.exception(f"Unexpected SDK error: {e}")
+                raise
+
+        # All retries exhausted
+        raise RuntimeError(
+            f"Ollama connection failed after {max_retries + 1} attempts: {last_err}"
+        )

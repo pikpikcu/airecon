@@ -623,9 +623,39 @@ Professional, customer-facing report rules (PDF-ready):
                         _carry = ""
 
                 except Exception as stream_err:
-                    error_msg = f"Model connection error: {str(stream_err)}"
+                    err_str = str(stream_err)
+                    err_lower = err_str.lower()
+
+                    # Classify error and provide actionable guidance
+                    if "invalid character '<'" in err_str or "failed to parse JSON" in err_str or "HTML error page" in err_str:
+                        error_msg = (
+                            "Ollama returned an HTML error page — the server likely crashed or ran out of VRAM.\n"
+                            "Fix: run `systemctl restart ollama` or reduce `ollama_num_ctx` in your config."
+                        )
+                    elif "connection refused" in err_lower:
+                        error_msg = (
+                            "Cannot connect to Ollama (connection refused).\n"
+                            "Fix: start Ollama with `ollama serve` then retry."
+                        )
+                    elif "model not found" in err_lower or "pull" in err_lower:
+                        error_msg = (
+                            f"Model not found: {cfg.ollama_model}\n"
+                            f"Fix: run `ollama pull {cfg.ollama_model}` to download it."
+                        )
+                    elif "context length" in err_lower or "context window" in err_lower or "out of memory" in err_lower:
+                        error_msg = (
+                            "Model ran out of context or memory.\n"
+                            "Fix: lower `ollama_num_ctx` in config (e.g. 32768) or use a smaller model."
+                        )
+                    elif "timeout" in err_lower or "timed out" in err_lower:
+                        error_msg = (
+                            "Ollama request timed out — model may be too slow or overloaded.\n"
+                            "Fix: increase `ollama_timeout` in config or use a faster model."
+                        )
+                    else:
+                        error_msg = f"Model connection error: {err_str}"
+
                     logger.error(f"Ollama stream error: {stream_err}")
-                    # CRITICAL: Send actual error to UI so user knows WHY it failed (e.g. 400 Bad Request)
                     yield AgentEvent(type="error", data={"message": error_msg})
                     yield AgentEvent(type="done", data={})
                     return
