@@ -30,7 +30,6 @@ class OllamaClient:
         """Unload model from memory by setting keep_alive to 0."""
         try:
             logger.info(f"Unloading model {self.model}...")
-            # Sending an empty generate request with keep_alive=0 unloads it immediately
             await self._client.generate(model=self.model, prompt="", keep_alive=0)
             logger.info("Model unloaded successfully.")
         except Exception as e:
@@ -48,7 +47,6 @@ class OllamaClient:
         """List available models."""
         try:
             response = await self._client.list()
-            # Handle object response (0.6.x+) vs dict response (older)
             if hasattr(response, "models"):
                 models = response.models
             else:
@@ -81,7 +79,7 @@ class OllamaClient:
             "model": self.model,
             "messages": messages,
             "stream": True,
-            "keep_alive": -1,  # Keep model loaded between calls
+            "keep_alive": -1,
         }
         if think:
             kwargs["think"] = think
@@ -95,13 +93,10 @@ class OllamaClient:
             try:
                 async for chunk in await self._client.chat(**kwargs):
                     yield chunk
-                return  # success
+                return
 
             except ollama.ResponseError as e:
                 err_str = str(e.error)
-                # HTML response means Ollama's internal HTTP layer returned an error page —
-                # most often caused by a reverse-proxy (nginx/caddy) timing out, or Ollama
-                # itself crashing/OOM while loading the model.
                 if "invalid character '<'" in err_str or "failed to parse JSON" in err_str:
                     raise ollama.ResponseError(
                         "Ollama returned an HTML error page instead of JSON. "
@@ -130,7 +125,6 @@ class OllamaClient:
                 logger.exception(f"Unexpected SDK error: {e}")
                 raise
 
-        # All retries exhausted
         raise RuntimeError(
             f"Ollama connection failed after {max_retries + 1} attempts: {last_err}"
         )

@@ -28,9 +28,35 @@ Commercial API-based models (OpenAI GPT-4, Claude, Gemini) become prohibitively 
 - **Privacy First** — Your targets and findings never leave your machine.
 - **Full Control** — You own the safety filters, the model, and the data.
 
-## Architecture
+## Architecture Overview
 
-![Architecture Diagram](images/architecture.png)
+AIRecon exposes tools to the LLM through two layers:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                        LLM (Ollama)                          │
+│              sees tool definitions as JSON schema            │
+└────────────────────────┬─────────────────────────────────────┘
+                         │ tool call (name + arguments)
+                         ▼
+┌──────────────────────────────────────────────────────────────┐
+│                    Agent Loop (Python)                       │
+│           routes calls to the correct handler                │
+└──────┬─────────────────┬────────────────────┬────────────────┘
+       │                 │                    │
+       ▼                 ▼                    ▼
+┌─────────────┐  ┌──────────────┐  ┌─────────────────────┐
+│  execute    │  │ browser /    │  │ create_file /       │
+│  (Docker    │  │ web_search / │  │ read_file /         │
+│  sandbox)   │  │ reporting    │  │ (workspace FS)      │
+└──────┬──────┘  └──────────────┘  └─────────────────────┘
+       │
+       ▼
+┌──────────────────────────────────────────────────────────────┐
+│          Kali Linux Docker Container (airecon-sandbox)       │
+│    60+ pre-installed tools, SecLists, FuzzDB, custom scripts │
+└──────────────────────────────────────────────────────────────┘
+```
 
 ## Model Requirements
 
@@ -168,38 +194,6 @@ workspace/
     ├── command/         # Command execution metadata and logs (.json)
     ├── tools/           # AI-generated Python/Bash scripts
     └── vulnerabilities/ # Verified vulnerability reports (.md)
-```
-
-## Project Structure
-
-```
-airecon/
-├── airecon/
-│   ├── proxy/
-│   │   ├── agent.py            # Core agent: LLM ↔ tool execution loop
-│   │   ├── server.py           # FastAPI + SSE server
-│   │   ├── ollama.py           # Ollama SDK streaming wrapper
-│   │   ├── docker.py           # Docker sandbox execution engine
-│   │   ├── browser.py          # Playwright browser automation
-│   │   ├── web_search.py       # DuckDuckGo web search
-│   │   ├── reporting.py        # Vulnerability report generation
-│   │   ├── filesystem.py       # Workspace file operations
-│   │   ├── system.py           # Agent system prompt
-│   │   ├── config.py           # Configuration management
-│   │   └── skills/             # Markdown knowledge bases
-│   └── tui/
-│       ├── app.py              # Textual application
-│       └── widgets/            # TUI widgets (chat, status, file preview)
-├── images/
-│   └── architecture.png
-├── docs/
-│   ├── configuration.md
-│   ├── installation.md
-│   ├── features.md
-│   └── development/
-│       ├── creating_skills.md
-│       └── creating_tools.md
-└── install.sh
 ```
 
 ## Documentation
