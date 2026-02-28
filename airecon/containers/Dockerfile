@@ -36,6 +36,8 @@ RUN apt-get update && \
     fonts-freefont-ttf fonts-dejavu-core ttf-bitstream-vera libnss3-tools \
     # Networking
     net-tools dnsutils whois iproute2 iputils-ping netcat-traditional \
+    # Active Directory / SMB / Pivoting / Exploitation
+    responder smbclient impacket-scripts commix enum4linux \
     # Recon tools (from Kali repos)
     nmap ncat masscan subfinder naabu nuclei sqlmap ffuf feroxbuster \
     dnsrecon dnsenum whois nikto wpscan whatweb \
@@ -89,6 +91,9 @@ RUN go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest && \
     go install -v github.com/projectdiscovery/tlsx/cmd/tlsx@latest && \
     go install -v github.com/projectdiscovery/cvemap/cmd/vulnx@latest && \
     go install -v github.com/projectdiscovery/interactsh/cmd/interactsh-client@latest && \
+    go install -v github.com/assetnote/kiterunner@latest && \
+    go install -v github.com/nicocha30/ligolo-ng/cmd/proxy@latest && \
+    go install -v github.com/jpillora/chisel@latest && \
     go install -v github.com/jaeles-project/gospider@latest && \
     go install -v github.com/tomnomnom/gau@latest && \
     go install -v github.com/tomnomnom/waybackurls@latest && \
@@ -157,7 +162,11 @@ RUN pipx install arjun && \
     pipx install git-dumper && \
     pipx install s3scanner && \
     pipx install festin && \
-    pipx install git+https://github.com/r0oth3x49/ghauri.git
+    pipx install git+https://github.com/r0oth3x49/ghauri.git && \
+    pipx install pacu && \
+    pipx install scoutsuite && \
+    pipx install netexec && \
+    pipx install git+https://github.com/initstring/cloud_enum.git
 
 # ── Node.js Tools & Linters ──
 ENV NPM_CONFIG_PREFIX=/home/pentester/.npm-global
@@ -209,8 +218,8 @@ RUN git clone https://github.com/aravind0x7/JS-Snooper.git 2>/dev/null || true &
 USER root
 RUN find /home/pentester/tools -type f \( -name "*.sh" -o -name "*.py" \) -exec chmod +x {} \; 2>/dev/null || true && \
     find /home/pentester/tools -type f \( -name "*.sh" -o -name "*.py" \) -exec sh -c \
-        'head -1 "$1" | grep -q "^#!" && name=$(basename "${1%.*}") && [ ! -e "/usr/local/bin/$name" ] && ln -sf "$1" "/usr/local/bin/$name"' \
-        _ {} \; 2>/dev/null || true
+    'head -1 "$1" | grep -q "^#!" && name=$(basename "${1%.*}") && [ ! -e "/usr/local/bin/$name" ] && ln -sf "$1" "/usr/local/bin/$name"' \
+    _ {} \; 2>/dev/null || true
 USER pentester
 
 # ── Trivy, Trufflehog & git-secrets ──
@@ -219,6 +228,12 @@ RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/
     curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin 2>/dev/null || true && \
     git clone https://github.com/awslabs/git-secrets.git /tmp/git-secrets && \
     cd /tmp/git-secrets && make install && rm -rf /tmp/git-secrets
+
+# ── Privilege Escalation Scripts ──
+RUN wget -qO /usr/local/bin/linpeas.sh https://github.com/peass-ng/PEASS-ng/releases/latest/download/linpeas.sh && \
+    chmod +x /usr/local/bin/linpeas.sh && \
+    wget -qO /usr/local/bin/pspy64 https://github.com/DominicBreuker/pspy/releases/latest/download/pspy64 && \
+    chmod +x /usr/local/bin/pspy64
 
 # ── Caido CLI ──
 RUN ARCH=$(uname -m) && \

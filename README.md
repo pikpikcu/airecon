@@ -1,6 +1,20 @@
-# AIRecon
+<h1 align="center">
+  <img src="images/logo.png" alt="AIRecon" width="200">
+  <br>
+</h1>
+<h4 align="center">AI-Powered Security Reconnaissance Agent</h4>                
+<p align="center">
+  <a href="https://ru.m.wikipedia.org/wiki/python">
+    <img src="https://img.shields.io/badge/language-python-green.svg">
+  </a>
+  <a href="https://github.com/pikpikcu/airecon">
+    <img src="https://img.shields.io/badge/version-v0.1.4-green.svg">
+  </a>
+  <a href="https://github.com/pikpikcu/airecon/blob/master/LICENSE">
+   <img src="https://img.shields.io/badge/LICENSE-red.svg">
+  </a>
+</p>
 
-**AI-Powered Security Reconnaissance Agent**
 
 AIRecon is an autonomous cybersecurity agent that combines a self-hosted **Large Language Model (Ollama)** with a **Kali Linux Docker sandbox** and a **Textual TUI**. It is designed to automate security assessments, penetration testing, and bug bounty reconnaissance — without any API keys or cloud dependency.
 

@@ -1,219 +1,207 @@
 ---
-name: js_recon
-description: Methodologies for static analysis of client-side JavaScript.
+name: js-recon
+description: Advanced JavaScript reconnaissance covering endpoint extraction, secret hunting, webpack analysis, source maps, prototype pollution vectors, and DOM security review
 ---
 
 # JavaScript Reconnaissance
 
-Client-side JavaScript libraries are often one of the most overlooked areas of a security assessment. They can contain hidden API endpoints, hardcoded credentials, and logic flaws.
+JavaScript is the most underanalyzed part of web assessments. JS files reveal API endpoints, authentication logic, hardcoded secrets, internal tool names, and vulnerability sinks. Treat every JS file as a potential attack surface.
 
-## 1. Endpoint Extraction
+---
 
-Modern Single Page Applications (SPAs) often bundle all their routes into large JS files. Extracting these can reveal administrative panels or unlinked API endpoints.
+## Endpoint & URL Extraction
 
-### Tools & Commands
-*   **katana**: A next-generation crawling and spidering framework.
-    ```bash
-    katana -u target.com -d 5 -jc -kf -aff -c 10 -o endpoints.txt
-    ```
-*   **xnLinkFinder**: Python tool to discover endpoints in JS files.
-    ```bash
-    python3 xnLinkFinder.py -i target.com -sp target_js.txt -sf target_domains.txt -o cli
-    ```
+### Crawl and Collect JS Files
 
-### Workflow
-1.  Crawl the target to collect all `.js` usage.
-2.  Pass the JS types to an extractor like `xnLinkFinder` or `GAP`.
-3.  Filter for interesting paths (e.g., `/api/v1`, `/admin`, `/graphql`).
+    # katana — JS-aware spider with headless rendering
+    katana -u https://target.com -d 5 -jc -aff -kf -c 10 -o output/urls_katana.txt
+    grep "\.js" output/urls_katana.txt | sort -u > output/js_files.txt
 
-## 2. Secret Hunting
+    # gospider with JS parsing
+    gospider -s https://target.com -d 5 --js -o output/gospider/
 
-Developers often accidentally commit keys, tokens, or passwords to client-side code.
+    # gau for historical JS
+    gau target.com | grep "\.js$" | sort -u | tee output/js_historical.txt
 
-### Tools & Commands
-*   **SecretFinder**: Python script to find sensitive data (apikeys, accesstokens, etc) in JS files.
-    ```bash
-    python3 SecretFinder.py -i https://target.com/main.js -o cli
-    ```
-*   **Mantra**: A tool to find secrets in JS files with custom regex.
-    ```bash
-    cat js_urls.txt | mantra
-    ```
+### Extract Endpoints from JS
 
-### Key Secrets to Look For
-*   **AWS Access Keys**: `AKIA...`
-*   **Google API Keys**: `AIza...`
-*   **Stripe Tokens**: `sk_live_...`
-*   **Slack Webhooks**: `https://hooks.slack.com/...`
-*   **JWT Tokens**: `ey...`
+    # jsleak — fast endpoint and secret extraction
+    cat output/js_files.txt | jsleak | tee output/jsleak_results.txt
 
-## 3. DOM Analysis
+    # jsluice — structured JS analysis
+    jsluice urls output/urls_katana.txt
+    jsluice secrets output/urls_katana.txt
 
-Identifying DOM-based vulnerabilities (XSS, Open Redirect) requires analyzing how data flows from sources to sinks.
+    # LinkFinder — classic endpoint extractor
+    python3 /home/pentester/tools/LinkFinder/linkfinder.py \
+      -i https://target.com -d -o output/linkfinder.html
 
-### Sinks & Sources
-*   **Sources**: `location.search`, `location.hash`, `document.cookie`, `window.name`.
-*   **Sinks**: `innerHTML`, `document.write`, `eval`, `setTimeout`, `location.href`.
+    # Custom regex from downloaded JS
+    find output/ -name "*.js" -exec grep -hoE \
+      "(\"|\')(/api/[^\"\']+|/v[0-9]+/[^\"\']+|/graphql[^\"\']*)(\"|\')"\
+      {} \; | sort -u > output/api_endpoints.txt
 
-### Tools
-*   **DOMInvader**: A browser extension (built into Burp Suite) that tracks sources and sinks.
-*   **Mantra**: Can also be used to grep for specific dangerous functions.
-    ```bash
-    grep -E "innerHTML|document.write" app.js
-    ```
+    # Batch extract from all JS URLs
+    cat output/js_files.txt | \
+      xargs -P 10 -I{} sh -c 'curl -sk {} | jsluice urls' 2>/dev/null | \
+      jq -r '.url' | sort -u > output/js_endpoints.txt
 
-## 4. Source Map Reconstruction
+---
 
-If source maps (`.map` files) are present, you can reconstruct the original source code (e.g., TypeScript, unminified JS).
+## Secret Hunting
 
-### Tool
-*   **sourcemapper**:
-    ```bash
-    sourcemapper -url https://target.com/assets/index.js.map -output ./source_code
-## 5. Advanced JS Recon Pipeline
+### Automated Tools
 
-Leverage these one-liners for rapid, deep analysis of JavaScript files.
+    # trufflehog — entropy + regex, best coverage
+    trufflehog filesystem output/ --json | tee output/trufflehog.json
+    cat output/trufflehog.json | jq -r '.SourceMetadata.Data.Filesystem.file + ": " + .Raw'
 
-### Complete JS Pipeline
-Resolve subdomains, crawl for JS files, and save them.
-```bash
-subfinder -d target.com -silent | httpx -silent | katana -d 5 -jc -silent | grep -iE '\.js$' | anew js.txt
-```
+    # gitleaks — scan downloaded JS for secrets
+    gitleaks detect --source output/ --report-path output/gitleaks.json
 
-### Extract Secrets from JS
-Scan JS files for exposures using nuclei.
-```bash
-cat js.txt | httpx -silent -sr -srd js_files/ && nuclei -t exposures/ -target js.txt
-```
+    # gf patterns — targeted grep across collected URLs
+    cat output/urls_katana.txt | gf secrets
+    cat output/js_endpoints.txt | gf aws-keys
+    cat output/js_endpoints.txt | gf api-keys
 
-### LinkFinder on JS Files
-Find endpoints using LinkFinder.
-```bash
-cat js.txt | xargs -I@ -P10 bash -c 'python3 linkfinder.py -i @ -o cli 2>/dev/null' | anew endpoints.txt
-```
+### Manual Pattern Search
 
-### SecretFinder Mass Scan
-Mass scan for secrets using SecretFinder.
-```bash
-cat js.txt | xargs -I@ -P5 python3 SecretFinder.py -i @ -o cli | anew secrets.txt
-```
+    # Download all JS files first
+    mkdir -p output/js_raw
+    cat output/js_files.txt | xargs -P 5 -I{} sh -c \
+      'name=$(echo {} | md5sum | cut -c1-8); curl -sk {} > output/js_raw/$name.js'
 
-### JS Variables Extraction
-Extract variable assignments.
-```bash
-cat file.js | grep -oE "var\s+\w+\s*=\s*['\"][^'\"]+['\"]" | sort -u
-```
+    # Key patterns
+    rg -i "api[_-]?key"                                    output/js_raw/
+    rg -i "secret|password|token|credential|auth"          output/js_raw/ | grep -v "//.*secret"
+    rg "AKIA[A-Z0-9]{16}"                                  output/js_raw/  # AWS key
+    rg "sk_live_[0-9a-zA-Z]{24}"                           output/js_raw/  # Stripe secret
+    rg "ghp_[a-zA-Z0-9]{36}"                               output/js_raw/  # GitHub PAT
+    rg "ey[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+" output/js_raw/ # JWT
+    rg "AIza[0-9A-Za-z_-]{35}"                             output/js_raw/  # Google API key
+    rg "[0-9a-f]{32}"                                      output/js_raw/ | head -20
 
-### API Keys from JS
-Find API keys using nuclei templates.
-```bash
-cat js.txt | nuclei -t http/exposures/tokens/ -silent | anew api_keys.txt
-```
+---
 
-### Extract All URLs from JS
-Extract http/https URLs.
-```bash
-cat js.txt | xargs -I@ curl -s @ | grep -oE "(https?://[^\"\'\`\s\<\>]+)" | sort -u | anew js_urls.txt
-```
+## Webpack / Bundle Analysis
 
-### Find API Endpoints in JS
-Extract potential API routes.
-```bash
-cat js.txt | xargs -I@ curl -s @ | grep -oE "(/api/[^\"\'\`\s\<\>]+|/v[0-9]+/[^\"\'\`\s\<\>]+)" | sort -u
-```
+Modern SPAs bundle all code into a few large JS files. Source maps expose original source.
 
-### Extract Hardcoded Credentials
-Search for common credential keywords.
-```bash
-cat js.txt | xargs -I@ curl -s @ | grep -iE "(password|passwd|pwd|secret|api_key|apikey|token|auth)" | sort -u
-```
+### Source Map Recovery
 
-### Extract AWS Keys from JS
-Find AWS keys.
-```bash
-cat js.txt | xargs -I@ curl -s @ | grep -oE "(AKIA[0-9A-Z]{16}|ABIA[0-9A-Z]{16}|ACCA[0-9A-Z]{16}|ASIA[0-9A-Z]{16})" | sort -u | anew aws_keys.txt
-```
+    # Check for source map reference at end of JS file
+    curl -s https://target.com/static/main.js | tail -5 | grep sourceMappingURL
 
-### Extract Google API Keys from JS
-Find Google API keys.
-```bash
-cat js.txt | xargs -I@ curl -s @ | grep -oE "AIza[0-9A-Za-z\-_]{35}" | sort -u | anew google_api_keys.txt
-```
+    # Download and extract
+    curl -s https://target.com/static/main.js.map -o output/main.js.map
 
-### Extract Firebase URLs from JS
-Find Firebase instances.
-```bash
-cat js.txt | xargs -I@ curl -s @ | grep -oE "https://[a-zA-Z0-9-]+\.firebaseio\.com|https://[a-zA-Z0-9-]+\.firebase\.com" | sort -u | anew firebase_urls.txt
-```
+    # Reconstruct source tree (sourcemapper)
+    sourcemapper -output output/src_reconstructed/ -url https://target.com/static/main.js.map
 
-### Extract S3 Buckets from JS
-Find S3 buckets.
-```bash
-cat js.txt | xargs -I@ curl -s @ | grep -oE "[a-zA-Z0-9.-]+\.s3\.amazonaws\.com|s3://[a-zA-Z0-9.-]+|s3-[a-zA-Z0-9-]+\.amazonaws\.com/[a-zA-Z0-9.-]+" | sort -u | anew s3_from_js.txt
-```
+    # Manual extraction via Python
+    python3 -c "
+    import json,sys,os
+    m=json.load(open('output/main.js.map'))
+    for src,content in zip(m.get('sources',[]),m.get('sourcesContent') or []):
+        if content:
+            path='output/src/'+src
+            os.makedirs(os.path.dirname(path),exist_ok=True)
+            open(path,'w').write(content)
+    "
 
-### Extract Internal IPs from JS
-Find internal IP addresses.
-```bash
-cat js.txt | xargs -I@ curl -s @ | grep -oE "(10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3})" | sort -u | anew internal_ips.txt
-```
+### Webpack Chunk Enumeration
 
-### Extract Slack Webhooks from JS
-Find Slack webhooks.
-```bash
-cat js.txt | xargs -I@ curl -s @ | grep -oE "https://hooks\.slack\.com/services/T[a-zA-Z0-9_]+/B[a-zA-Z0-9_]+/[a-zA-Z0-9_]+" | sort -u | anew slack_webhooks.txt
-```
+    # Enumerate sequential chunks
+    for i in $(seq 0 100); do
+        code=$(curl -sk -o /dev/null -w "%{http_code}" https://target.com/static/js/$i.chunk.js)
+        [ "$code" = "200" ] && echo "Chunk found: $i.chunk.js"
+    done
 
-### Extract GitHub Tokens from JS
-Find GitHub tokens.
-```bash
-cat js.txt | xargs -I@ curl -s @ | grep -oE "(ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|ghu_[a-zA-Z0-9]{36}|ghs_[a-zA-Z0-9]{36}|ghr_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59})" | sort -u | anew github_tokens.txt
-```
+    # Beautify before analysis
+    cat output/js_raw/main.js | js-beautify -j - > output/main_pretty.js
 
-### Extract Private Keys from JS
-Find private keys.
-```bash
-cat js.txt | xargs -I@ curl -s @ | grep -oE "-----BEGIN (RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY( BLOCK)?-----" | sort -u | anew private_keys_found.txt
-```
+---
 
-### Extract Email Addresses from JS
-Find email addresses.
-```bash
-cat js.txt | xargs -I@ curl -s @ | grep -oE "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}" | sort -u | anew emails_from_js.txt
-```
+## DOM Security Review
 
-### Extract Hidden Subdomains from JS
-Find subdomains mentioned in JS.
-```bash
-cat js.txt | xargs -I@ curl -s @ | grep -oE "https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}" | sed 's|https\?://||' | cut -d'/' -f1 | sort -u | anew subdomains_from_js.txt
-```
+### XSS Sinks
 
-### Extract GraphQL Endpoints from JS
-Find GraphQL endpoints.
-```bash
-cat js.txt | xargs -I@ curl -s @ | grep -oE "(graphql|gql|query|mutation)[^\"']*" | grep -oE "/[a-zA-Z0-9/_-]*graphql[a-zA-Z0-9/_-]*" | sort -u | anew graphql_endpoints.txt
-```
+    # Dangerous sinks in beautified JS
+    grep -n "innerHTML\|outerHTML\|document\.write\|eval(\|setTimeout(\|setInterval(" output/main_pretty.js
 
-### Extract JWT Tokens from JS Files
-Find JWT tokens.
-```bash
-cat js.txt | xargs -I@ curl -s @ | grep -oE "eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*" | sort -u | anew jwt_tokens.txt
-```
+    # Source patterns
+    grep -n "location\.hash\|location\.search\|document\.referrer\|URLSearchParams" output/main_pretty.js
 
-### Find Webpack Source Maps
-Check for source maps.
-```bash
-cat js.txt | sed 's/\.js$/.js.map/' | httpx -silent -mc 200 -ct -match-string "sourcesContent" | anew sourcemaps.txt
-```
+### PostMessage Handlers (CSRF / XSS)
 
-### Extract Discord Webhooks from JS
-Find Discord webhooks.
-```bash
-cat js.txt | xargs -I@ curl -s @ | grep -oE "https://discord\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+" | sort -u | anew discord_webhooks.txt
-```
+    # Find handlers — check if origin is validated
+    grep -n "addEventListener.*message\|postMessage" output/main_pretty.js
 
-### Find Hidden Admin Routes in JS
-Find potential admin routes.
-```bash
-cat js.txt | xargs -I@ curl -s @ | grep -oE "[\"\'][/][a-zA-Z0-9_/-]*(admin|dashboard|manage|config|settings|internal|private|debug|api/v[0-9])[a-zA-Z0-9_/-]*[\"\']" | tr -d "\"'" | sort -u | anew hidden_routes.txt
-```
+    # If no origin check: any origin can send arbitrary messages → XSS/CSRF
+    # /home/pentester/tools/postMessage-tracker/
+    # /home/pentester/tools/PostMessage_Fuzz_Tool/
+
+### Prototype Pollution Gadgets
+
+    # Find merge/extend patterns that may be pollutable
+    grep -nE "\.merge\(|\.extend\(|deepMerge|defaultsDeep|Object\.assign" output/main_pretty.js
+
+    # Find proto filtering (or absence of it)
+    grep -n "__proto__\|constructor.*prototype\|hasOwnProperty" output/main_pretty.js
+
+### Internal URLs and Config
+
+    # Hardcoded internal/dev hostnames
+    grep -nE "https?://[a-z0-9.-]+(:[0-9]+)?(/[a-zA-Z0-9._/-]*)?" output/main_pretty.js | \
+      grep -v "cdn\|google\|facebook\|analytics\|example" | head -50
+
+    grep -nE '"(dev|staging|internal|admin|test)\.' output/main_pretty.js
+
+---
+
+## GraphQL Discovery from JS
+
+    # Apps embed query strings directly in JS
+    grep -n "gql\`\|GraphQL\|query.*mutation" output/main_pretty.js
+
+    # Extract operation names
+    grep -oE "(query|mutation|subscription)\s+[A-Za-z_][A-Za-z0-9_]*" \
+      output/main_pretty.js | sort -u
+
+---
+
+## Supply Chain Checks
+
+    # Check for outdated libraries with known vulns
+    retire --js --jspath output/js_raw/
+
+    # Check scripts loaded without Subresource Integrity (SRI)
+    curl -s https://target.com | grep -E "script.*src=" | grep -v "integrity="
+
+---
+
+## Automated Pipeline
+
+    echo "=== JS Recon Pipeline ===" && \
+    katana -u https://target.com -d 5 -jc -aff -o output/katana.txt 2>/dev/null && \
+    grep "\.js" output/katana.txt | sort -u > output/js_list.txt && \
+    echo "[*] $(wc -l < output/js_list.txt) JS files found" && \
+    cat output/js_list.txt | jsleak | tee output/jsleak.txt && \
+    gitleaks detect --source output/ --report-path output/gitleaks.json 2>/dev/null && \
+    echo "[*] Done — check output/jsleak.txt and output/gitleaks.json"
+
+---
+
+## Pro Tips
+
+1. Source maps (main.js.map) are the holy grail — expose full unminified source tree with comments
+2. Webpack chunks (0.chunk.js ... 100.chunk.js) contain different app modules — enumerate them
+3. Admin routes hardcoded in JS bundles are often unlinked but fully functional endpoints
+4. postMessage handlers without origin validation = XSS/CSRF from any attacker-controlled domain
+5. Check JS loaded by error pages / 404s — they often include different config or debug values
+6. Beautify before grepping — jsleak and jsluice miss things that grep finds in readable code
+7. trufflehog + gf covers ~90% of secret patterns; manual regex catches the remaining edge cases
+
+## Summary
+
+JS recon: crawl → collect all JS → source map recovery → endpoint extraction → secret hunt → DOM sink analysis. Source maps and webpack chunks are the highest-value targets most tools skip. Every hardcoded URL, config object, or API key in JS is a direct finding.

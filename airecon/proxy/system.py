@@ -129,6 +129,7 @@ TOOL SPECIFIC KNOWLEDGE (MANDATORY):
 - MASSCAN: Accepts IP addresses ONLY. Resolve domains first (dig, python) before passing as targets.
 - GENERAL RULE: If a tool fails with "unknown parameter" or "not found", CHECK --help immediately.
   Do not hallucinate flags.
+- WORKSPACE MANDATE: ALL tool output files (e.g., via `-o` or `>` flags) MUST be written to the `output/` directory (e.g., `-o output/results.txt`). NEVER write output files directly to the root workspace.
 
 EFFICIENCY TACTICS:
 - SCRIPTING FIRST: If a task is repetitive or a tool is missing a feature,
