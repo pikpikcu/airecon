@@ -19,6 +19,16 @@ _CACHE_TTL = 3600  # 1 hour cache lifetime
 # Minimum seconds between consecutive DDG requests to avoid rate limiting
 _DDG_MIN_INTERVAL = 2.0
 _last_ddg_search_time: float = 0.0
+# Lock to serialize concurrent DDG calls and enforce the rate limit correctly
+_ddg_lock: asyncio.Lock | None = None
+
+
+def _get_ddg_lock() -> asyncio.Lock:
+    """Return a shared asyncio.Lock, created lazily within the running loop."""
+    global _ddg_lock
+    if _ddg_lock is None:
+        _ddg_lock = asyncio.Lock()
+    return _ddg_lock
 
 
 async def _searxng_search(
@@ -93,20 +103,24 @@ async def _ddg_search(query: str, max_results: int) -> dict[str, Any]:
             "error": "duckduckgo-search not installed. Run: pip install duckduckgo-search",
         }
 
-    # Rate-limit guard
-    now = time.monotonic()
-    wait = _DDG_MIN_INTERVAL - (now - _last_ddg_search_time)
-    if wait > 0:
-        await asyncio.sleep(wait)
-
     def _search() -> list[dict[str, Any]]:
         with DDGS() as ddgs:
             return list(ddgs.text(query, max_results=max_results))
 
+    # Serialize all DDG calls through a lock so concurrent agents don't bypass
+    # the rate-limit interval.
+    async with _get_ddg_lock():
+        # Rate-limit guard
+        now = time.monotonic()
+        wait = _DDG_MIN_INTERVAL - (now - _last_ddg_search_time)
+        if wait > 0:
+            await asyncio.sleep(wait)
+
     last_err: Exception | None = None
     for attempt in range(3):
         try:
-            _last_ddg_search_time = time.monotonic()
+            async with _get_ddg_lock():
+                _last_ddg_search_time = time.monotonic()
             results = await asyncio.to_thread(_search)
             break
         except RatelimitException as e:

@@ -628,7 +628,11 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
                                     expert_testing_prompt = "\n\n" + \
                                         expert_template.replace(
                                             "{expert_patterns}", patterns_str)
-                                except Exception:
+                                except Exception as _tmpl_err:
+                                    logger.debug(
+                                        "Could not load testing.txt template: %s — using inline fallback",
+                                        _tmpl_err,
+                                    )
                                     expert_testing_prompt = "\n\n[EXPERT TESTING] " + ", ".join(
                                         expert_patterns)
 
@@ -1666,8 +1670,10 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
             pass
 
         # Attempt 2: strip // and /* */ comments
+        # Use possessive-style pattern for /* */ to avoid catastrophic backtracking
+        # on unclosed comments in malformed LLM output.
         cleaned = re.sub(r"//[^\n]*", "", raw)
-        cleaned = re.sub(r"/\*.*?\*/", "", cleaned, flags=re.DOTALL)
+        cleaned = re.sub(r"/\*[^*]*(?:\*(?!/)[^*]*)*\*/", "", cleaned)
         try:
             result = json.loads(cleaned)
             if isinstance(result, dict):

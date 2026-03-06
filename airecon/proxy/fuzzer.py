@@ -59,7 +59,12 @@ VULNERABLE_PATTERNS = _fuzzer_data.get("VULNERABLE_PATTERNS", {})
 WAF_SIGNATURES = _fuzzer_data.get("WAF_SIGNATURES", {})
 CHAIN_RULES = _fuzzer_data.get("CHAIN_RULES", {})
 CHAIN_PAYLOADS = _fuzzer_data.get("CHAIN_PAYLOADS", {})
-_SEVERITY_ORDER = _fuzzer_data.get("_SEVERITY_ORDER", [])
+# Fallback order (low → high) used when not present in fuzzer_data.json.
+# Index 0 = lowest priority in sort key (-index), so CRITICAL must be last.
+_SEVERITY_ORDER: list[str] = _fuzzer_data.get(
+    "_SEVERITY_ORDER",
+    ["info", "low", "medium", "high", "critical"],
+)
 
 # ---------------------------------------------------------------------------
 # Dataclasses
@@ -194,6 +199,13 @@ class Fuzzer:
         vuln_types: list[str] | None = None,
     ) -> list[FuzzResult]:
         """Fuzz multiple parameters concurrently."""
+        if not FUZZ_PAYLOADS:
+            logger.error(
+                "Fuzzer payload data is empty — fuzzer_data.json was not loaded. "
+                "No fuzzing will be performed. Check package installation."
+            )
+            return []
+
         vuln_types = vuln_types or list(FUZZ_PAYLOADS.keys())
 
         # Build baseline for each param first
@@ -955,9 +967,11 @@ class ExploitChainEngine:
     def prioritize_chains(
             self, chains: list[ExploitChain]) -> list[ExploitChain]:
         """Sort chains by severity then confidence (highest first)."""
+        _sev_lower = [s.lower() for s in _SEVERITY_ORDER]
+
         def _sort_key(c: ExploitChain) -> tuple[int, float]:
-            sev_score = _SEVERITY_ORDER.index(
-                c.combined_severity) if c.combined_severity in _SEVERITY_ORDER else 0
+            sev = (c.combined_severity or "").lower()
+            sev_score = _sev_lower.index(sev) if sev in _sev_lower else -1
             return (-sev_score, -c.total_confidence)
 
         return sorted(chains, key=_sort_key)
