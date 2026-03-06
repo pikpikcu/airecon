@@ -11,13 +11,10 @@ Tests cover:
 
 from __future__ import annotations
 
-import asyncio
 import json
 import time
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch, mock_open
 import pytest
-import tempfile
 
 # Module under test
 from airecon.proxy import web_search

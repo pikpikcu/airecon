@@ -1,9 +1,7 @@
 """Tests for session persistence (save/load/list) and session_to_context."""
 
 import json
-import tempfile
 import pytest
-from pathlib import Path
 from unittest.mock import patch
 from airecon.proxy.agent.session import (
     SessionData,

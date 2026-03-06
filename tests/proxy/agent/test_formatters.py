@@ -4,10 +4,8 @@ These tests use a minimal DummyFormatter that extends _FormatterMixin
 directly so we can test each method without spinning up a full AgentLoop.
 """
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock
 from dataclasses import dataclass, field
-from typing import Any
 from airecon.proxy.agent.formatters import _FormatterMixin, _help_cache
 
 

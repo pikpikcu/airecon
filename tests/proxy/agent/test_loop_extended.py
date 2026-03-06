@@ -1,11 +1,9 @@
 """Extended AgentLoop tests: VRAM crash patterns, dedup logic, session init,
 tool call parsing, and mocked end-to-end streaming."""
 
-import json
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch
 from airecon.proxy.agent.loop import AgentLoop
-from airecon.proxy.agent.models import AgentEvent
 
 
 # ── Fixture ───────────────────────────────────────────────────────────────────

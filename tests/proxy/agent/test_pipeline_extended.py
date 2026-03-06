@@ -1,7 +1,6 @@
 """Extended pipeline tests covering all phase transitions and check_tool_phase_fit."""
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from airecon.proxy.agent.pipeline import PipelineEngine, PipelinePhase
 
 

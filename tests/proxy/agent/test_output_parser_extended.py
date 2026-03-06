@@ -2,11 +2,9 @@
 naabu, subfinder, and edge cases not covered by the base test file."""
 
 import json
-import pytest
 from airecon.proxy.agent.output_parser import (
     parse_tool_output,
     detect_tool,
-    ParsedOutput,
 )
 
 
