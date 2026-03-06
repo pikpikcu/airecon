@@ -376,12 +376,14 @@ class TestParseToolOutputIntegration:
         80/tcp  open  http
         443/tcp open  https"""
         parsed = parse_tool_output("nmap -sV example.com", output)
+        assert parsed is not None
         assert parsed.tool == "nmap"
         assert parsed.total_count == 2
 
     def test_auto_detect_and_parse_nuclei(self):
         output = '{"template-id":"t1","info":{"severity":"high"},"matched-at":"url"}'
         parsed = parse_tool_output("nuclei -u example.com", output)
+        assert parsed is not None
         assert parsed.tool == "nuclei"
         assert parsed.total_count == 1
 
@@ -418,5 +420,6 @@ class TestParseToolOutputIntegration:
         subdomains = "\n".join([f"sub{i}.example.com" for i in range(MAX_ITEMS + 10)])
         parsed = parse_tool_output("subfinder -d example.com", subdomains)
 
+        assert parsed is not None
         assert len(parsed.items) <= MAX_ITEMS
         assert parsed.total_count == MAX_ITEMS + 10
