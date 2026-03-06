@@ -30,6 +30,10 @@ def main() -> None:
         "--config",
         default=None,
         help="Path to custom configuration file (default: ~/.airecon/config.json)")
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="List all saved sessions and exit")
 
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
@@ -96,6 +100,10 @@ def main() -> None:
     # This ensures subsequent calls to get_config() return the correct instance
     from airecon.proxy.config import get_config
     get_config(args.config)
+
+    if getattr(args, "list", False):
+        _run_list_sessions()
+        sys.exit(0)
 
     if args.command == "proxy":
         _run_proxy(args)
@@ -565,6 +573,49 @@ def _unload_model_safely():
             print("Done (via urllib).")
         except Exception:
             print("Failed.")
+
+
+def _run_list_sessions() -> None:
+    """List all saved sessions and exit."""
+    from airecon.proxy.agent.session import list_sessions
+
+    C = "\033[36m"   # cyan
+    B = "\033[1m"    # bold
+    D = "\033[2m"    # dim
+    G = "\033[32m"   # green
+    Y = "\033[33m"   # yellow
+    X = "\033[0m"    # reset
+
+    sessions = list_sessions()
+
+    print()
+    if not sessions:
+        print(f"  {D}No saved sessions found.{X}")
+        print(f"  Start a new session: {C}airecon start{X}")
+        print()
+        return
+
+    # Header
+    print(f"  {B}{'SESSION ID':<28} {'TARGET':<24} {'SCANS':>5}  {'SUBS':>4}  {'VULNS':>5}  CREATED{X}")
+    print(f"  {'─' * 28} {'─' * 24} {'─' * 5}  {'─' * 4}  {'─' * 5}  {'─' * 10}")
+
+    for s in sessions:
+        sid = s["session_id"]
+        target = s["target"] or f"{D}(no target){X}"
+        scans = s["scan_count"]
+        subs = s.get("subdomains", 0)
+        vulns = s.get("vulnerabilities", 0)
+        created = s.get("created_at", "")[:10]  # just the date part
+
+        # Colour-code vulns
+        vuln_str = f"{Y}{vulns:>5}{X}" if vulns > 0 else f"{D}{vulns:>5}{X}"
+        print(
+            f"  {G}{sid:<28}{X} {target:<24} {scans:>5}  {subs:>4}  {vuln_str}  {D}{created}{X}"
+        )
+
+    print()
+    print(f"  Resume: {C}airecon start --session <id>{X}")
+    print()
 
 
 def _run_clean(args) -> None:

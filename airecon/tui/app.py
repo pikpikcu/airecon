@@ -118,26 +118,6 @@ class AIReconApp(App):
             "- bug bounty on example.com — find everything\n"
         )
 
-        # Show saved sessions so user knows they can resume with --session <id>
-        try:
-            from airecon.proxy.agent.session import list_sessions
-            saved = list_sessions()
-            if saved:
-                lines = []
-                for s in saved[:8]:
-                    sid = s["session_id"]
-                    target = s["target"] or "no target yet"
-                    scans = s["scan_count"]
-                    lines.append(f"  • `{sid}` — {target} ({scans} scans)")
-                suffix = f"\n  … and {
-                    len(saved) - 8} more" if len(saved) > 8 else ""
-                chat.add_system_message(
-                    "📌 **Saved sessions** — resume with `airecon start --session <id>`:\n"
-                    + "\n".join(lines) + suffix
-                )
-        except Exception:  # nosec B110 - sessions display is best-effort
-            pass
-
         # Focus input
         self.query_one("#command-input", CommandInput).focus()
 

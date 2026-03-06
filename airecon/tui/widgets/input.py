@@ -51,14 +51,18 @@ class CommandInput(TextArea):
             # Reset cursor
             self.cursor_location = (0, 0)
 
+    def _move_cursor_to_end(self) -> None:
+        """Move cursor to the end of the current text."""
+        lines = self.text.splitlines() or [""]
+        self.cursor_location = (len(lines) - 1, len(lines[-1]))
+
     def action_history_up(self) -> None:
         """Navigate history up."""
         if self._history:
             if self._history_index < len(self._history) - 1:
                 self._history_index += 1
             self.text = self._history[self._history_index]
-            self.cursor_location = (
-                len(self.text.splitlines()) - 1, len(self.text.splitlines()[-1]))
+            self._move_cursor_to_end()
 
     def action_history_down(self) -> None:
         """Navigate history down."""
@@ -68,5 +72,4 @@ class CommandInput(TextArea):
         elif self._history_index == 0:
             self._history_index = -1
             self.text = ""
-        self.cursor_location = (
-            len(self.text.splitlines()) - 1, len(self.text.splitlines()[-1]))
+        self._move_cursor_to_end()
