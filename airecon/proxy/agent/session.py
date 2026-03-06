@@ -17,6 +17,7 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from .output_parser import ParsedOutput
 
@@ -34,6 +35,31 @@ def generate_session_id() -> str:
     Example: 1740842400_a3b4c5d6
     """
     return f"{int(time.time())}_{uuid.uuid4().hex[:8]}"
+
+
+def _normalize_url(url: str) -> str:
+    """Normalize a URL for deduplication.
+
+    - Lowercase scheme and host
+    - Sort query parameters alphabetically
+    - Strip URL fragment (#...)
+    - Strip trailing slash from path (except root "/")
+
+    Returns the original string unchanged if parsing fails.
+    """
+    try:
+        p = urlparse(url)
+        query = urlencode(sorted(parse_qsl(p.query, keep_blank_values=True)))
+        return urlunparse((
+            p.scheme.lower(),
+            p.netloc.lower(),
+            p.path.rstrip("/") or "/",
+            p.params,
+            query,
+            "",  # strip fragment
+        ))
+    except Exception:
+        return url
 
 
 def _calculate_similarity(v1: str, v2: str) -> float:
@@ -294,14 +320,14 @@ def update_from_parsed_output(
         # 2. URL with status code (httpx-style) → live_hosts
         status_match = _HTTP_STATUS_RE.match(item_stripped)
         if status_match:
-            url = item_stripped.split(" [")[0].strip()
+            url = _normalize_url(item_stripped.split(" [")[0].strip())
             if url and url not in session.live_hosts:
                 session.live_hosts.append(url)
             continue
 
         # 3. Plain URL → urls collection
         if _URL_RE.match(item_stripped):
-            url = item_stripped.split()[0]  # take just the URL part
+            url = _normalize_url(item_stripped.split()[0])
             if url not in session.urls:
                 session.urls.append(url)
             continue

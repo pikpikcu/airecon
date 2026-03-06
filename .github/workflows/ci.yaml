@@ -54,7 +54,7 @@ jobs:
 
       - name: Run Tests with Coverage
         run: |
-          pytest tests/ --doctest-modules --junitxml=junit/test-results.xml --cov=airecon --cov-report=xml
+          pytest tests/ --doctest-modules --junitxml=junit/test-results.xml --cov=airecon --cov-report=xml --cov-fail-under=70
 
       - name: Upload Test Results
         if: always()

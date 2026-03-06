@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import os
 import json
 import logging
@@ -186,7 +187,29 @@ class Config:
                 else:
                     current_config[key] = val
 
-        return cls(**current_config)
+        return cls.load_with_defaults(current_config)
+
+    @classmethod
+    def load_with_defaults(cls, raw: dict) -> Config:
+        """Construct Config from a raw dict safely.
+
+        - Unknown keys (old/removed fields) are silently ignored.
+        - Missing keys fall back to DEFAULT_CONFIG values.
+
+        This prevents cryptic dataclass errors when users have outdated
+        config files that contain fields no longer in the dataclass, or
+        when new fields are added without a migration step.
+        """
+        known_fields = {f.name for f in dataclasses.fields(cls)}
+        merged = {k: DEFAULT_CONFIG[k] for k in known_fields if k in DEFAULT_CONFIG}
+        merged.update({k: v for k, v in raw.items() if k in known_fields})
+        unknown = set(raw) - known_fields
+        if unknown:
+            logger.warning(
+                "Config: ignoring unknown fields (possibly from an older config): %s",
+                ", ".join(sorted(unknown)),
+            )
+        return cls(**merged)
 
 
 # Singleton
