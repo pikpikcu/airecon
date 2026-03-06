@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 # Module under test
 from airecon.proxy import semgrep
@@ -422,7 +422,7 @@ class TestRunCodeAnalysis:
         ]
         
         custom_rules = ["p/custom-rule"]
-        result = await semgrep.run_code_analysis(
+        await semgrep.run_code_analysis(
             mock_engine,
             "/workspace/src",
             rules=custom_rules

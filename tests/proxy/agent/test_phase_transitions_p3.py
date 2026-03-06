@@ -11,10 +11,8 @@ Tests cover:
 
 from __future__ import annotations
 
-import json
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 # Modules under test
 from airecon.proxy.agent.pipeline import (
@@ -320,7 +318,6 @@ class TestIntegrationPhaseTransitions:
 
     def test_session_preserves_across_phases(self):
         """Session data should persist across phase transitions."""
-        from airecon.proxy.agent.session import SessionData
         
         # Create session with data
         session = SessionData(
@@ -352,9 +349,6 @@ class TestIntegrationPhaseTransitions:
         mock_engine = AsyncMock(spec=DockerEngine)
         
         loop = AgentLoop(mock_ollama, mock_engine)
-        
-        # Initial state
-        initial_failures = loop._consecutive_failures
         
         # Simulate operations
         loop._consecutive_failures = 1
@@ -405,23 +399,17 @@ class TestTransitionCriteria:
     def test_recon_transition_criteria(self):
         """RECON phase should have subdomains and ports criteria."""
         recon = DEFAULT_PHASES[PipelinePhase.RECON]
-        
-        criteria_str = str(recon.transition_criteria)
         # Check for common transition criterion patterns
         assert len(recon.transition_criteria) > 0
 
     def test_analysis_transition_criteria(self):
         """ANALYSIS phase should have URL and technology criteria."""
         analysis = DEFAULT_PHASES[PipelinePhase.ANALYSIS]
-        
-        criteria_str = str(analysis.transition_criteria)
         assert len(analysis.transition_criteria) > 0
 
     def test_exploit_transition_criteria(self):
         """EXPLOIT phase should have vulnerability criteria."""
         exploit = DEFAULT_PHASES[PipelinePhase.EXPLOIT]
-        
-        criteria_str = str(exploit.transition_criteria)
         assert len(exploit.transition_criteria) > 0
 
     def test_phase_max_iterations(self):
@@ -496,7 +484,5 @@ class TestPhaseObjectives:
     def test_report_objective(self):
         """REPORT should focus on documentation."""
         report = DEFAULT_PHASES[PipelinePhase.REPORT]
-        
-        objective = report.objective.lower()
         # Report phase should exist and have objective
         assert len(report.objective) > 0

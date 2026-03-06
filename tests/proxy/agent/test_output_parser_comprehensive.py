@@ -3,12 +3,10 @@
 P1 Priority: Tests for edge cases in nuclei, gobuster, subfinder, whatweb parsing.
 """
 
-import pytest
 import json
 from airecon.proxy.agent.output_parser import (
     parse_tool_output,
     detect_tool,
-    ParsedOutput,
     _parse_nmap,
     _parse_nuclei,
     _parse_line_list,
@@ -400,7 +398,7 @@ class TestParseToolOutputIntegration:
     def test_parse_malformed_json_fallback(self):
         """Test that malformed structured output falls back gracefully."""
         output = "{ invalid json"
-        parsed = parse_tool_output("nuclei -u example.com", output)
+        parse_tool_output("nuclei -u example.com", output)
         # Should not crash
 
     def test_parse_with_cd_prefix_in_command(self):
