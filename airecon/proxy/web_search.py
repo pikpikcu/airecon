@@ -128,10 +128,7 @@ async def _ddg_search(query: str, max_results: int) -> dict[str, Any]:
             last_err = e
             wait_time = 5.0 * (attempt + 1)
             logger.warning(
-                f"DDG rate limit attempt {
-                    attempt +
-                    1}, waiting {
-                    wait_time:.0f}s")
+                f"DDG rate limit attempt {attempt + 1}, waiting {wait_time:.0f}s")
             await asyncio.sleep(wait_time)
         except DuckDuckGoSearchException as e:
             last_err = e
@@ -235,8 +232,7 @@ async def web_search(query: str, max_results: int = 10, use_cache: bool = True) 
         if not result.get(
                 "success") and "Cannot connect" in result.get("error", ""):
             logger.warning(
-                f"SearXNG unreachable, falling back to DDG: {
-                    result['error']}")
+                f"SearXNG unreachable, falling back to DDG: {result['error']}")
             ddg_result = await _ddg_search(query, max_results)
             ddg_result["result"] = (
                 "[SearXNG unavailable — using DuckDuckGo fallback]\n\n"

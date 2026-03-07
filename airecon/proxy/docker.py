@@ -94,8 +94,7 @@ class DockerEngine:
 
         # Image doesn't exist — build it
         logger.info(
-            f"Building Docker image '{
-                self.IMAGE_NAME}' — this may take 10-20 minutes...")
+            f"Building Docker image '{self.IMAGE_NAME}' — this may take 10-20 minutes...")
         dockerfile_dir = self.DOCKERFILE_DIR
 
         if not dockerfile_dir.exists() or not (dockerfile_dir / "Dockerfile").exists():
@@ -165,9 +164,7 @@ class DockerEngine:
         self._container_id = stdout.decode().strip()[:12]
         self._connected = True
         logger.info(
-            f"Container started: {
-                self._container_name} ({
-                self._container_id})")
+            f"Container started: {self._container_name} ({self._container_id})")
 
         # If we have a target, create workspace dir
         if target:
@@ -450,8 +447,7 @@ class DockerEngine:
             timeout = max(float(explicit_timeout), cfg.command_timeout)
             if timeout != float(explicit_timeout):
                 logger.warning(
-                    f"Model set timeout={explicit_timeout}s, enforcing minimum {
-                        cfg.command_timeout}s")
+                    f"Model set timeout={explicit_timeout}s, enforcing minimum {cfg.command_timeout}s")
         else:
             timeout = cfg.command_timeout
 

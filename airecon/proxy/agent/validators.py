@@ -277,8 +277,7 @@ class _ValidatorMixin:
                 )
             if len(poc_code) < 50:
                 return False, (
-                    f"REPORT REJECTED: 'poc_script_code' is too short ({
-                        len(poc_code)} chars). "
+                    f"REPORT REJECTED: 'poc_script_code' is too short ({len(poc_code)} chars). "
                     "Provide a real exploit: Python script, curl command, or HTTP request."
                 )
 
@@ -317,15 +316,13 @@ class _ValidatorMixin:
                     )
             if not poc_desc or len(poc_desc) < 80:
                 return False, (
-                    f"REPORT REJECTED: 'poc_description' is too short ({
-                        len(poc_desc)} chars). "
+                    f"REPORT REJECTED: 'poc_description' is too short ({len(poc_desc)} chars). "
                     "Provide step-by-step reproduction with specific URLs, parameters, and observed behavior."
                 )
             # technical_analysis is only mandatory for full reports, not CTF
             if not is_ctf and (not technical or len(technical) < 80):
                 return False, (
-                    f"REPORT REJECTED: 'technical_analysis' is too short ({
-                        len(technical)} chars). "
+                    f"REPORT REJECTED: 'technical_analysis' is too short ({len(technical)} chars). "
                     "Explain the root cause with specific technical details."
                 )
             GENERIC_TITLES = (

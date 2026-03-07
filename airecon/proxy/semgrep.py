@@ -113,8 +113,7 @@ def parse_semgrep_results(raw_json: str) -> dict[str, Any]:
     severity_str = ", ".join(
         f"{k}: {v}" for k, v in sorted(
             by_severity.items()))
-    summary = f"Found {
-        len(results)} issues ({severity_str})" if results else "No issues found"
+    summary = f"Found {len(results)} issues ({severity_str})" if results else "No issues found"
 
     return {
         "findings": results,

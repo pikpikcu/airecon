@@ -216,8 +216,7 @@ def _load_local_skills(ctf_mode: bool = False) -> str:
             try:
                 content = path.read_text(encoding="utf-8", errors="replace")
                 embedded_parts.append(
-                    f'\n<embedded_skill name="{
-                        path.name}">\n{content}\n</embedded_skill>\n'
+                    f'\n<embedded_skill name="{path.name}">\n{content}\n</embedded_skill>\n'
                 )
             except Exception:
                 reference_parts.append(f"- {path.absolute().as_posix()}")
@@ -317,8 +316,7 @@ def auto_load_skills_for_message(user_message: str) -> tuple[str, list[str]]:
                 if len(content) > limit:
                     content = (
                         content[:limit]
-                        + f"\n... (truncated at {limit} chars, use read_file for full content: {
-                            skill_file.absolute().as_posix()})"
+                        + f"\n... (truncated at {limit} chars, use read_file for full content: {skill_file.absolute().as_posix()})"
                     )
                 parts.append(f"[AUTO-LOADED SKILL: {skill_rel}]\n{content}")
                 loaded_names.append(skill_file.stem)

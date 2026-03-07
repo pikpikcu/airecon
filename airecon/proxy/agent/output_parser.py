@@ -188,8 +188,7 @@ def _parse_nmap(stdout: str) -> ParsedOutput:
 
     return ParsedOutput(
         tool="nmap",
-        summary=f"Nmap: {
-            len(open_ports)} open ports found ({hosts_up} hosts up)",
+        summary=f"Nmap: {len(open_ports)} open ports found ({hosts_up} hosts up)",
         items=open_ports[:MAX_ITEMS],
         total_count=len(open_ports),
     )
@@ -239,8 +238,7 @@ def _parse_nmap_xml(stdout: str) -> ParsedOutput:
                     "product", "") if service_el is not None else ""
                 version = service_el.get(
                     "version", "") if service_el is not None else ""
-                entry = f"{addr}:{portid}/{proto} {
-                    state_el.get('state')} {service}"
+                entry = f"{addr}:{portid}/{proto} {state_el.get('state')} {service}"
                 if product:
                     entry += f" {product}"
                 if version:
@@ -415,8 +413,7 @@ def _parse_whatweb(stdout: str) -> ParsedOutput:
             if technologies:
                 return ParsedOutput(
                     tool="whatweb",
-                    summary=f"WhatWeb: {
-                        len(technologies)} technologies fingerprinted",
+                    summary=f"WhatWeb: {len(technologies)} technologies fingerprinted",
                     items=items[:MAX_ITEMS],
                     total_count=len(technologies),
                     technologies=technologies,
@@ -503,10 +500,7 @@ def _parse_line_list(stdout: str) -> ParsedOutput:
 
     return ParsedOutput(
         tool="list",
-        summary=f"Found {
-            len(unique)} items ({
-            len(items) -
-            len(unique)} duplicates removed)",
+        summary=f"Found {len(unique)} items ({len(items) - len(unique)} duplicates removed)",
         items=unique[:MAX_ITEMS],
         total_count=len(unique),
     )
@@ -589,9 +583,7 @@ def _parse_naabu(stdout: str) -> ParsedOutput:
         f"{h}({len(p)} ports)" for h, p in list(port_counts.items())[:5])
     return ParsedOutput(
         tool="naabu",
-        summary=f"naabu: {
-            len(ports)} open ports across {
-            len(port_counts)} hosts — {host_summary}",
+        summary=f"naabu: {len(ports)} open ports across {len(port_counts)} hosts — {host_summary}",
         items=ports[:MAX_ITEMS],
         total_count=len(ports),
     )

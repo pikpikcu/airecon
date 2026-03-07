@@ -219,8 +219,7 @@ def _walk_dir(
             except Exception:
                 child_count = 0
             output.append(
-                f"{prefix}{connector}{
-                    entry.name}/ ({child_count} items)")
+                f"{prefix}{connector}{entry.name}/ ({child_count} items)")
             _walk_dir(entry, workspace_root, output, depth + 1, child_prefix)
         else:
             size = _fmt_size(entry.stat().st_size)
@@ -232,8 +231,7 @@ def _walk_dir(
                 except Exception:  # nosec B110 - line count is optional
                     pass
             output.append(
-                f"{prefix}{connector}{
-                    entry.name} ({size}{line_info})")
+                f"{prefix}{connector}{entry.name} ({size}{line_info})")
 
 
 def _fmt_size(size_bytes: int) -> str:

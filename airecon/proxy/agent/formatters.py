@@ -178,9 +178,7 @@ class _FormatterMixin:
                 "sudo"
             ):
                 parts.append(
-                    f"TIP: Retry with elevated privileges: sudo {
-                        command.strip()[
-                            :80]}"
+                    f"TIP: Retry with elevated privileges: sudo {command.strip()[ :80]}"
                 )
             elif "connection refused" in combined or "connection timed out" in combined:
                 parts.append(
@@ -252,12 +250,10 @@ class _FormatterMixin:
                         parts.append(f"  {item}")
                     if parsed.total_count > len(parsed.items):
                         parts.append(
-                            f"  ... and {parsed.total_count -
-                                         len(parsed.items)} more"
+                            f"  ... and {parsed.total_count - len(parsed.items)} more"
                         )
                 parts.append(
-                    f"\nTOTAL: {
-                        parsed.total_count} items. Full output saved to file."
+                    f"\nTOTAL: {parsed.total_count} items. Full output saved to file."
                 )
                 body = "\n".join(parts)
                 if len(body) > MAX_TOTAL:
@@ -326,19 +322,11 @@ class _FormatterMixin:
                     cmd).strip()
                 detail = f": {cmd[:100]}"
             elif rec.tool_name == "browser_action":
-                detail = f" action={
-                    rec.arguments.get(
-                        'action',
-                        '?')} url={
-                    rec.arguments.get(
-                        'url',
-                        '')}"
+                detail = f" action={rec.arguments.get('action', '?')} url={rec.arguments.get('url', '')}"
             elif rec.tool_name == "web_search":
                 detail = f": {rec.arguments.get('query', '')[:60]}"
             lines.append(
-                f"  {i}. [{status}] {
-                    rec.tool_name}{detail} ({
-                    rec.duration:.1f}s)"
+                f"  {i}. [{status}] {rec.tool_name}{detail} ({rec.duration:.1f}s)"
             )
 
         return "\n".join(lines)
@@ -477,7 +465,6 @@ class _FormatterMixin:
         compact = "\n".join(parts)
         _help_cache[tool_binary] = compact
         logger.info(
-            f"Auto-help lookup for '{tool_binary}': {
-                len(flag_lines)} flags found"
+            f"Auto-help lookup for '{tool_binary}': {len(flag_lines)} flags found"
         )
         return compact

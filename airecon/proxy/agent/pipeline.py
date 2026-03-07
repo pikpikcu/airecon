@@ -145,8 +145,7 @@ class PipelineEngine:
                     self._phase_prompts[phase] = self._default_prompt(phase)
             except Exception as e:
                 logger.warning(
-                    f"Failed to load phase prompt for {
-                        phase.value}: {e}")
+                    f"Failed to load phase prompt for {phase.value}: {e}")
                 self._phase_prompts[phase] = self._default_prompt(phase)
 
     def _default_prompt(self, phase: PipelinePhase) -> str:
@@ -373,9 +372,7 @@ class PipelineEngine:
             total = len(config.transition_criteria) if config else 0
             return (
                 f"[PHASE GUIDANCE] Tool '{tool_name}' is optimised for the EXPLOIT phase. "
-                f"Current phase: {
-                    current.value} ({
-                    len(criteria_met)}/{total} transition criteria met). "
+                f"Current phase: {current.value} ({len(criteria_met)}/{total} transition criteria met). "
                 "Proceed only if you have specific evidence justifying early exploitation. "
                 "Otherwise, complete the current phase objectives first."
             )
@@ -392,6 +389,5 @@ class PipelineEngine:
             f"\n[PIPELINE TRANSITION → {new_phase.value}]\n"
             f"Phase objective: {config.objective}\n"
             f"Recommended tools for this phase: {tools}\n"
-            f"You are now in the {
-                new_phase.value} phase. Focus on the objective above.\n"
+            f"You are now in the {new_phase.value} phase. Focus on the objective above.\n"
         )

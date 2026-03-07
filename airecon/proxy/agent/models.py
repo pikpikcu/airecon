@@ -133,8 +133,7 @@ class AgentState:
                     first_line = content.split("\n")[0]
                     msg["content"] = f"[COMPRESSED] {first_line[:150]}"
                 else:
-                    msg["content"] = f"[COMPRESSED] Tool result ({
-                        len(content)} chars)"
+                    msg["content"] = f"[COMPRESSED] Tool result ({len(content)} chars)"
 
             # Compress verbose assistant text (not tool calls)
             elif (
@@ -332,8 +331,7 @@ class AgentState:
                 summaries.append({
                     "role": "system",
                     "content": (
-                        f"[COMPRESSED MEMORY — {
-                            len(chunk)} messages]: {summary_text}"
+                        f"[COMPRESSED MEMORY — {len(chunk)} messages]: {summary_text}"
                     ),
                 })
             except Exception as e:
@@ -344,8 +342,6 @@ class AgentState:
         before = len(self.conversation)
         self.conversation = system_msgs + [first_user] + summaries + keep_tail
         logger.info(
-            f"Memory compressed: {
-                len(to_compress)} messages → {
-                len(summaries)} summaries "
+            f"Memory compressed: {len(to_compress)} messages → {len(summaries)} summaries "
             f"({before} → {len(self.conversation)} total)"
         )

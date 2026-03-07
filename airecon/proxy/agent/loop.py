@@ -219,8 +219,9 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
                 session_id=_session_id, target=""
             )
             logger.info(
-                f"Loaded session {_session_id} (target={
-                    self._session.target})")
+                f"Loaded session {_session_id} "
+                f"(target={self._session.target})"
+            )
         else:
             self._session = SessionData(target="")
             logger.info(f"Created new session {self._session.session_id}")
@@ -447,8 +448,8 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
                         {
                             "role": "system",
                             "content": (
-                                f"[SYSTEM: MANDATORY PLAN REVISION — iteration {
-                                    self.state.iteration}]{session_info}\n"
+                                f"[SYSTEM: MANDATORY PLAN REVISION — iteration {self.state.iteration}]"
+                                f"{session_info}\n"
                                 "Your original plan may be stale. REVISED PLANNING REQUIRED:\n"
                                 "1. Compare original plan vs actual findings\n"
                                 "2. What has WORKED? What has FAILED?\n"
@@ -493,8 +494,7 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
                         {
                             "role": "system",
                             "content": (
-                                f"[SYSTEM: EXECUTION CHECKPOINT — Itr {
-                                    self.state.iteration}]"
+                                f"[SYSTEM: EXECUTION CHECKPOINT — Itr {self.state.iteration}]"
                                 f"{session_info}\n\n"
                                 f"{pipeline_prompt}"
                                 "MANDATORY ACTION: Do not just plan. Pick the absolute best next tool and execute it. If done, output [TASK_COMPLETE]."
@@ -629,9 +629,7 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
                             ]
                             vuln_chaining_prompt = (
                                 f"\n\n[VULNERABILITY CHAINING ANALYSIS]\n"
-                                f"You have {
-                                    len(
-                                        s.vulnerabilities)} vulnerabilities. Consider chaining:\n"
+                                f"You have {len(s.vulnerabilities)} vulnerabilities. Consider chaining:\n"
                                 f"Current vulns: {'; '.join(vuln_titles)}\n"
                                 f"Analyze if combining these can lead to greater impact:\n"
                                 f"- Can XSS be combined with CSRF for session hijacking?\n"
@@ -694,8 +692,7 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
                             {
                                 "role": "system",
                                 "content": (
-                                    f"[SYSTEM: ANALYSIS — Itr {
-                                        self.state.iteration}]"
+                                    f"[SYSTEM: ANALYSIS — Itr {self.state.iteration}]"
                                     f"{correlation_prompt}"
                                     f"{vuln_chaining_prompt}"
                                     f"{expert_testing_prompt}\n"
@@ -925,8 +922,7 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
                                     "content": (
                                         "\n[AUTO-RECOVERY] Ollama VRAM crash detected. "
                                         "Truncating context and retrying with reduced "
-                                        f"context window ({
-                                            cfg.ollama_num_ctx_small} tokens)...\n"
+                                        f"context window ({cfg.ollama_num_ctx_small} tokens)...\n"
                                     )
                                 },
                             )
@@ -949,9 +945,10 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
                         elif "connection refused" in err_lower:
                             error_msg = "Cannot connect to Ollama (connection refused).\nFix: start Ollama with `ollama serve`."
                         elif "model not found" in err_lower or "pull" in err_lower:
-                            error_msg = f"Model not found: {
-                                cfg.ollama_model}\nFix: run `ollama pull {
-                                cfg.ollama_model}`."
+                            error_msg = (
+                                f"Model not found: {cfg.ollama_model}\n"
+                                f"Fix: run `ollama pull {cfg.ollama_model}`."
+                            )
                         elif "context length" in err_lower or "out of memory" in err_lower:
                             error_msg = "Model ran out of context or memory.\nFix: lower `ollama_num_ctx` in config (e.g. 32768)."
                         elif "timeout" in err_lower or "timed out" in err_lower:
@@ -1594,8 +1591,7 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
                             tool_name, raw_command
                         )
                         content_str += (
-                            f"\n\n[SYSTEM: {
-                                self._consecutive_failures} CONSECUTIVE FAILURES DETECTED] "
+                            f"\n\n[SYSTEM: {self._consecutive_failures} CONSECUTIVE FAILURES DETECTED] "
                             "MANDATORY: Stop using the current approach. "
                             "Switch to a completely different tool or strategy. "
                             + (
@@ -1624,8 +1620,7 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
                             if unexecuted:
                                 content_str += (
                                     f"\n\n[SYSTEM: PLANNED TOOLS NOT EXECUTED!]\n"
-                                    f"You PLANNED to use these tools but haven't executed them: {
-                                        ', '.join(unexecuted)}\n"
+                                    f"You PLANNED to use these tools but haven't executed them: {', '.join(unexecuted)}\n"
                                     f"You MUST execute these tools now before moving to the next phase!\n"
                                     f"Examples:\n"
                                     f"- For 'sqlmap': sqlmap -u 'URL' --batch --level=5 --risk=3\n"
@@ -1888,8 +1883,7 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
             old_lines = full_path.read_text(errors="ignore").splitlines()
             self._pending_output_merges[str(full_path)] = old_lines
             logger.info(
-                f"Saved {
-                    len(old_lines)} existing lines from '{output_file}' for post-run merge")
+                f"Saved {len(old_lines)} existing lines from '{output_file}' for post-run merge")
         except Exception as e:
             logger.warning(
                 f"Could not save old content of '{output_file}' for merge: {e}")

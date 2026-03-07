@@ -91,14 +91,10 @@ class OllamaClient:
             self._supports_native_tools = detected_tools
 
         logger.info(
-            f"Initializing Ollama SDK client for host: {host}, model: {
-                self.model}, timeout: {
-                cfg.ollama_timeout}s"
+            f"Initializing Ollama SDK client for host: {host}, model: {self.model}, timeout: {cfg.ollama_timeout}s"
         )
         logger.info(
-            f"Model capabilities: thinking={
-                self._supports_thinking}, native_tools={
-                self._supports_native_tools}"
+            f"Model capabilities: thinking={self._supports_thinking}, native_tools={self._supports_native_tools}"
         )
         self._client = ollama.AsyncClient(
             host=host, timeout=cfg.ollama_timeout)
@@ -232,19 +228,14 @@ class OllamaClient:
                 if attempt < max_retries:
                     wait = 2 ** (attempt + 1)  # 2s, 4s, 8s
                     logger.warning(
-                        f"Ollama ResponseError (attempt {
-                            attempt + 1}/{
-                            max_retries + 1}), "
+                        f"Ollama ResponseError (attempt {attempt + 1}/{max_retries + 1}), "
                         f"retrying in {wait}s: {e.error}"
                     )
                     last_err = e
                     await asyncio.sleep(wait)
                     continue
                 logger.error(
-                    f"Ollama ResponseError after {
-                        max_retries +
-                        1} attempts: {
-                        e.error}")
+                    f"Ollama ResponseError after {max_retries + 1} attempts: {e.error}")
                 raise
 
             except Exception as e:
@@ -265,9 +256,7 @@ class OllamaClient:
                 if is_transient and attempt < max_retries:
                     wait = 2 ** (attempt + 1)  # 2s, 4s, 8s
                     logger.warning(
-                        f"Transient Ollama error (attempt {
-                            attempt + 1}/{
-                            max_retries + 1}), "
+                        f"Transient Ollama error (attempt {attempt + 1}/{max_retries + 1}), "
                         f"retrying in {wait}s: {e}"
                     )
                     last_err = e
@@ -277,6 +266,5 @@ class OllamaClient:
                 raise
 
         raise RuntimeError(
-            f"Ollama connection failed after {
-                max_retries + 1} attempts: {last_err}"
+            f"Ollama connection failed after {max_retries + 1} attempts: {last_err}"
         )

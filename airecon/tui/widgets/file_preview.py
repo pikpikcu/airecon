@@ -85,8 +85,7 @@ class FilePreviewScreen(ModalScreen):
                     f.seek(max(0, size - 500000))
                     tail = f.read()
                 msg = (
-                    f"\n\n  ⋮ LARGE FILE TRUNCATED ({
-                        size / 1024 / 1024:.2f} MB)\n"
+                    f"\n\n  ⋮ LARGE FILE TRUNCATED ({size / 1024 / 1024:.2f} MB)\n"
                     f"  ⋮ Showing first 5KB and last 500KB\n\n"
                 )
                 content = _ANSI_ESCAPE_RE.sub(

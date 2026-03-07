@@ -509,13 +509,10 @@ def session_to_context(session: SessionData) -> str:
     """Format session data as a context string for injection into conversation."""
     target_label = session.target or "unknown target"
     parts = [
-        f"[SYSTEM: PREVIOUS SESSION DATA — Session {
-            session.session_id} for {target_label}]"]
+        f"[SYSTEM: PREVIOUS SESSION DATA — Session {session.session_id} for {target_label}]"]
     parts.append(f"Session created: {session.created_at}")
     parts.append(
-        f"Tools previously run: {
-            ', '.join(
-                session.tools_run) if session.tools_run else 'none'}"
+        f"Tools previously run: {', '.join( session.tools_run) if session.tools_run else 'none'}"
     )
     parts.append(f"Total scans: {session.scan_count}")
 
@@ -599,9 +596,7 @@ def session_to_context(session: SessionData) -> str:
 
     if session.completed_phases:
         parts.append(
-            f"Completed phases: {
-                ', '.join(
-                    session.completed_phases)}")
+            f"Completed phases: {', '.join( session.completed_phases)}")
 
     if session.auth_cookies or session.auth_tokens:
         auth_info = f"Auth state: {session.auth_type or 'unknown'} — "

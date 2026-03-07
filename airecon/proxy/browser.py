@@ -175,8 +175,7 @@ class BrowserInstance:
             return tab_id
         if tab_id and tab_id not in self.pages:
             logger.warning(
-                f"Tab '{tab_id}' not found — falling back to current tab '{
-                    self.current_page_id}'")
+                f"Tab '{tab_id}' not found — falling back to current tab '{self.current_page_id}'")
         if self.current_page_id and self.current_page_id in self.pages:
             return self.current_page_id
         raise ValueError("No active browser tab available")
@@ -810,8 +809,7 @@ class BrowserInstance:
         await self.context.add_cookies(cookies)  # type: ignore[arg-type]
         state = await self._get_page_state(tab_id)
         state["injected_cookie_count"] = len(cookies)
-        state["message"] = f"Injected {
-            len(cookies)} cookies into browser context"
+        state["message"] = f"Injected {len(cookies)} cookies into browser context"
         return state
 
     def oauth_authorize(
@@ -1067,10 +1065,7 @@ class BrowserTabManager:
         result = self._safe_action("new_tab", browser.new_tab, url)
         result.setdefault(
             "message",
-            f"Created new tab {
-                result.get(
-                    'tab_id',
-                    '')}")
+            f"Created new tab {result.get( 'tab_id', '')}")
         return result
 
     def switch_tab(self, tab_id: str) -> dict[str, Any]:

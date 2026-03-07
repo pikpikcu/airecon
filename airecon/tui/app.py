@@ -146,8 +146,7 @@ class AIReconApp(App):
         try:
             bar = self.query_one("#recon-bar", Static)
             bar.update(
-                f"[bold #3b82f6]{
-                    self._SPINNER_CHARS[0]}[/]  [#8b949e]esc  interrupt[/]")
+                f"[bold #3b82f6]{self._SPINNER_CHARS[0]}[/]  [#8b949e]esc  interrupt[/]")
             bar.styles.height = 1
         except Exception:  # nosec B110 - spinner update is best-effort
             pass
@@ -220,8 +219,7 @@ class AIReconApp(App):
             self.active_file_content = content
 
             chat.add_system_message(
-                f"File context loaded: [bold green]{
-                    file_path.name}[/bold green]. Use 'this file' or 'the loaded file' in your next prompt.")
+                f"File context loaded: [bold green]{file_path.name}[/bold green]. Use 'this file' or 'the loaded file' in your next prompt.")
 
             # Preview using optimized screen
             self._open_file_preview(str(file_path))
@@ -469,8 +467,7 @@ class AIReconApp(App):
                 status_bar.set_status(ollama="offline", docker="offline")
                 if verbose:
                     chat.add_error_message(
-                        f"Status check failed: HTTP {
-                            resp.status_code}")
+                        f"Status check failed: HTTP {resp.status_code}")
         except Exception as e:
             status_bar.set_status(ollama="offline", docker="offline")
             if verbose:
@@ -584,8 +581,7 @@ class AIReconApp(App):
         # Inject context if available
         prompt = user_input
         if self.current_context_path:
-            prompt = f"[CONTEXT: Focus on {
-                self.current_context_path}]\n{user_input}"
+            prompt = f"[CONTEXT: Focus on {self.current_context_path}]\n{user_input}"
 
         # Add user message
         chat.add_user_message(user_input)
@@ -641,9 +637,7 @@ class AIReconApp(App):
                             else:
                                 # Generic JSON result
                                 file_context_message_parts.append(
-                                    f"User loaded file: {file_path_str} (JSON Result). Content snippet: {
-                                        str(parsed_content)[
-                                            :500]}...")
+                                    f"User loaded file: {file_path_str} (JSON Result). Content snippet: {str(parsed_content)[ :500]}...")
                         else:
                             # Generic JSON
                             file_context_message_parts.append(
@@ -683,10 +677,7 @@ class AIReconApp(App):
 
                 if resp.status_code != 200:
                     body = await resp.aread()
-                    error_msg = f"Proxy error ({
-                        resp.status_code}): {
-                        body.decode()[
-                            :500]}"
+                    error_msg = f"Proxy error ({resp.status_code}): {body.decode()[:500]}"
                     logger.error(error_msg)
                     chat.add_error_message(error_msg)
                     return
@@ -1028,8 +1019,7 @@ class AIReconApp(App):
                     data = resp.json()
                     skills = data.get("skills", [])
 
-                    skills_md = f"AI Skills & Capabilities ({
-                        len(skills)} skills)\n\n"
+                    skills_md = f"AI Skills & Capabilities ({len(skills)} skills)\n\n"
                     current_category = None
                     for s in skills:
                         name = s.get("name", "Unknown")

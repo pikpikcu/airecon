@@ -92,9 +92,7 @@ class AgentGraph:
 
         for node in order:
             logger.info(
-                f"Graph orchestrator starting Node: {
-                    node.id} ({
-                    node.role.value})")
+                f"Graph orchestrator starting Node: {node.id} ({node.role.value})")
             yield AgentEvent(type="agent_state", data={"status": f"Starting {node.id}..."})
 
             # Setup specialized agent loop

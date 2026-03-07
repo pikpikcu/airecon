@@ -345,8 +345,7 @@ class Fuzzer:
                     )
             except Exception as exc:
                 logger.debug(
-                    f"Fuzz request error param={param} payload={
-                        payload!r}: {exc}")
+                    f"Fuzz request error param={param} payload={payload!r}: {exc}")
         return None
 
     def get_high_priority_targets(self) -> list[str]:
@@ -629,9 +628,7 @@ class ExpertHeuristics:
         ):
             confidence += 0.65
             evidence.append(
-                f"Time anomaly: baseline={
-                    baseline_time_ms:.0f}ms fuzz={
-                    fuzz_time_ms:.0f}ms"
+                f"Time anomaly: baseline={baseline_time_ms:.0f}ms fuzz={fuzz_time_ms:.0f}ms"
             )
             result["vuln_type"] = f"time_based_{vuln_type}"
 
@@ -671,8 +668,7 @@ class ExpertHeuristics:
             if pattern in fuzz_lower and pattern not in baseline_lower:
                 confidence += 0.5
                 evidence.append(
-                    f"SQL error in fuzz response (not in baseline): {
-                        pattern!r}")
+                    f"SQL error in fuzz response (not in baseline): {pattern!r}")
                 result["vuln_type"] = "sql_injection"
                 break
 
@@ -681,8 +677,7 @@ class ExpertHeuristics:
             if pattern in fuzz_lower and pattern not in baseline_lower:
                 confidence += 0.45
                 evidence.append(
-                    f"Code execution indicator (new in fuzz): {
-                        pattern!r}")
+                    f"Code execution indicator (new in fuzz): {pattern!r}")
                 result["vuln_type"] = "rce"
                 break
 
@@ -999,10 +994,7 @@ class ExploitChainEngine:
         severity = self._compute_chain_severity(all_steps)
         total_conf = _geometric_mean([s.confidence for s in all_steps])
         return ExploitChain(
-            name=f"{
-                trigger.vuln_type} → {
-                ' → '.join(
-                    s.vuln_type for s in steps)}",
+            name=f"{trigger.vuln_type} → {' → '.join(s.vuln_type for s in steps)}",
             trigger_vuln=trigger.vuln_type,
             steps=all_steps,
             total_confidence=total_conf,
@@ -1035,8 +1027,7 @@ class ExploitChainEngine:
     ) -> str:
         lines = [f"Exploit Chain — Target: {target}", "=" * 60]
         for i, step in enumerate(steps, 1):
-            prereq = f" (requires: {
-                step.prerequisite})" if step.prerequisite else ""
+            prereq = f" (requires: {step.prerequisite})" if step.prerequisite else ""
             lines.append(
                 f"Step {i}: [{step.vuln_type.upper()}]{prereq}\n"
                 f"  Parameter : {step.parameter}\n"
@@ -1196,9 +1187,7 @@ class InteractiveRealTimeTester:
                 event_type="progress",
                 data={
                     "phase": "chaining",
-                    "message": f"Discovering exploit chains from {
-                        len(
-                            self._findings)} findings..."},
+                    "message": f"Discovering exploit chains from {len( self._findings)} findings..."},
             )
             self._chains = await self.chain_engine.discover_chains(self._findings)
             for chain in self._chains:

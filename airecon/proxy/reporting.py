@@ -233,8 +233,7 @@ def create_vulnerability_report(
     md_content += f"**ID**: {report_id}\n"
 
     if has_cvss:
-        md_content += f"**Severity**: {
-            severity.upper()} (CVSS: {cvss_score})\n"
+        md_content += f"**Severity**: {severity.upper()} (CVSS: {cvss_score})\n"
         md_content += f"**Vector**: `{cvss_vector}`\n"
 
     md_content += f"**Target**: {target}\n"
@@ -267,8 +266,7 @@ def create_vulnerability_report(
         md_content += f"\n## Remediation\n{remediation_steps}\n"
 
     if suggested_fix and suggested_fix.strip():
-        md_content += f"\n## Suggested Fix\n```\n{
-            suggested_fix.strip()}\n```\n"
+        md_content += f"\n## Suggested Fix\n```\n{suggested_fix.strip()}\n```\n"
 
     if cve:
         md_content += f"\n## Reference\n**CVE**: {cve}\n"

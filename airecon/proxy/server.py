@@ -47,8 +47,7 @@ async def lifespan(app: FastAPI):
     # Check Ollama connectivity
     ollama_ok = await ollama_client.health_check()
     logger.info(
-        f"  Ollama status: {
-            '✓ connected' if ollama_ok else '✗ unavailable'}")
+        f"  Ollama status: {'✓ connected' if ollama_ok else '✗ unavailable'}")
 
     # Ensure Docker image exists (auto-build if needed)
     if cfg.docker_auto_build:

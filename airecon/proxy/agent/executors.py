@@ -129,8 +129,7 @@ class _ExecutorMixin:
                             source_file = host_output / f"source_{domain}.txt"
                             with open(source_file, "w", encoding="utf-8") as f:
                                 f.write(
-                                    f"URL: {page_url}\n{
-                                        '=' * 60}\n{source_full}")
+                                    f"URL: {page_url}\n{'=' * 60}\n{source_full}")
                             saved_path = f"output/source_{domain}.txt"
                             # Extract JS file URLs from full HTML source
                             js_src = re.findall(
@@ -143,22 +142,16 @@ class _ExecutorMixin:
                                 js_file = host_output / "js_files.txt"
                                 with open(js_file, "a", encoding="utf-8") as f:
                                     f.write(
-                                        f"\n{
-                                            '=' *
-                                            60}\nSOURCE: {page_url}\n{
-                                            '=' *
-                                            60}\n")
+                                        f"\n{'=' * 60}\nSOURCE: {page_url}\n{'=' * 60}\n")
                                     for js_url in all_js:
                                         f.write(js_url + "\n")
-                                js_note = f" {
-                                    len(all_js)} JS files extracted to output/js_files.txt."
+                                js_note = f" {len(all_js)} JS files extracted to output/js_files.txt."
                             inner = dict(inner)
                             # strip from LLM context
                             inner.pop("full_page_source", None)
                             inner["auto_saved"] = saved_path
                             inner["note"] = (
-                                f"[Auto-saved full page source ({
-                                    len(source_full)} chars) to {saved_path}.{js_note}"
+                                f"[Auto-saved full page source ({len(source_full)} chars) to {saved_path}.{js_note}"
                                 " Analyze JS files for API endpoints, secrets, and vulnerabilities.]"
                             )
                             result = {"success": True, "result": inner}
@@ -170,9 +163,7 @@ class _ExecutorMixin:
                                 f"console_{domain}.txt"
                             with open(console_file, "w", encoding="utf-8") as f:
                                 f.write(
-                                    f"URL: {page_url}\nLogs captured: {
-                                        len(logs)}\n{
-                                        '=' * 60}\n")
+                                    f"URL: {page_url}\nLogs captured: {len(logs)}\n{'=' * 60}\n")
                                 for log in logs:
                                     f.write(
                                         f"[{log.get('type', 'log')}] {log.get('text', '')}\n")
@@ -180,8 +171,7 @@ class _ExecutorMixin:
                             inner = dict(inner)
                             inner["auto_saved"] = saved_path
                             inner["note"] = (
-                                f"[Auto-saved {
-                                    len(logs)} console logs to {saved_path}."
+                                f"[Auto-saved {len(logs)} console logs to {saved_path}."
                                 " Check for errors, debug info, and leaked sensitive data.]"
                             )
                             result = {"success": True, "result": inner}
@@ -192,38 +182,22 @@ class _ExecutorMixin:
                             net_file = host_output / f"network_{domain}.txt"
                             with open(net_file, "w", encoding="utf-8") as f:
                                 f.write(
-                                    f"URL: {page_url}\nTotal entries: {
-                                        len(reqs)}\n{
-                                        '=' * 60}\n\n")
+                                    f"URL: {page_url}\nTotal entries: {len(reqs)}\n{'=' * 60}\n\n")
                                 for entry in reqs:
                                     etype = entry.get("type", "?")
                                     url = entry.get("url", "")
                                     if etype == "request":
                                         f.write(
-                                            f">> {
-                                                entry.get(
-                                                    'method',
-                                                    'GET')} [{
-                                                entry.get(
-                                                    'resource_type',
-                                                    '')}] {url}\n")
+                                            f">> {entry.get('method', 'GET')} [{entry.get('resource_type', '')}] {url}\n")
                                         if entry.get("post_data"):
                                             f.write(
-                                                f"   BODY: {
-                                                    entry['post_data']}\n")
+                                                f"   BODY: {entry['post_data']}\n")
                                     elif etype == "response":
                                         f.write(
-                                            f"<< {
-                                                entry.get(
-                                                    'status',
-                                                    '')} {url}  [{
-                                                entry.get(
-                                                    'content_type',
-                                                    '')}]\n")
+                                            f"<< {entry.get('status', '')} {url}  [{entry.get('content_type', '')}]\n")
                                         if entry.get("body"):
                                             f.write(
-                                                f"   RESPONSE: {
-                                                    entry['body']}\n")
+                                                f"   RESPONSE: {entry['body']}\n")
                                     f.write("\n")
                             saved_path = f"output/network_{domain}.txt"
                             summary = inner.get("network_summary", {})
@@ -233,8 +207,7 @@ class _ExecutorMixin:
                             inner.pop("network_requests", None)
                             inner["auto_saved"] = saved_path
                             inner["note"] = (
-                                f"[Auto-saved {
-                                    len(reqs)} network entries to {saved_path}."
+                                f"[Auto-saved {len(reqs)} network entries to {saved_path}."
                                 f" {len(api_calls)} XHR/Fetch API calls detected."
                                 " Review for API endpoints, auth tokens, and sensitive data in responses.]"
                             )
@@ -527,12 +500,8 @@ class _ExecutorMixin:
                 findings_list = []
                 for r in results:
                     findings_list.append(
-                        f"Param: {
-                            r.parameter} | Vuln: {
-                            r.vuln_type} | Severity: {
-                            r.severity} | Conf: {
-                            r.confidence:.2f} | Evidence: {
-                            r.evidence}")
+                        f"Param: {r.parameter} | Vuln: {r.vuln_type} | Severity: {r.severity} | "
+                        f"Conf: {r.confidence:.2f} | Evidence: {r.evidence}")
                 res_dict = {"success": True, "findings": findings_list}
 
             try:
@@ -579,12 +548,8 @@ class _ExecutorMixin:
                     "result": "No vulnerabilities found with confidence > 0.60."}
             else:
                 findings_list = [
-                    f"Param: {
-                        r.parameter} | Vuln: {
-                        r.vuln_type} | Severity: {
-                        r.severity} | Conf: {
-                        r.confidence:.2f} | Evidence: {
-                        r.evidence}"
+                    f"Param: {r.parameter} | Vuln: {r.vuln_type} | Severity: {r.severity} | "
+                    f"Conf: {r.confidence:.2f} | Evidence: {r.evidence}"
                     for r in results
                 ]
                 res_dict = {
@@ -635,12 +600,8 @@ class _ExecutorMixin:
             findings_list = []
             for f in getattr(tester, "_findings", []):
                 findings_list.append(
-                    f"Param: {
-                        f.parameter} | Vuln: {
-                        f.vuln_type} | Severity: {
-                        f.severity} | Conf: {
-                        f.confidence:.2f} | Evidence: {
-                        f.evidence}"
+                    f"Param: {f.parameter} | Vuln: {f.vuln_type} | Severity: {f.severity} | "
+                    f"Conf: {f.confidence:.2f} | Evidence: {f.evidence}"
                 )
 
             res_dict = {
@@ -1130,8 +1091,7 @@ class _ExecutorMixin:
             }
         }
         """
-        scope_name = f"airecon-{
-            self.state.active_target or 'scope'}"
+        scope_name = f"airecon-{self.state.active_target or 'scope'}"
         variables = {
             "input": {
                 "name": scope_name,
@@ -1275,8 +1235,7 @@ class _ExecutorMixin:
         active_target = self.state.active_target or "unknown"
         workspace_dir = f"/workspace/{active_target}"
         output_file = f"{workspace_dir}/output/schemathesis_results.txt"
-        full_cmd = f"cd {workspace_dir} && pip install -q schemathesis 2>/dev/null; {
-            ' '.join(cmd_parts)} 2>&1 | tee {output_file}"
+        full_cmd = f"cd {workspace_dir} && pip install -q schemathesis 2>/dev/null; {' '.join(cmd_parts)} 2>&1 | tee {output_file}"
 
         try:
             exec_result = await self.engine.execute_tool(
@@ -1546,8 +1505,7 @@ class _ExecutorMixin:
                 # multi-path commands.
                 arguments["command"] = f"cd {workspace_dir} && {cmd}"
                 logger.info(
-                    f"Enforced workspace context: {
-                        arguments['command']}")
+                    f"Enforced workspace context: {arguments['command']}")
 
         start_time = time.time()
         try:
