@@ -5,10 +5,11 @@
 1. [What are Skills?](#1-what-are-skills)
 2. [How Skills Work Internally](#2-how-skills-work-internally)
 3. [Available Skills Reference](#3-available-skills-reference)
-4. [Creating a Custom Skill](#4-creating-a-custom-skill)
-5. [Skill Writing Guidelines](#5-skill-writing-guidelines)
-6. [Full Skill Template](#6-full-skill-template)
-7. [Testing Your Skill](#7-testing-your-skill)
+4. [airecon-skills Community Library](#4-airecon-skills-community-library)
+5. [Creating a Custom Skill](#5-creating-a-custom-skill)
+6. [Skill Writing Guidelines](#6-skill-writing-guidelines)
+7. [Full Skill Template](#7-full-skill-template)
+8. [Testing Your Skill](#8-testing-your-skill)
 
 ---
 
@@ -170,9 +171,79 @@ Loading all skills at startup would consume 50,000+ tokens of context window —
 
 ---
 
-## 4. Creating a Custom Skill
+## 4. airecon-skills Community Library
 
-### Step 1: Choose the right category
+**[airecon-skills](https://github.com/pikpikcu/airecon-skills)** is the official community skill library for AIRecon — a collection of CLI-based playbooks for CTF, bug bounty, and pentesting that extend the built-in skill set.
+
+### What's included
+
+The library provides specialized skills not bundled with AIRecon by default:
+
+| Category | Examples |
+|----------|---------|
+| CTF | Reverse engineering, binary exploitation, crypto challenges, web CTF |
+| Bug Bounty | Platform-specific recon SOPs, disclosure tips, P1 hunting patterns |
+| Protocols | MQTT, Redis, MongoDB, Kafka, Elasticsearch attack playbooks |
+| Cloud | AWS privilege escalation chains, GCP service account abuse, Azure AD attacks |
+| Mobile | Android APK decompile + secrets scan, iOS plist inspection |
+| Frameworks | Django, Rails, Spring Boot, Laravel, WordPress deep dives |
+
+### Installation
+
+```bash
+# Clone into your local skills directory
+git clone https://github.com/pikpikcu/airecon-skills ~/.airecon/skills
+
+# Or clone alongside the built-in skills
+git clone https://github.com/pikpikcu/airecon-skills /path/to/airecon-skills
+```
+
+Then configure AIRecon to load skills from the additional directory by setting the path in your config or by symlinking into the built-in skills folder:
+
+```bash
+# Option 1: Symlink into built-in skills (recommended)
+ln -s ~/.airecon/skills/skills/* /path/to/airecon/airecon/proxy/skills/
+
+# Option 2: Copy skills you want
+cp -r ~/.airecon/skills/skills/ctf /path/to/airecon/airecon/proxy/skills/
+```
+
+After adding skills, restart AIRecon — they will appear automatically in `<available_skills>`.
+
+### Verifying community skills are loaded
+
+```bash
+python3 -c "
+from airecon.proxy.system import get_system_prompt
+p = get_system_prompt()
+start = p.find('<available_skills>')
+end = p.find('</available_skills>') + len('</available_skills>')
+print(p[start:end])
+" | grep -i ctf  # or whatever category you added
+```
+
+### Contributing to airecon-skills
+
+If you write a skill that could be useful to others, consider contributing it upstream:
+
+1. Fork [github.com/pikpikcu/airecon-skills](https://github.com/pikpikcu/airecon-skills)
+2. Add your skill in the appropriate category folder
+3. Follow the [Skill Writing Guidelines](#6-skill-writing-guidelines) below
+4. Open a pull request
+
+---
+
+## 5. Creating a Custom Skill
+
+### Step 1: Choose the right location
+
+**Built-in skills** (ship with AIRecon): add to `airecon/proxy/skills/<category>/`
+
+**Community skills** (airecon-skills library): contribute to [github.com/pikpikcu/airecon-skills](https://github.com/pikpikcu/airecon-skills)
+
+**Private skills** (your own): place anywhere and symlink into the built-in skills directory.
+
+### Step 2: Choose the right category
 
 | Your skill is about... | Folder |
 |-----------------------|--------|
@@ -184,16 +255,16 @@ Loading all skills at startup would consume 50,000+ tokens of context window —
 | Payload collections | `skills/payloads/` |
 | Tool usage guide | `skills/tools/` |
 
-### Step 2: Create the file
+### Step 3: Create the file
 
 ```bash
 # Example: adding a WebSocket testing skill
 touch airecon/proxy/skills/protocols/websocket.md
 ```
 
-### Step 3: Write the skill (see [Full Template](#6-full-skill-template) below)
+### Step 4: Write the skill (see [Full Template](#7-full-skill-template) below)
 
-### Step 4: Restart AIRecon
+### Step 5: Restart AIRecon
 
 Skills are scanned at startup. Restart for the new file to appear in the `<available_skills>` list.
 
@@ -202,7 +273,7 @@ Skills are scanned at startup. Restart for the new file to appear in the `<avail
 airecon start
 ```
 
-### Step 5: Verify
+### Step 6: Verify
 
 Ask the agent to check a relevant target. When it detects the relevant technology, it should read your skill. You can also manually trigger it:
 
@@ -213,7 +284,7 @@ read the websocket skill and test this target for WebSocket vulnerabilities
 
 ---
 
-## 5. Skill Writing Guidelines
+## 6. Skill Writing Guidelines
 
 ### DO: Be specific and actionable
 
@@ -271,7 +342,7 @@ Split `sql_and_nosql_injection.md` into `sql_injection.md` and `nosql_injection.
 
 ---
 
-## 6. Full Skill Template
+## 7. Full Skill Template
 
 ```markdown
 # <Skill Name>
@@ -347,7 +418,7 @@ How to confirm the target uses this technology or is affected:
 
 ---
 
-## 7. Testing Your Skill
+## 8. Testing Your Skill
 
 After creating a skill, verify it works as expected:
 
