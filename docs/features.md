@@ -515,7 +515,9 @@ Vulnerabilities are deduplicated using **Jaccard similarity** on title + endpoin
 
 ## Anti Context-Loss
 
-On long sessions (500+ iterations), LLMs tend to "forget" findings from early in the conversation. AIRecon mitigates this with automatic context re-injection.
+On long sessions (500+ iterations), LLMs tend to "forget" findings from early in the conversation. AIRecon uses multiple complementary mechanisms to prevent context loss.
+
+### Automatic Context Re-injection
 
 **Every 5 iterations**, `session_to_context()` generates a full summary of all current findings and injects it as a system message:
 
@@ -530,9 +532,93 @@ Vulnerabilities confirmed: 2
   → HIGH: SQL Injection at /api/v1/login (CVE candidate)
   → MED: IDOR at /api/v1/users/{id}
 Current phase: EXPLOIT
+Tested endpoints: GET https://example.com/api/v1/login, POST https://example.com/api/v1/users
 ```
 
-This ensures the model always "knows" the full state of the engagement, regardless of how much earlier context has been compressed.
+### Proactive Context Monitoring
+
+Before each LLM call, AIRecon checks token usage:
+
+| Threshold | Action |
+|-----------|--------|
+| ≥80% full | Trim conversation to 50 messages |
+| ≥90% full | Aggressive trim to 35 messages |
+| >65% full | Skip `compress_with_llm` (prevents OOM during compression) |
+
+### Dynamic Compression Interval
+
+Context compression frequency scales automatically:
+
+| Condition | Interval |
+|-----------|----------|
+| Token usage >60% | Every 5 iterations |
+| Iteration >150 | Every 10 iterations |
+| Normal | Every 15 iterations |
+
+### Multi-Level VRAM Crash Recovery
+
+If Ollama crashes (OOM / HTML error page / `signal: killed`), AIRecon recovers automatically with 4 escalation tiers:
+
+| Tier | Trigger | Context | Max messages | Wait |
+|------|---------|---------|--------------|------|
+| 1 | 1st crash | `ollama_num_ctx_small` | 80 | 0s |
+| 2 | 2nd crash | ÷2 | 50 | 5s |
+| 3 | 3rd crash | ÷4 | 30 | 10s |
+| 4 | 4+ crashes | 4096 (min) | 20 | 30s |
+
+The reduced context persists for **all subsequent iterations** — the agent does not reset to full context after recovery. Session data is auto-saved after each crash so no findings are lost.
+
+### Tested Endpoints Memory
+
+`SessionData.tested_endpoints` tracks every URL the agent has tested as `"METHOD url"` strings (max 500, LRU eviction). After any context truncation, the last 20 tested endpoints are re-injected into context, preventing the agent from re-testing the same endpoints.
+
+### Session Persistence
+
+All findings are continuously persisted to `~/.airecon/sessions/<session_id>.json`. On resume (`airecon start --session <id>`), the agent re-reads all prior findings including subdomains, vulnerabilities, technologies, tested endpoints, and auth tokens.
+
+---
+
+## @/file and @/folder References
+
+You can reference local files or directories directly in the chat input using `@/path` syntax. AIRecon automatically copies the referenced content into the Docker workspace and includes it in the agent's context.
+
+### Supported Inputs
+
+| Syntax | Behavior |
+|--------|----------|
+| `@/path/to/file.txt` | Copy single file to `workspace/uploads/`, read content into context |
+| `@/path/to/dir/` | Copy entire directory tree (up to 50 files, 100KB each), summarize in context |
+| `@/path/to/script.py` | Non-text files (binary) are copied but not read into context |
+
+### Example Usage
+
+```
+analyze this burp export: @/home/user/Downloads/burp_export.xml
+check this config for secrets: @/etc/nginx/nginx.conf
+review my source code: @/home/user/projects/webapp/src/
+```
+
+### Copy Summary
+
+After copying, AIRecon reports:
+```
+Files read into context: 12 | Skipped: 2 binary/non-text, 1 too large (>100KB), 3 limit exceeded
+```
+
+---
+
+## TUI — Slash Command Autocomplete
+
+In the chat input, typing `/` triggers an autocomplete dropdown listing all available slash commands.
+
+| Command | Purpose |
+|---------|---------|
+| `/swe-review` | Full SE code review (8-point checklist) |
+| `/quality` | Run ruff + bandit + pytest |
+| `/test-gen <target>` | Generate pytest tests for a function/module |
+| `/arch <change>` | Architecture review for proposed changes |
+
+Press `Tab` or `↓/↑` to navigate, `Enter` to select. The dropdown closes on `Escape` or if you type past the autocomplete boundary.
 
 ---
 

@@ -43,15 +43,15 @@ code ~/.airecon/config.json
 {
     "ollama_url": "http://127.0.0.1:11434",
     "ollama_model": "qwen3.5:122b",
-    "ollama_timeout": 1900.0,
-    "ollama_num_ctx": 65536,
-    "ollama_num_ctx_small": 32768,
+    "ollama_timeout": 2400.0,
+    "ollama_num_ctx": 131072,
+    "ollama_num_ctx_small": 65536,
     "ollama_temperature": 0.15,
-    "ollama_num_predict": 16384,
+    "ollama_num_predict": 32768,
     "ollama_enable_thinking": true,
     "ollama_supports_thinking": true,
     "ollama_supports_native_tools": true,
-    "ollama_keep_alive": "30m",
+    "ollama_keep_alive": "60m",
     "proxy_host": "127.0.0.1",
     "proxy_port": 3000,
     "command_timeout": 900.0,
@@ -59,15 +59,25 @@ code ~/.airecon/config.json
     "docker_auto_build": true,
     "tool_response_role": "tool",
     "deep_recon_autostart": true,
-    "agent_max_tool_iterations": 500,
+    "agent_max_tool_iterations": 800,
     "agent_repeat_tool_call_limit": 2,
     "agent_missing_tool_retry_limit": 2,
     "agent_plan_revision_interval": 30,
-    "allow_destructive_testing": true,
+    "agent_exploration_mode": true,
+    "agent_exploration_intensity": 0.9,
+    "agent_exploration_temperature": 0.35,
+    "agent_stagnation_threshold": 2,
+    "agent_tool_diversity_window": 8,
+    "agent_max_same_tool_streak": 3,
+    "allow_destructive_testing": false,
     "browser_page_load_delay": 1.0,
+    "browser_action_timeout": 120,
     "searxng_url": "http://localhost:8080",
     "searxng_engines": "google,bing,duckduckgo,brave,google_news,github,stackoverflow",
-    "vuln_similarity_threshold": 0.7
+    "vuln_similarity_threshold": 0.7,
+    "pipeline_recon_min_subdomains": 3,
+    "pipeline_recon_min_urls": 1,
+    "pipeline_recon_soft_timeout": 30
 }
 ```
 
@@ -138,7 +148,7 @@ For reasoning models (qwen3 with `ollama_enable_thinking: true`), the `<think>` 
 ---
 
 ### `ollama_num_ctx`
-**Type:** int | **Default:** `65536` (64K tokens)
+**Type:** int | **Default:** `131072` (128K tokens)
 
 Context window size in tokens. Larger = more history visible to the model = better continuity, but requires more VRAM.
 
@@ -146,33 +156,33 @@ Context window size in tokens. Larger = more history visible to the model = bett
 |-------|-------------|----------|
 | `8192` | Minimal | Quick tests, very limited VRAM |
 | `32768` | Moderate | General use with 8–16 GB VRAM |
-| `65536` | High | **Default** — deep recon sessions, 16+ GB VRAM |
-| `131072` | Very high | Extended sessions, 32+ GB VRAM |
+| `65536` | High | Deep recon sessions, 16+ GB VRAM |
+| `131072` | Very high | **Default** — full 128K context for qwen3.5:122b, 32+ GB VRAM |
 
-> Reduce this first if you get out-of-memory errors. The agent uses automatic conversation truncation (every 15 iterations) to manage context, so reducing this is safe.
+> If you get VRAM/OOM errors, reduce this first. The agent uses automatic multi-level crash recovery (see VRAM Recovery below) and proactive context trimming at ≥80% usage.
 
 ---
 
 ### `ollama_num_ctx_small`
-**Type:** int | **Default:** `32768`
+**Type:** int | **Default:** `65536` (64K tokens)
 
-A smaller context window used for lightweight operations (e.g., skill reads, status queries) that don't require the full context. Reduces VRAM pressure during intermediate operations.
+A smaller context window used for compression calls (`compress_with_llm`) and VRAM crash recovery tiers. Reduces VRAM pressure during context management. This is also the starting point for multi-level recovery — see VRAM Recovery below.
 
 ---
 
 ### `ollama_num_predict`
-**Type:** int | **Default:** `16384`
+**Type:** int | **Default:** `32768`
 
-Maximum number of tokens the model can generate in a single response. 16384 ≈ ~12,000 words — enough for complex tool-calling responses with reasoning.
+Maximum number of tokens the model can generate in a single response. 32768 ≈ ~24,000 words — sufficient for complex reasoning + tool-calling responses.
 
-Reduce to `4096` if responses feel slow and you don't need long output. Increase for very long exploitation write-ups.
+Reduce to `8192` if responses feel slow. The agent automatically caps this further after VRAM crashes.
 
 ---
 
 ### `ollama_timeout`
-**Type:** float | **Default:** `1900.0` seconds
+**Type:** float | **Default:** `2400.0` seconds (40 minutes)
 
-How long to wait for a streaming response before giving up. Default is ~31 minutes — appropriate for large models on CPU or GPU with high context.
+How long to wait for a streaming response before giving up. Default is 40 minutes — appropriate for large 122B models on GPU with 128K context.
 
 ```json
 // For fast GPU inference
@@ -222,18 +232,18 @@ Set to `false` if you want the agent to treat bare domain input as "just set the
 ---
 
 ### `agent_max_tool_iterations`
-**Type:** int | **Default:** `500`
+**Type:** int | **Default:** `800`
 
 Safety limit on the number of tool call cycles per user message. Prevents infinite loops.
 
-For full recon engagements on complex targets, 500 iterations is the minimum. For specific tasks, the agent typically finishes in 3–20 iterations.
+For full recon engagements on complex targets, 800 iterations allows Phase 1–4 to complete fully. For specific tasks, the agent typically finishes in 3–20 iterations.
 
 ```json
 // Tight limit for specific tasks only
 "agent_max_tool_iterations": 100
 
 // Extended for deep recon
-"agent_max_tool_iterations": 1000
+"agent_max_tool_iterations": 1200
 ```
 
 ---
@@ -337,8 +347,54 @@ Only change these if port 3000 is already in use on your machine:
 
 ## 7. Safety Settings
 
-### `allow_destructive_testing`
+### `agent_exploration_mode`
 **Type:** bool | **Default:** `true`
+
+Enables the Phase 1 anti-stagnation exploration engine. When active:
+- Monitors for stagnation (no new high-confidence evidence after N iterations)
+- Boosts temperature to `agent_exploration_temperature` when stagnation detected
+- Enforces tool diversity via same-tool streak detection
+- Injects per-phase exploration directives into the system prompt
+
+---
+
+### `agent_exploration_intensity`
+**Type:** float (0.0–1.0) | **Default:** `0.9`
+
+How aggressively the exploration engine pushes the agent into new territory when stagnation is detected. Higher values inject stronger directives. `0.9` is tuned for 122B models; reduce to `0.5`–`0.6` for smaller models.
+
+---
+
+### `agent_exploration_temperature`
+**Type:** float (0.0–2.0) | **Default:** `0.35`
+
+Temperature used when the agent is in exploration mode (stagnation detected). Higher than `ollama_temperature` to encourage new approaches without losing control.
+
+---
+
+### `agent_stagnation_threshold`
+**Type:** int | **Default:** `2`
+
+Number of consecutive iterations with no new high-confidence evidence (≥0.65 confidence) before exploration mode activates.
+
+---
+
+### `agent_tool_diversity_window`
+**Type:** int (min 3) | **Default:** `8`
+
+Number of most-recent tool calls tracked for diversity analysis. The agent checks this window for same-tool streaks.
+
+---
+
+### `agent_max_same_tool_streak`
+**Type:** int | **Default:** `3`
+
+Maximum allowed consecutive uses of the same tool before a diversity warning is injected. Prevents the agent from looping on a single tool.
+
+---
+
+### `allow_destructive_testing`
+**Type:** bool | **Default:** `false`
 
 When `true`, modifies the system prompt to authorize destructive/aggressive testing:
 - Changes "non-destructive penetration testing" to "UNRESTRICTED DESTRUCTIVE penetration testing"
@@ -435,7 +491,32 @@ How many iterations between full plan revision checkpoints. At each checkpoint, 
 
 ---
 
-## 11. Environment Variable Overrides
+## 11. Pipeline Settings
+
+These control the minimum depth criteria required before a RECON → ANALYSIS phase transition is triggered.
+
+### `pipeline_recon_min_subdomains`
+**Type:** int | **Default:** `3`
+
+Minimum number of subdomains that must be discovered before RECON is considered complete. Prevents premature phase transition if the agent only finds 1–2 subdomains.
+
+---
+
+### `pipeline_recon_min_urls`
+**Type:** int | **Default:** `1`
+
+Minimum number of URLs collected before RECON → ANALYSIS transition.
+
+---
+
+### `pipeline_recon_soft_timeout`
+**Type:** int | **Default:** `30`
+
+Maximum RECON iterations before forcing a transition to ANALYSIS regardless of depth criteria. Prevents infinite RECON loops on targets with very limited attack surface.
+
+---
+
+## 12. Environment Variable Overrides
 
 Any config key can be overridden without editing the file using environment variables. Format: `AIRECON_<KEY_UPPERCASE>`.
 
@@ -462,7 +543,7 @@ Environment variables take precedence over the config file. They are applied at 
 
 ---
 
-## 12. Configuration Presets
+## 13. Configuration Presets
 
 ### Preset: Minimum viable (16 GB VRAM, qwen3:30b-a3b MoE)
 
@@ -496,8 +577,9 @@ Environment variables take precedence over the config file. They are applied at 
     "ollama_enable_thinking": true,
     "ollama_supports_thinking": true,
     "ollama_supports_native_tools": true,
+    "ollama_keep_alive": "60m",
     "command_timeout": 900.0,
-    "agent_max_tool_iterations": 500,
+    "agent_max_tool_iterations": 800,
     "searxng_url": "http://localhost:8080"
 }
 ```
@@ -507,15 +589,17 @@ Environment variables take precedence over the config file. They are applied at 
 ```json
 {
     "ollama_model": "qwen3.5:122b",
-    "ollama_num_ctx": 65536,
-    "ollama_num_ctx_small": 32768,
+    "ollama_num_ctx": 131072,
+    "ollama_num_ctx_small": 65536,
     "ollama_temperature": 0.15,
-    "ollama_num_predict": 16384,
+    "ollama_num_predict": 32768,
     "ollama_enable_thinking": true,
     "ollama_supports_thinking": true,
     "ollama_supports_native_tools": true,
+    "ollama_timeout": 2400.0,
+    "ollama_keep_alive": "60m",
     "command_timeout": 900.0,
-    "agent_max_tool_iterations": 500,
+    "agent_max_tool_iterations": 800,
     "searxng_url": "http://localhost:8080"
 }
 ```
@@ -526,14 +610,15 @@ Environment variables take precedence over the config file. They are applied at 
 {
     "ollama_url": "http://192.168.1.100:11434",
     "ollama_model": "qwen3.5:122b",
-    "ollama_timeout": 3600.0,
-    "ollama_num_ctx": 65536,
+    "ollama_timeout": 2400.0,
+    "ollama_num_ctx": 131072,
+    "ollama_num_ctx_small": 65536,
     "ollama_temperature": 0.15,
     "ollama_enable_thinking": true,
     "ollama_supports_thinking": true,
     "ollama_supports_native_tools": true,
     "ollama_keep_alive": "60m",
-    "agent_max_tool_iterations": 1000,
+    "agent_max_tool_iterations": 800,
     "searxng_url": "http://localhost:8080"
 }
 ```
