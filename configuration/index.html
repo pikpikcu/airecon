@@ -1,0 +1,2485 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="AI-Powered Autonomous Penetration Testing Agent">
+      
+      
+      
+        <link rel="canonical" href="https://pikpikcu.github.io/airecon/configuration/">
+      
+      
+        <link rel="prev" href="../installation/">
+      
+      
+        <link rel="next" href="../features/">
+      
+      
+      <link rel="icon" href="../assets/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.7">
+    
+    
+      
+        <title>Configuration - AIRecon</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.8608ea7d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/custom.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="red" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#airecon-configuration-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="AIRecon" class="md-header__button md-logo" aria-label="AIRecon" data-md-component="logo">
+      
+  <img src="../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AIRecon
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Configuration
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="red" data-md-color-accent="deep-orange"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="red" data-md-color-accent="deep-orange"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pikpikcu/airecon" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pikpikcu/airecon
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../installation/" class="md-tabs__link">
+          
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../features/" class="md-tabs__link">
+        
+  
+    
+  
+  Features
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../tools/" class="md-tabs__link">
+        
+  
+    
+  
+  Tools Reference
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../development/creating_skills/" class="md-tabs__link">
+          
+  
+  Skills
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../changelog/" class="md-tabs__link">
+        
+  
+    
+  
+  Changelog
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="AIRecon" class="md-nav__button md-logo" aria-label="AIRecon" data-md-component="logo">
+      
+  <img src="../assets/logo.png" alt="logo">
+
+    </a>
+    AIRecon
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pikpikcu/airecon" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pikpikcu/airecon
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Getting Started
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Getting Started
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Installation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Configuration
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Configuration
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#table-of-contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      Table of Contents
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-config-file-location" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Config File Location
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-full-config-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Full Config Reference
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-ollama-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Ollama Settings
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Ollama Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ollama_url" class="md-nav__link">
+    <span class="md-ellipsis">
+      ollama_url
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ollama_model" class="md-nav__link">
+    <span class="md-ellipsis">
+      ollama_model
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ollama_temperature" class="md-nav__link">
+    <span class="md-ellipsis">
+      ollama_temperature
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ollama_num_ctx" class="md-nav__link">
+    <span class="md-ellipsis">
+      ollama_num_ctx
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ollama_num_ctx_small" class="md-nav__link">
+    <span class="md-ellipsis">
+      ollama_num_ctx_small
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ollama_num_predict" class="md-nav__link">
+    <span class="md-ellipsis">
+      ollama_num_predict
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ollama_timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      ollama_timeout
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ollama_enable_thinking" class="md-nav__link">
+    <span class="md-ellipsis">
+      ollama_enable_thinking
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-agent-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. Agent Behavior
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Agent Behavior">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deep_recon_autostart" class="md-nav__link">
+    <span class="md-ellipsis">
+      deep_recon_autostart
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent_max_tool_iterations" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_max_tool_iterations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent_repeat_tool_call_limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_repeat_tool_call_limit
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent_missing_tool_retry_limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_missing_tool_retry_limit
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tool_response_role" class="md-nav__link">
+    <span class="md-ellipsis">
+      tool_response_role
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-docker-sandbox" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. Docker Sandbox
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Docker Sandbox">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#docker_image" class="md-nav__link">
+    <span class="md-ellipsis">
+      docker_image
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#docker_auto_build" class="md-nav__link">
+    <span class="md-ellipsis">
+      docker_auto_build
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#command_timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      command_timeout
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-server-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      6. Server Settings
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. Server Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#proxy_host-proxy_port" class="md-nav__link">
+    <span class="md-ellipsis">
+      proxy_host / proxy_port
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-safety-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      7. Safety Settings
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Safety Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#agent_exploration_mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_exploration_mode
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent_exploration_intensity" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_exploration_intensity
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent_exploration_temperature" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_exploration_temperature
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent_stagnation_threshold" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_stagnation_threshold
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent_tool_diversity_window" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_tool_diversity_window
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent_max_same_tool_streak" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_max_same_tool_streak
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#allow_destructive_testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      allow_destructive_testing
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-browser-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      8. Browser Settings
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. Browser Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#browser_page_load_delay" class="md-nav__link">
+    <span class="md-ellipsis">
+      browser_page_load_delay
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-search-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      9. Search Settings
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="9. Search Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#searxng_url" class="md-nav__link">
+    <span class="md-ellipsis">
+      searxng_url
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#searxng_engines" class="md-nav__link">
+    <span class="md-ellipsis">
+      searxng_engines
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-session-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      10. Session Settings
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="10. Session Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vuln_similarity_threshold" class="md-nav__link">
+    <span class="md-ellipsis">
+      vuln_similarity_threshold
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent_plan_revision_interval" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_plan_revision_interval
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-pipeline-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      11. Pipeline Settings
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="11. Pipeline Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pipeline_recon_min_subdomains" class="md-nav__link">
+    <span class="md-ellipsis">
+      pipeline_recon_min_subdomains
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipeline_recon_min_urls" class="md-nav__link">
+    <span class="md-ellipsis">
+      pipeline_recon_min_urls
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipeline_recon_soft_timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      pipeline_recon_soft_timeout
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-environment-variable-overrides" class="md-nav__link">
+    <span class="md-ellipsis">
+      12. Environment Variable Overrides
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13-configuration-presets" class="md-nav__link">
+    <span class="md-ellipsis">
+      13. Configuration Presets
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="13. Configuration Presets">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#preset-minimum-viable-16-gb-vram-qwen330b-a3b-moe" class="md-nav__link">
+    <span class="md-ellipsis">
+      Preset: Minimum viable (16 GB VRAM, qwen3:30b-a3b MoE)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preset-recommended-20-gb-vram-qwen332b" class="md-nav__link">
+    <span class="md-ellipsis">
+      Preset: Recommended (20 GB VRAM, qwen3:32b)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preset-high-end-48-gb-vram-qwen35122b" class="md-nav__link">
+    <span class="md-ellipsis">
+      Preset: High-end (48+ GB VRAM, qwen3.5:122b)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preset-remote-ollama-gpu-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      Preset: Remote Ollama (GPU server)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preset-passive-non-destructive-assessment" class="md-nav__link">
+    <span class="md-ellipsis">
+      Preset: Passive / non-destructive assessment
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../features/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Features
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Tools Reference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Skills
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Skills
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/creating_skills/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Creating Skills
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../changelog/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Changelog
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#table-of-contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      Table of Contents
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-config-file-location" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Config File Location
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-full-config-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Full Config Reference
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-ollama-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Ollama Settings
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Ollama Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ollama_url" class="md-nav__link">
+    <span class="md-ellipsis">
+      ollama_url
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ollama_model" class="md-nav__link">
+    <span class="md-ellipsis">
+      ollama_model
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ollama_temperature" class="md-nav__link">
+    <span class="md-ellipsis">
+      ollama_temperature
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ollama_num_ctx" class="md-nav__link">
+    <span class="md-ellipsis">
+      ollama_num_ctx
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ollama_num_ctx_small" class="md-nav__link">
+    <span class="md-ellipsis">
+      ollama_num_ctx_small
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ollama_num_predict" class="md-nav__link">
+    <span class="md-ellipsis">
+      ollama_num_predict
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ollama_timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      ollama_timeout
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ollama_enable_thinking" class="md-nav__link">
+    <span class="md-ellipsis">
+      ollama_enable_thinking
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-agent-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. Agent Behavior
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Agent Behavior">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deep_recon_autostart" class="md-nav__link">
+    <span class="md-ellipsis">
+      deep_recon_autostart
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent_max_tool_iterations" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_max_tool_iterations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent_repeat_tool_call_limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_repeat_tool_call_limit
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent_missing_tool_retry_limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_missing_tool_retry_limit
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tool_response_role" class="md-nav__link">
+    <span class="md-ellipsis">
+      tool_response_role
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-docker-sandbox" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. Docker Sandbox
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Docker Sandbox">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#docker_image" class="md-nav__link">
+    <span class="md-ellipsis">
+      docker_image
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#docker_auto_build" class="md-nav__link">
+    <span class="md-ellipsis">
+      docker_auto_build
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#command_timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      command_timeout
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-server-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      6. Server Settings
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. Server Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#proxy_host-proxy_port" class="md-nav__link">
+    <span class="md-ellipsis">
+      proxy_host / proxy_port
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-safety-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      7. Safety Settings
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Safety Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#agent_exploration_mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_exploration_mode
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent_exploration_intensity" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_exploration_intensity
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent_exploration_temperature" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_exploration_temperature
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent_stagnation_threshold" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_stagnation_threshold
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent_tool_diversity_window" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_tool_diversity_window
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent_max_same_tool_streak" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_max_same_tool_streak
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#allow_destructive_testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      allow_destructive_testing
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-browser-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      8. Browser Settings
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. Browser Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#browser_page_load_delay" class="md-nav__link">
+    <span class="md-ellipsis">
+      browser_page_load_delay
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-search-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      9. Search Settings
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="9. Search Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#searxng_url" class="md-nav__link">
+    <span class="md-ellipsis">
+      searxng_url
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#searxng_engines" class="md-nav__link">
+    <span class="md-ellipsis">
+      searxng_engines
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-session-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      10. Session Settings
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="10. Session Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vuln_similarity_threshold" class="md-nav__link">
+    <span class="md-ellipsis">
+      vuln_similarity_threshold
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent_plan_revision_interval" class="md-nav__link">
+    <span class="md-ellipsis">
+      agent_plan_revision_interval
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-pipeline-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      11. Pipeline Settings
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="11. Pipeline Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pipeline_recon_min_subdomains" class="md-nav__link">
+    <span class="md-ellipsis">
+      pipeline_recon_min_subdomains
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipeline_recon_min_urls" class="md-nav__link">
+    <span class="md-ellipsis">
+      pipeline_recon_min_urls
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipeline_recon_soft_timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      pipeline_recon_soft_timeout
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-environment-variable-overrides" class="md-nav__link">
+    <span class="md-ellipsis">
+      12. Environment Variable Overrides
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13-configuration-presets" class="md-nav__link">
+    <span class="md-ellipsis">
+      13. Configuration Presets
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="13. Configuration Presets">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#preset-minimum-viable-16-gb-vram-qwen330b-a3b-moe" class="md-nav__link">
+    <span class="md-ellipsis">
+      Preset: Minimum viable (16 GB VRAM, qwen3:30b-a3b MoE)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preset-recommended-20-gb-vram-qwen332b" class="md-nav__link">
+    <span class="md-ellipsis">
+      Preset: Recommended (20 GB VRAM, qwen3:32b)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preset-high-end-48-gb-vram-qwen35122b" class="md-nav__link">
+    <span class="md-ellipsis">
+      Preset: High-end (48+ GB VRAM, qwen3.5:122b)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preset-remote-ollama-gpu-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      Preset: Remote Ollama (GPU server)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preset-passive-non-destructive-assessment" class="md-nav__link">
+    <span class="md-ellipsis">
+      Preset: Passive / non-destructive assessment
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="airecon-configuration-reference">AIRecon Configuration Reference<a class="headerlink" href="#airecon-configuration-reference" title="Permanent link">&para;</a></h1>
+<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
+<ol>
+<li><a href="#1-config-file-location">Config File Location</a></li>
+<li><a href="#2-full-config-reference">Full Config Reference</a></li>
+<li><a href="#3-ollama-settings">Ollama Settings</a></li>
+<li><a href="#4-agent-behavior">Agent Behavior</a></li>
+<li><a href="#5-docker-sandbox">Docker Sandbox</a></li>
+<li><a href="#6-server-settings">Server Settings</a></li>
+<li><a href="#7-safety-settings">Safety Settings</a></li>
+<li><a href="#8-browser-settings">Browser Settings</a></li>
+<li><a href="#9-search-settings">Search Settings</a></li>
+<li><a href="#10-session-settings">Session Settings</a></li>
+<li><a href="#11-environment-variable-overrides">Environment Variable Overrides</a></li>
+<li><a href="#12-configuration-presets">Configuration Presets</a></li>
+</ol>
+<hr />
+<h2 id="1-config-file-location">1. Config File Location<a class="headerlink" href="#1-config-file-location" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>~/.airecon/config.json</code></td>
+<td>Primary config (auto-created on first run)</td>
+</tr>
+</tbody>
+</table>
+<p>On first run, if no config file exists, AIRecon writes the defaults to <code>~/.airecon/config.json</code>. Edit this file to customize behavior.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># View current config</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>cat<span class="w"> </span>~/.airecon/config.json
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Edit</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>nano<span class="w"> </span>~/.airecon/config.json
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># or</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>code<span class="w"> </span>~/.airecon/config.json
+</span></code></pre></div>
+<hr />
+<h2 id="2-full-config-reference">2. Full Config Reference<a class="headerlink" href="#2-full-config-reference" title="Permanent link">&para;</a></h2>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="nt">&quot;ollama_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http://127.0.0.1:11434&quot;</span><span class="p">,</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nt">&quot;ollama_model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;qwen3.5:122b&quot;</span><span class="p">,</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="nt">&quot;ollama_timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">2400.0</span><span class="p">,</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="nt">&quot;ollama_num_ctx&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">131072</span><span class="p">,</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="nt">&quot;ollama_num_ctx_small&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">65536</span><span class="p">,</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="nt">&quot;ollama_temperature&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.15</span><span class="p">,</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="nt">&quot;ollama_num_predict&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">32768</span><span class="p">,</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="nt">&quot;ollama_enable_thinking&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="nt">&quot;ollama_supports_thinking&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="nt">&quot;ollama_supports_native_tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">    </span><span class="nt">&quot;ollama_keep_alive&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;60m&quot;</span><span class="p">,</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="nt">&quot;proxy_host&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span><span class="nt">&quot;proxy_port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3000</span><span class="p">,</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">    </span><span class="nt">&quot;command_timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">900.0</span><span class="p">,</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">    </span><span class="nt">&quot;docker_image&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;airecon-sandbox&quot;</span><span class="p">,</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">    </span><span class="nt">&quot;docker_auto_build&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">    </span><span class="nt">&quot;tool_response_role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tool&quot;</span><span class="p">,</span>
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">    </span><span class="nt">&quot;deep_recon_autostart&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">    </span><span class="nt">&quot;agent_max_tool_iterations&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">800</span><span class="p">,</span>
+</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">    </span><span class="nt">&quot;agent_repeat_tool_call_limit&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="w">    </span><span class="nt">&quot;agent_missing_tool_retry_limit&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">    </span><span class="nt">&quot;agent_plan_revision_interval&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">30</span><span class="p">,</span>
+</span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="w">    </span><span class="nt">&quot;agent_exploration_mode&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-1-25"><a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="w">    </span><span class="nt">&quot;agent_exploration_intensity&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.9</span><span class="p">,</span>
+</span><span id="__span-1-26"><a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a><span class="w">    </span><span class="nt">&quot;agent_exploration_temperature&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.35</span><span class="p">,</span>
+</span><span id="__span-1-27"><a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="w">    </span><span class="nt">&quot;agent_stagnation_threshold&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+</span><span id="__span-1-28"><a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="w">    </span><span class="nt">&quot;agent_tool_diversity_window&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span>
+</span><span id="__span-1-29"><a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a><span class="w">    </span><span class="nt">&quot;agent_max_same_tool_streak&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
+</span><span id="__span-1-30"><a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a><span class="w">    </span><span class="nt">&quot;allow_destructive_testing&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-1-31"><a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a><span class="w">    </span><span class="nt">&quot;browser_page_load_delay&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span>
+</span><span id="__span-1-32"><a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a><span class="w">    </span><span class="nt">&quot;browser_action_timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">120</span><span class="p">,</span>
+</span><span id="__span-1-33"><a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a><span class="w">    </span><span class="nt">&quot;searxng_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http://localhost:8080&quot;</span><span class="p">,</span>
+</span><span id="__span-1-34"><a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a><span class="w">    </span><span class="nt">&quot;searxng_engines&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;google,bing,duckduckgo,brave,google_news,github,stackoverflow&quot;</span><span class="p">,</span>
+</span><span id="__span-1-35"><a id="__codelineno-1-35" name="__codelineno-1-35" href="#__codelineno-1-35"></a><span class="w">    </span><span class="nt">&quot;vuln_similarity_threshold&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.7</span><span class="p">,</span>
+</span><span id="__span-1-36"><a id="__codelineno-1-36" name="__codelineno-1-36" href="#__codelineno-1-36"></a><span class="w">    </span><span class="nt">&quot;pipeline_recon_min_subdomains&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
+</span><span id="__span-1-37"><a id="__codelineno-1-37" name="__codelineno-1-37" href="#__codelineno-1-37"></a><span class="w">    </span><span class="nt">&quot;pipeline_recon_min_urls&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+</span><span id="__span-1-38"><a id="__codelineno-1-38" name="__codelineno-1-38" href="#__codelineno-1-38"></a><span class="w">    </span><span class="nt">&quot;pipeline_recon_soft_timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">30</span>
+</span><span id="__span-1-39"><a id="__codelineno-1-39" name="__codelineno-1-39" href="#__codelineno-1-39"></a><span class="p">}</span>
+</span></code></pre></div>
+<hr />
+<h2 id="3-ollama-settings">3. Ollama Settings<a class="headerlink" href="#3-ollama-settings" title="Permanent link">&para;</a></h2>
+<h3 id="ollama_url"><code>ollama_url</code><a class="headerlink" href="#ollama_url" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> string | <strong>Default:</strong> <code>"http://127.0.0.1:11434"</code></p>
+<p>The HTTP endpoint of your Ollama instance. Change this if Ollama runs on a different host or port.</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">// Local default</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nt">&quot;ollama_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="nt">&quot;http://127.0.0.1:11434&quot;</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1">// Remote GPU server</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nt">&quot;ollama_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="nt">&quot;http://192.168.1.100:11434&quot;</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1">// Custom port</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="nt">&quot;ollama_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http://127.0.0.1:3003&quot;</span>
+</span></code></pre></div>
+<hr />
+<h3 id="ollama_model"><code>ollama_model</code><a class="headerlink" href="#ollama_model" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> string | <strong>Default:</strong> <code>"qwen3.5:122b"</code></p>
+<p>The model name exactly as shown in <code>ollama list</code>. Must include the tag.</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1">// Minimum recommended (30B — anything below 30B is unreliable)</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nt">&quot;ollama_model&quot;</span><span class="p">:</span><span class="w"> </span><span class="nt">&quot;qwen3:32b&quot;</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1">// Lower VRAM option (MoE — 30B active params)</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="nt">&quot;ollama_model&quot;</span><span class="p">:</span><span class="w"> </span><span class="nt">&quot;qwen3:30b-a3b&quot;</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1">// High-end (best quality)</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="nt">&quot;ollama_model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;qwen3.5:122b&quot;</span>
+</span></code></pre></div>
+<blockquote>
+<p><strong>Important:</strong> The name must match exactly. <code>qwen3:32b</code> and <code>qwen3:latest</code> are different entries. Run <code>ollama list</code> to see exact names.</p>
+<p><strong>Minimum size:</strong> 30B parameters. Models below 30B frequently fail to follow scope rules, hallucinate tool output, and produce incomplete function calls. <code>qwen3:14b</code> is NOT recommended for real engagements.</p>
+</blockquote>
+<hr />
+<h3 id="ollama_temperature"><code>ollama_temperature</code><a class="headerlink" href="#ollama_temperature" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> float | <strong>Default:</strong> <code>0.15</code></p>
+<p>Controls output randomness. This is the single most impactful setting for agent reliability.</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Effect on AIRecon</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0.0</code></td>
+<td>Fully deterministic. Same input = same output every time.</td>
+</tr>
+<tr>
+<td><code>0.1</code>–<code>0.15</code></td>
+<td><strong>Recommended.</strong> Strict instruction following. Minimal hallucination. Model respects scope rules.</td>
+</tr>
+<tr>
+<td><code>0.2</code></td>
+<td>Slightly more adaptive. Useful if model feels repetitive when stuck on a problem.</td>
+</tr>
+<tr>
+<td><code>0.3</code></td>
+<td>Noticeable creativity. Still acceptable for tool-calling agents.</td>
+</tr>
+<tr>
+<td><code>0.5–0.6</code></td>
+<td>High risk of scope creep (model "improvises" extra steps). Chain creep becomes frequent.</td>
+</tr>
+<tr>
+<td><code>&gt; 0.7</code></td>
+<td>Model frequently ignores scope rules, invents tool output, hallucinates CVEs. Not recommended.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Why low temperature matters for security agents:</strong></p>
+<p>The model's job is to follow strict protocols (task scoping, CVSS scoring, PoC requirements) rather than to be creative. Higher temperature increases the chance the model "reasons itself" into skipping rules.</p>
+<p>For reasoning models (qwen3 with <code>ollama_enable_thinking: true</code>), the <code>&lt;think&gt;</code> phase already handles analytical depth internally. The output temperature can therefore be very low (0.15) without losing quality.</p>
+<hr />
+<h3 id="ollama_num_ctx"><code>ollama_num_ctx</code><a class="headerlink" href="#ollama_num_ctx" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> int | <strong>Default:</strong> <code>131072</code> (128K tokens)</p>
+<p>Context window size in tokens. Larger = more history visible to the model = better continuity, but requires more VRAM.</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>VRAM impact</th>
+<th>Use case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>8192</code></td>
+<td>Minimal</td>
+<td>Quick tests, very limited VRAM</td>
+</tr>
+<tr>
+<td><code>32768</code></td>
+<td>Moderate</td>
+<td>General use with 8–16 GB VRAM</td>
+</tr>
+<tr>
+<td><code>65536</code></td>
+<td>High</td>
+<td>Deep recon sessions, 16+ GB VRAM</td>
+</tr>
+<tr>
+<td><code>131072</code></td>
+<td>Very high</td>
+<td><strong>Default</strong> — full 128K context for qwen3.5:122b, 32+ GB VRAM</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>If you get VRAM/OOM errors, reduce this first. The agent uses automatic multi-level crash recovery (see VRAM Recovery below) and proactive context trimming at ≥80% usage.</p>
+</blockquote>
+<hr />
+<h3 id="ollama_num_ctx_small"><code>ollama_num_ctx_small</code><a class="headerlink" href="#ollama_num_ctx_small" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> int | <strong>Default:</strong> <code>65536</code> (64K tokens)</p>
+<p>A smaller context window used for compression calls (<code>compress_with_llm</code>) and VRAM crash recovery tiers. Reduces VRAM pressure during context management. This is also the starting point for multi-level recovery — see VRAM Recovery below.</p>
+<hr />
+<h3 id="ollama_num_predict"><code>ollama_num_predict</code><a class="headerlink" href="#ollama_num_predict" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> int | <strong>Default:</strong> <code>32768</code></p>
+<p>Maximum number of tokens the model can generate in a single response. 32768 ≈ ~24,000 words — sufficient for complex reasoning + tool-calling responses.</p>
+<p>Reduce to <code>8192</code> if responses feel slow. The agent automatically caps this further after VRAM crashes.</p>
+<hr />
+<h3 id="ollama_timeout"><code>ollama_timeout</code><a class="headerlink" href="#ollama_timeout" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> float | <strong>Default:</strong> <code>2400.0</code> seconds (40 minutes)</p>
+<p>How long to wait for a streaming response before giving up. Default is 40 minutes — appropriate for large 122B models on GPU with 128K context.</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1">// For fast GPU inference</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nt">&quot;ollama_timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">300.0</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1">// For very large models (122B) on CPU</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="nt">&quot;ollama_timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">7200.0</span>
+</span></code></pre></div>
+<hr />
+<h3 id="ollama_enable_thinking"><code>ollama_enable_thinking</code><a class="headerlink" href="#ollama_enable_thinking" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> bool | <strong>Default:</strong> <code>true</code></p>
+<p>Enables the <code>think=true</code> parameter when calling Ollama, which activates extended reasoning (<code>&lt;think&gt;</code> blocks) for supported models.</p>
+<table>
+<thead>
+<tr>
+<th>Model type</th>
+<th>Recommended setting</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Reasoning model (qwen3, deepseek-r1)</td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td>Standard/chat model (llama3, mistral)</td>
+<td><code>false</code></td>
+</tr>
+</tbody>
+</table>
+<p>When enabled, the TUI shows the model's internal reasoning process in the thinking panel, separate from the final output. This is very useful for understanding why the agent made a specific decision.</p>
+<hr />
+<h2 id="4-agent-behavior">4. Agent Behavior<a class="headerlink" href="#4-agent-behavior" title="Permanent link">&para;</a></h2>
+<h3 id="deep_recon_autostart"><code>deep_recon_autostart</code><a class="headerlink" href="#deep_recon_autostart" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> bool | <strong>Default:</strong> <code>true</code></p>
+<p>When <code>true</code>, if the user inputs <strong>only</strong> a bare domain name (e.g., just <code>example.com</code> with nothing else), AIRecon automatically expands it into a full deep recon prompt:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>Perform a comprehensive full deep recon and vulnerability scan on example.com. Use all available tools.
+</span></code></pre></div>
+<p>Set to <code>false</code> if you want the agent to treat bare domain input as "just set the target, wait for further instructions."</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1">// Auto-expand bare domain to full recon</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nt">&quot;deep_recon_autostart&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1">// Treat bare domain as target selection only</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="nt">&quot;deep_recon_autostart&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+</span></code></pre></div>
+<hr />
+<h3 id="agent_max_tool_iterations"><code>agent_max_tool_iterations</code><a class="headerlink" href="#agent_max_tool_iterations" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> int | <strong>Default:</strong> <code>800</code></p>
+<p>Safety limit on the number of tool call cycles per user message. Prevents infinite loops.</p>
+<p>For full recon engagements on complex targets, 800 iterations allows Phase 1–4 to complete fully. For specific tasks, the agent typically finishes in 3–20 iterations.</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1">// Tight limit for specific tasks only</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nt">&quot;agent_max_tool_iterations&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1">// Extended for deep recon</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="nt">&quot;agent_max_tool_iterations&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1200</span>
+</span></code></pre></div>
+<hr />
+<h3 id="agent_repeat_tool_call_limit"><code>agent_repeat_tool_call_limit</code><a class="headerlink" href="#agent_repeat_tool_call_limit" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> int | <strong>Default:</strong> <code>2</code></p>
+<p>How many times the <strong>exact same tool + identical arguments</strong> combination is allowed before being blocked as a duplicate.</p>
+<p>The agent maintains a count per (tool, arguments) pair per session. When the count reaches this limit, the tool call is rejected with an error message telling the agent to try something different.</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1">// Strict: block after first repeat</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nt">&quot;agent_repeat_tool_call_limit&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1">// Relaxed: allow up to 3 identical calls</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="nt">&quot;agent_repeat_tool_call_limit&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span>
+</span></code></pre></div>
+<blockquote>
+<p>Note: This only blocks <strong>identical</strong> calls (same tool + same arguments). Different arguments or a different tool on the same target are not affected.</p>
+</blockquote>
+<hr />
+<h3 id="agent_missing_tool_retry_limit"><code>agent_missing_tool_retry_limit</code><a class="headerlink" href="#agent_missing_tool_retry_limit" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> int | <strong>Default:</strong> <code>2</code></p>
+<p>How many consecutive times the agent may call a tool that does not exist before the session is aborted.</p>
+<p>When the agent hallucinates a tool name (e.g., calls <code>run_nmap</code> instead of <code>execute</code>), it receives an error listing the valid tools. If it continues calling non-existent tools this many times in a row, the session stops to prevent an infinite error loop.</p>
+<hr />
+<h3 id="tool_response_role"><code>tool_response_role</code><a class="headerlink" href="#tool_response_role" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> string | <strong>Default:</strong> <code>"tool"</code></p>
+<p>The message role used when returning tool results to the LLM in the conversation history.</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"tool"</code></td>
+<td>Models that support the Ollama <code>tool</code> message role (qwen3, most modern models)</td>
+</tr>
+<tr>
+<td><code>"user"</code></td>
+<td>Fallback for older models that don't understand the tool role</td>
+</tr>
+</tbody>
+</table>
+<p>Most models work correctly with <code>"tool"</code>. If you see the model failing to parse tool results, try <code>"user"</code>.</p>
+<hr />
+<h2 id="5-docker-sandbox">5. Docker Sandbox<a class="headerlink" href="#5-docker-sandbox" title="Permanent link">&para;</a></h2>
+<h3 id="docker_image"><code>docker_image</code><a class="headerlink" href="#docker_image" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> string | <strong>Default:</strong> <code>"airecon-sandbox"</code></p>
+<p>The name of the Docker image used as the execution sandbox. Must be built before first use.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>airecon-sandbox<span class="w"> </span>airecon/containers/
+</span></code></pre></div>
+<p>If you build with a different tag, update this setting accordingly.</p>
+<hr />
+<h3 id="docker_auto_build"><code>docker_auto_build</code><a class="headerlink" href="#docker_auto_build" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> bool | <strong>Default:</strong> <code>true</code></p>
+<p>If <code>true</code>, AIRecon attempts to build the Docker image automatically at startup if it is not found. This can fail in restricted environments. Manual build is more reliable.</p>
+<hr />
+<h3 id="command_timeout"><code>command_timeout</code><a class="headerlink" href="#command_timeout" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> float | <strong>Default:</strong> <code>900.0</code> seconds (15 minutes)</p>
+<p>Maximum time a single shell command may run inside the Docker container before being killed.</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1">// Quick scans only</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nt">&quot;command_timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">120.0</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1">// Allow long-running tools (masscan, full nmap, large sqlmap)</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="nt">&quot;command_timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1800.0</span>
+</span></code></pre></div>
+<p>Nuclei, sqlmap, and full nmap scans can easily take &gt; 10 minutes on large target lists. Increase this if commands are being killed prematurely.</p>
+<hr />
+<h2 id="6-server-settings">6. Server Settings<a class="headerlink" href="#6-server-settings" title="Permanent link">&para;</a></h2>
+<h3 id="proxy_host-proxy_port"><code>proxy_host</code> / <code>proxy_port</code><a class="headerlink" href="#proxy_host-proxy_port" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> string / int | <strong>Defaults:</strong> <code>"127.0.0.1"</code> / <code>3000</code></p>
+<p>The host and port for the internal FastAPI server that bridges the TUI and the agent loop via SSE (Server-Sent Events).</p>
+<p>Only change these if port 3000 is already in use on your machine:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">&quot;proxy_host&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nt">&quot;proxy_port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3001</span>
+</span></code></pre></div>
+<hr />
+<h2 id="7-safety-settings">7. Safety Settings<a class="headerlink" href="#7-safety-settings" title="Permanent link">&para;</a></h2>
+<h3 id="agent_exploration_mode"><code>agent_exploration_mode</code><a class="headerlink" href="#agent_exploration_mode" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> bool | <strong>Default:</strong> <code>true</code></p>
+<p>Enables the Phase 1 anti-stagnation exploration engine. When active:
+- Monitors for stagnation (no new high-confidence evidence after N iterations)
+- Boosts temperature to <code>agent_exploration_temperature</code> when stagnation detected
+- Enforces tool diversity via same-tool streak detection
+- Injects per-phase exploration directives into the system prompt</p>
+<hr />
+<h3 id="agent_exploration_intensity"><code>agent_exploration_intensity</code><a class="headerlink" href="#agent_exploration_intensity" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> float (0.0–1.0) | <strong>Default:</strong> <code>0.9</code></p>
+<p>How aggressively the exploration engine pushes the agent into new territory when stagnation is detected. Higher values inject stronger directives. <code>0.9</code> is tuned for 122B models; reduce to <code>0.5</code>–<code>0.6</code> for smaller models.</p>
+<hr />
+<h3 id="agent_exploration_temperature"><code>agent_exploration_temperature</code><a class="headerlink" href="#agent_exploration_temperature" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> float (0.0–2.0) | <strong>Default:</strong> <code>0.35</code></p>
+<p>Temperature used when the agent is in exploration mode (stagnation detected). Higher than <code>ollama_temperature</code> to encourage new approaches without losing control.</p>
+<hr />
+<h3 id="agent_stagnation_threshold"><code>agent_stagnation_threshold</code><a class="headerlink" href="#agent_stagnation_threshold" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> int | <strong>Default:</strong> <code>2</code></p>
+<p>Number of consecutive iterations with no new high-confidence evidence (≥0.65 confidence) before exploration mode activates.</p>
+<hr />
+<h3 id="agent_tool_diversity_window"><code>agent_tool_diversity_window</code><a class="headerlink" href="#agent_tool_diversity_window" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> int (min 3) | <strong>Default:</strong> <code>8</code></p>
+<p>Number of most-recent tool calls tracked for diversity analysis. The agent checks this window for same-tool streaks.</p>
+<hr />
+<h3 id="agent_max_same_tool_streak"><code>agent_max_same_tool_streak</code><a class="headerlink" href="#agent_max_same_tool_streak" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> int | <strong>Default:</strong> <code>3</code></p>
+<p>Maximum allowed consecutive uses of the same tool before a diversity warning is injected. Prevents the agent from looping on a single tool.</p>
+<hr />
+<h3 id="allow_destructive_testing"><code>allow_destructive_testing</code><a class="headerlink" href="#allow_destructive_testing" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> bool | <strong>Default:</strong> <code>false</code></p>
+<p>When <code>true</code>, modifies the system prompt to authorize destructive/aggressive testing:
+- Changes "non-destructive penetration testing" to "UNRESTRICTED DESTRUCTIVE penetration testing"
+- Injects a <code>&lt;safety_override&gt;</code> block that lifts rate limiting, politeness constraints, and adds aggressive recon directives
+- Zero false positive enforcement is tightened further</p>
+<p>Set to <code>false</code> for passive/non-destructive engagements or when working in shared/production environments.</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1">// Production-safe assessment</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nt">&quot;allow_destructive_testing&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="c1">// Full offensive engagement (authorized)</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="nt">&quot;allow_destructive_testing&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+</span></code></pre></div>
+<hr />
+<h2 id="8-browser-settings">8. Browser Settings<a class="headerlink" href="#8-browser-settings" title="Permanent link">&para;</a></h2>
+<h3 id="browser_page_load_delay"><code>browser_page_load_delay</code><a class="headerlink" href="#browser_page_load_delay" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> float | <strong>Default:</strong> <code>1.0</code> seconds</p>
+<p>How long to wait after a page navigation before performing browser actions. Increase for slow targets or heavily JavaScript-rendered pages.</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1">// Fast, well-performing targets</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="nt">&quot;browser_page_load_delay&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.5</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="c1">// Slow targets or heavy SPAs (React, Vue, Angular)</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="nt">&quot;browser_page_load_delay&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">3.0</span>
+</span></code></pre></div>
+<hr />
+<h2 id="9-search-settings">9. Search Settings<a class="headerlink" href="#9-search-settings" title="Permanent link">&para;</a></h2>
+<h3 id="searxng_url"><code>searxng_url</code><a class="headerlink" href="#searxng_url" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> string | <strong>Default:</strong> <code>"http://localhost:8080"</code></p>
+<p>The URL of your SearXNG instance. If set, the <code>web_search</code> tool uses SearXNG for full Google dork operator support.</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1">// Local SearXNG (default)</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="nt">&quot;searxng_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="nt">&quot;http://localhost:8080&quot;</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c1">// Empty = DuckDuckGo fallback (limited operators, rate-limited)</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="nt">&quot;searxng_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span>
+</span></code></pre></div>
+<p>AIRecon auto-manages the SearXNG Docker container lifecycle (start on use, stop on exit). To start manually:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>docker<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>searxng<span class="w"> </span>-p<span class="w"> </span><span class="m">8080</span>:8080<span class="w"> </span>searxng/searxng
+</span></code></pre></div>
+<hr />
+<h3 id="searxng_engines"><code>searxng_engines</code><a class="headerlink" href="#searxng_engines" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> string | <strong>Default:</strong> <code>"google,bing,duckduckgo,brave,google_news,github,stackoverflow"</code></p>
+<p>Comma-separated list of engines to query via SearXNG.</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1">// Full engine set (slower but broader)</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="nt">&quot;searxng_engines&quot;</span><span class="p">:</span><span class="w"> </span><span class="nt">&quot;google,bing,duckduckgo,brave,startpage,github,stackoverflow,reddit,google_scholar,google_news&quot;</span>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="c1">// Fast subset for quick lookups</span>
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="nt">&quot;searxng_engines&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;google,bing,duckduckgo&quot;</span>
+</span></code></pre></div>
+<hr />
+<h2 id="10-session-settings">10. Session Settings<a class="headerlink" href="#10-session-settings" title="Permanent link">&para;</a></h2>
+<h3 id="vuln_similarity_threshold"><code>vuln_similarity_threshold</code><a class="headerlink" href="#vuln_similarity_threshold" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> float | <strong>Default:</strong> <code>0.7</code></p>
+<p>Jaccard similarity threshold for vulnerability deduplication. When a new vulnerability finding has similarity ≥ this value compared to an existing entry, it is merged rather than added as a duplicate.</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0.9</code></td>
+<td>Only near-identical findings are merged — more duplicates allowed</td>
+</tr>
+<tr>
+<td><code>0.7</code></td>
+<td><strong>Default</strong> — reasonable deduplication for most cases</td>
+</tr>
+<tr>
+<td><code>0.5</code></td>
+<td>Aggressive deduplication — similar findings merged even if endpoint differs</td>
+</tr>
+<tr>
+<td><code>0.3</code></td>
+<td>Very aggressive — not recommended</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="agent_plan_revision_interval"><code>agent_plan_revision_interval</code><a class="headerlink" href="#agent_plan_revision_interval" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> int | <strong>Default:</strong> <code>30</code></p>
+<p>How many iterations between full plan revision checkpoints. At each checkpoint, the agent reviews all findings and updates its exploitation plan.</p>
+<hr />
+<h2 id="11-pipeline-settings">11. Pipeline Settings<a class="headerlink" href="#11-pipeline-settings" title="Permanent link">&para;</a></h2>
+<p>These control the minimum depth criteria required before a RECON → ANALYSIS phase transition is triggered.</p>
+<h3 id="pipeline_recon_min_subdomains"><code>pipeline_recon_min_subdomains</code><a class="headerlink" href="#pipeline_recon_min_subdomains" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> int | <strong>Default:</strong> <code>3</code></p>
+<p>Minimum number of subdomains that must be discovered before RECON is considered complete. Prevents premature phase transition if the agent only finds 1–2 subdomains.</p>
+<hr />
+<h3 id="pipeline_recon_min_urls"><code>pipeline_recon_min_urls</code><a class="headerlink" href="#pipeline_recon_min_urls" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> int | <strong>Default:</strong> <code>1</code></p>
+<p>Minimum number of URLs collected before RECON → ANALYSIS transition.</p>
+<hr />
+<h3 id="pipeline_recon_soft_timeout"><code>pipeline_recon_soft_timeout</code><a class="headerlink" href="#pipeline_recon_soft_timeout" title="Permanent link">&para;</a></h3>
+<p><strong>Type:</strong> int | <strong>Default:</strong> <code>30</code></p>
+<p>Maximum RECON iterations before forcing a transition to ANALYSIS regardless of depth criteria. Prevents infinite RECON loops on targets with very limited attack surface.</p>
+<hr />
+<h2 id="12-environment-variable-overrides">12. Environment Variable Overrides<a class="headerlink" href="#12-environment-variable-overrides" title="Permanent link">&para;</a></h2>
+<p>Any config key can be overridden without editing the file using environment variables. Format: <code>AIRECON_&lt;KEY_UPPERCASE&gt;</code>.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># Override model</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="nv">AIRECON_OLLAMA_MODEL</span><span class="o">=</span>qwen3:32b<span class="w"> </span>airecon<span class="w"> </span>start
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="c1"># Override temperature</span>
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="nv">AIRECON_OLLAMA_TEMPERATURE</span><span class="o">=</span><span class="m">0</span>.2<span class="w"> </span>airecon<span class="w"> </span>start
+</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>
+</span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="c1"># Disable destructive testing</span>
+</span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="nv">AIRECON_ALLOW_DESTRUCTIVE_TESTING</span><span class="o">=</span><span class="nb">false</span><span class="w"> </span>airecon<span class="w"> </span>start
+</span><span id="__span-17-9"><a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>
+</span><span id="__span-17-10"><a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="c1"># Use a different Ollama endpoint</span>
+</span><span id="__span-17-11"><a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="nv">AIRECON_OLLAMA_URL</span><span class="o">=</span>http://10.0.0.5:11434<span class="w"> </span>airecon<span class="w"> </span>start
+</span></code></pre></div>
+<p><strong>Type conversion rules:</strong>
+- <code>bool</code>: accepts <code>true</code>, <code>1</code>, <code>yes</code> → True | <code>false</code>, <code>0</code>, <code>no</code> → False
+- <code>int</code> / <code>float</code>: standard numeric conversion
+- <code>string</code>: used as-is</p>
+<p>Environment variables take precedence over the config file. They are applied at startup and do not persist.</p>
+<hr />
+<h2 id="13-configuration-presets">13. Configuration Presets<a class="headerlink" href="#13-configuration-presets" title="Permanent link">&para;</a></h2>
+<h3 id="preset-minimum-viable-16-gb-vram-qwen330b-a3b-moe">Preset: Minimum viable (16 GB VRAM, qwen3:30b-a3b MoE)<a class="headerlink" href="#preset-minimum-viable-16-gb-vram-qwen330b-a3b-moe" title="Permanent link">&para;</a></h3>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="p">{</span>
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">    </span><span class="nt">&quot;ollama_model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;qwen3:30b-a3b&quot;</span><span class="p">,</span>
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="w">    </span><span class="nt">&quot;ollama_num_ctx&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">32768</span><span class="p">,</span>
+</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="w">    </span><span class="nt">&quot;ollama_num_ctx_small&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">16384</span><span class="p">,</span>
+</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="w">    </span><span class="nt">&quot;ollama_temperature&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.15</span><span class="p">,</span>
+</span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="w">    </span><span class="nt">&quot;ollama_num_predict&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">8192</span><span class="p">,</span>
+</span><span id="__span-18-7"><a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="w">    </span><span class="nt">&quot;ollama_enable_thinking&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-18-8"><a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="w">    </span><span class="nt">&quot;ollama_supports_thinking&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-18-9"><a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="w">    </span><span class="nt">&quot;ollama_supports_native_tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-18-10"><a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="w">    </span><span class="nt">&quot;command_timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">600.0</span><span class="p">,</span>
+</span><span id="__span-18-11"><a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a><span class="w">    </span><span class="nt">&quot;agent_max_tool_iterations&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">300</span><span class="p">,</span>
+</span><span id="__span-18-12"><a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a><span class="w">    </span><span class="nt">&quot;searxng_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http://localhost:8080&quot;</span>
+</span><span id="__span-18-13"><a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a><span class="p">}</span>
+</span></code></pre></div>
+<blockquote>
+<p>Note: <code>qwen3:30b-a3b</code> is a Mixture-of-Experts model — it has fewer <em>active</em> parameters than the full 30B, making it faster and more VRAM-efficient while retaining comparable reasoning quality.</p>
+</blockquote>
+<h3 id="preset-recommended-20-gb-vram-qwen332b">Preset: Recommended (20 GB VRAM, qwen3:32b)<a class="headerlink" href="#preset-recommended-20-gb-vram-qwen332b" title="Permanent link">&para;</a></h3>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="p">{</span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">    </span><span class="nt">&quot;ollama_model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;qwen3:32b&quot;</span><span class="p">,</span>
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">    </span><span class="nt">&quot;ollama_num_ctx&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">65536</span><span class="p">,</span>
+</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="w">    </span><span class="nt">&quot;ollama_num_ctx_small&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">32768</span><span class="p">,</span>
+</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="w">    </span><span class="nt">&quot;ollama_temperature&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.15</span><span class="p">,</span>
+</span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="w">    </span><span class="nt">&quot;ollama_num_predict&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">16384</span><span class="p">,</span>
+</span><span id="__span-19-7"><a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="w">    </span><span class="nt">&quot;ollama_enable_thinking&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-19-8"><a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a><span class="w">    </span><span class="nt">&quot;ollama_supports_thinking&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-19-9"><a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a><span class="w">    </span><span class="nt">&quot;ollama_supports_native_tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-19-10"><a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="w">    </span><span class="nt">&quot;ollama_keep_alive&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;60m&quot;</span><span class="p">,</span>
+</span><span id="__span-19-11"><a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="w">    </span><span class="nt">&quot;command_timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">900.0</span><span class="p">,</span>
+</span><span id="__span-19-12"><a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="w">    </span><span class="nt">&quot;agent_max_tool_iterations&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">800</span><span class="p">,</span>
+</span><span id="__span-19-13"><a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a><span class="w">    </span><span class="nt">&quot;searxng_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http://localhost:8080&quot;</span>
+</span><span id="__span-19-14"><a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a><span class="p">}</span>
+</span></code></pre></div>
+<h3 id="preset-high-end-48-gb-vram-qwen35122b">Preset: High-end (48+ GB VRAM, qwen3.5:122b)<a class="headerlink" href="#preset-high-end-48-gb-vram-qwen35122b" title="Permanent link">&para;</a></h3>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="p">{</span>
+</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">    </span><span class="nt">&quot;ollama_model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;qwen3.5:122b&quot;</span><span class="p">,</span>
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">    </span><span class="nt">&quot;ollama_num_ctx&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">131072</span><span class="p">,</span>
+</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="w">    </span><span class="nt">&quot;ollama_num_ctx_small&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">65536</span><span class="p">,</span>
+</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="w">    </span><span class="nt">&quot;ollama_temperature&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.15</span><span class="p">,</span>
+</span><span id="__span-20-6"><a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="w">    </span><span class="nt">&quot;ollama_num_predict&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">32768</span><span class="p">,</span>
+</span><span id="__span-20-7"><a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="w">    </span><span class="nt">&quot;ollama_enable_thinking&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-20-8"><a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a><span class="w">    </span><span class="nt">&quot;ollama_supports_thinking&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-20-9"><a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="w">    </span><span class="nt">&quot;ollama_supports_native_tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-20-10"><a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="w">    </span><span class="nt">&quot;ollama_timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">2400.0</span><span class="p">,</span>
+</span><span id="__span-20-11"><a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a><span class="w">    </span><span class="nt">&quot;ollama_keep_alive&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;60m&quot;</span><span class="p">,</span>
+</span><span id="__span-20-12"><a id="__codelineno-20-12" name="__codelineno-20-12" href="#__codelineno-20-12"></a><span class="w">    </span><span class="nt">&quot;command_timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">900.0</span><span class="p">,</span>
+</span><span id="__span-20-13"><a id="__codelineno-20-13" name="__codelineno-20-13" href="#__codelineno-20-13"></a><span class="w">    </span><span class="nt">&quot;agent_max_tool_iterations&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">800</span><span class="p">,</span>
+</span><span id="__span-20-14"><a id="__codelineno-20-14" name="__codelineno-20-14" href="#__codelineno-20-14"></a><span class="w">    </span><span class="nt">&quot;searxng_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http://localhost:8080&quot;</span>
+</span><span id="__span-20-15"><a id="__codelineno-20-15" name="__codelineno-20-15" href="#__codelineno-20-15"></a><span class="p">}</span>
+</span></code></pre></div>
+<h3 id="preset-remote-ollama-gpu-server">Preset: Remote Ollama (GPU server)<a class="headerlink" href="#preset-remote-ollama-gpu-server" title="Permanent link">&para;</a></h3>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="p">{</span>
+</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">    </span><span class="nt">&quot;ollama_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http://192.168.1.100:11434&quot;</span><span class="p">,</span>
+</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="w">    </span><span class="nt">&quot;ollama_model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;qwen3.5:122b&quot;</span><span class="p">,</span>
+</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="w">    </span><span class="nt">&quot;ollama_timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">2400.0</span><span class="p">,</span>
+</span><span id="__span-21-5"><a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="w">    </span><span class="nt">&quot;ollama_num_ctx&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">131072</span><span class="p">,</span>
+</span><span id="__span-21-6"><a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="w">    </span><span class="nt">&quot;ollama_num_ctx_small&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">65536</span><span class="p">,</span>
+</span><span id="__span-21-7"><a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="w">    </span><span class="nt">&quot;ollama_temperature&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.15</span><span class="p">,</span>
+</span><span id="__span-21-8"><a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a><span class="w">    </span><span class="nt">&quot;ollama_enable_thinking&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-21-9"><a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a><span class="w">    </span><span class="nt">&quot;ollama_supports_thinking&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-21-10"><a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a><span class="w">    </span><span class="nt">&quot;ollama_supports_native_tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-21-11"><a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a><span class="w">    </span><span class="nt">&quot;ollama_keep_alive&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;60m&quot;</span><span class="p">,</span>
+</span><span id="__span-21-12"><a id="__codelineno-21-12" name="__codelineno-21-12" href="#__codelineno-21-12"></a><span class="w">    </span><span class="nt">&quot;agent_max_tool_iterations&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">800</span><span class="p">,</span>
+</span><span id="__span-21-13"><a id="__codelineno-21-13" name="__codelineno-21-13" href="#__codelineno-21-13"></a><span class="w">    </span><span class="nt">&quot;searxng_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http://localhost:8080&quot;</span>
+</span><span id="__span-21-14"><a id="__codelineno-21-14" name="__codelineno-21-14" href="#__codelineno-21-14"></a><span class="p">}</span>
+</span></code></pre></div>
+<h3 id="preset-passive-non-destructive-assessment">Preset: Passive / non-destructive assessment<a class="headerlink" href="#preset-passive-non-destructive-assessment" title="Permanent link">&para;</a></h3>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="p">{</span>
+</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">    </span><span class="nt">&quot;ollama_temperature&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.15</span><span class="p">,</span>
+</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="w">    </span><span class="nt">&quot;allow_destructive_testing&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="w">    </span><span class="nt">&quot;deep_recon_autostart&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-22-5"><a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="w">    </span><span class="nt">&quot;command_timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">300.0</span><span class="p">,</span>
+</span><span id="__span-22-6"><a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="w">    </span><span class="nt">&quot;agent_max_tool_iterations&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span>
+</span><span id="__span-22-7"><a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="p">}</span>
+</span></code></pre></div>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+  <form class="md-feedback" name="feedback" hidden>
+    <fieldset>
+      <legend class="md-feedback__title">
+        Was this page helpful?
+      </legend>
+      <div class="md-feedback__inner">
+        <div class="md-feedback__list">
+          
+            <button class="md-feedback__icon md-icon" type="submit" title="This page was helpful" data-md-value="1">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 9v12H1V9zm4 12a2 2 0 0 1-2-2V9c0-.55.22-1.05.59-1.41L14.17 1l1.06 1.06c.27.27.44.64.44 1.05l-.03.32L14.69 8H21a2 2 0 0 1 2 2v2c0 .26-.05.5-.14.73l-3.02 7.05C19.54 20.5 18.83 21 18 21zm0-2h9.03L21 12v-2h-8.79l1.13-5.32L9 9.03z"/></svg>
+            </button>
+          
+            <button class="md-feedback__icon md-icon" type="submit" title="This page could be improved" data-md-value="0">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 15V3h4v12zM15 3a2 2 0 0 1 2 2v10c0 .55-.22 1.05-.59 1.41L9.83 23l-1.06-1.06c-.27-.27-.44-.64-.44-1.06l.03-.31.95-4.57H3a2 2 0 0 1-2-2v-2c0-.26.05-.5.14-.73l3.02-7.05C4.46 3.5 5.17 3 6 3zm0 2H5.97L3 12v2h8.78l-1.13 5.32L15 14.97z"/></svg>
+            </button>
+          
+        </div>
+        <div class="md-feedback__note">
+          
+            <div data-md-value="1" hidden>
+              
+              
+                
+              
+              Thanks for your feedback!
+            </div>
+          
+            <div data-md-value="0" hidden>
+              
+              
+                
+              
+              Thanks for your feedback!
+            </div>
+          
+        </div>
+      </div>
+    </fieldset>
+  </form>
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../installation/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Installation">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Installation
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../features/" class="md-footer__link md-footer__link--next" aria-label="Next: Features">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Features
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2026 pikpikcu — <a href="https://github.com/pikpikcu/airecon/blob/main/LICENSE">MIT License</a>
+
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://github.com/pikpikcu/airecon" target="_blank" rel="noopener" title="AIRecon on GitHub" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://github.com/pikpikcu/airecon-skills" target="_blank" rel="noopener" title="airecon-skills community library" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.top", "navigation.footer", "search.highlight", "search.suggest", "search.share", "content.code.copy", "content.code.annotate", "content.tabs.link", "toc.follow"], "search": "../assets/javascripts/workers/search.f8cc74c7.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.c8b220af.min.js"></script>
+      
+    
+  </body>
+</html>

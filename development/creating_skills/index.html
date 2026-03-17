@@ -1,0 +1,2396 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="AI-Powered Autonomous Penetration Testing Agent">
+      
+      
+      
+        <link rel="canonical" href="https://pikpikcu.github.io/airecon/development/creating_skills/">
+      
+      
+        <link rel="prev" href="../../tools/">
+      
+      
+        <link rel="next" href="../../changelog/">
+      
+      
+      <link rel="icon" href="../../assets/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.7">
+    
+    
+      
+        <title>Creating Skills - AIRecon</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.8608ea7d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/custom.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="red" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#skills-system-complete-guide" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="AIRecon" class="md-header__button md-logo" aria-label="AIRecon" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AIRecon
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Creating Skills
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="red" data-md-color-accent="deep-orange"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="red" data-md-color-accent="deep-orange"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pikpikcu/airecon" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pikpikcu/airecon
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../installation/" class="md-tabs__link">
+          
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../features/" class="md-tabs__link">
+        
+  
+    
+  
+  Features
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../tools/" class="md-tabs__link">
+        
+  
+    
+  
+  Tools Reference
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  Skills
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../changelog/" class="md-tabs__link">
+        
+  
+    
+  
+  Changelog
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="AIRecon" class="md-nav__button md-logo" aria-label="AIRecon" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    AIRecon
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pikpikcu/airecon" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pikpikcu/airecon
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Getting Started
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Getting Started
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Installation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Configuration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Features
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Tools Reference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Skills
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Skills
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Creating Skills
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Creating Skills
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#table-of-contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      Table of Contents
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-what-are-skills" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. What are Skills?
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-how-skills-work-internally" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. How Skills Work Internally
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. How Skills Work Internally">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-discovery-at-startup" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.1 Discovery at startup
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-on-demand-loading-by-the-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.2 On-demand loading by the agent
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-why-this-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.3 Why this design?
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-available-skills-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Available Skills Reference
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Available Skills Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vulnerabilities-skillsvulnerabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      Vulnerabilities (skills/vulnerabilities/)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reconnaissance-skillsreconnaissance" class="md-nav__link">
+    <span class="md-ellipsis">
+      Reconnaissance (skills/reconnaissance/)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#frameworks-skillsframeworks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Frameworks (skills/frameworks/)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#technologies-skillstechnologies" class="md-nav__link">
+    <span class="md-ellipsis">
+      Technologies (skills/technologies/)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#protocols-skillsprotocols" class="md-nav__link">
+    <span class="md-ellipsis">
+      Protocols (skills/protocols/)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#payloads-skillspayloads" class="md-nav__link">
+    <span class="md-ellipsis">
+      Payloads (skills/payloads/)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tools-skillstools" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tools (skills/tools/)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-airecon-skills-community-library" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. airecon-skills Community Library
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. airecon-skills Community Library">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#whats-included" class="md-nav__link">
+    <span class="md-ellipsis">
+      What's included
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Installation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verifying-community-skills-are-loaded" class="md-nav__link">
+    <span class="md-ellipsis">
+      Verifying community skills are loaded
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#contributing-to-airecon-skills" class="md-nav__link">
+    <span class="md-ellipsis">
+      Contributing to airecon-skills
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-creating-a-custom-skill" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. Creating a Custom Skill
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Creating a Custom Skill">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-1-choose-the-right-location" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 1: Choose the right location
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-2-choose-the-right-category" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 2: Choose the right category
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-3-create-the-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 3: Create the file
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-4-write-the-skill-see-full-template-below" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 4: Write the skill (see Full Template below)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-5-restart-airecon" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 5: Restart AIRecon
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-6-verify" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 6: Verify
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-skill-writing-guidelines" class="md-nav__link">
+    <span class="md-ellipsis">
+      6. Skill Writing Guidelines
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. Skill Writing Guidelines">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#do-be-specific-and-actionable" class="md-nav__link">
+    <span class="md-ellipsis">
+      DO: Be specific and actionable
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#do-include-exact-commands-with-real-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      DO: Include exact commands with real flags
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#do-explain-what-success-looks-like" class="md-nav__link">
+    <span class="md-ellipsis">
+      DO: Explain what success looks like
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#do-keep-payloads-focused-5-representative-ones-not-50" class="md-nav__link">
+    <span class="md-ellipsis">
+      DO: Keep payloads focused — 5 representative ones, not 50
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dont-write-generic-advice" class="md-nav__link">
+    <span class="md-ellipsis">
+      DON'T: Write generic advice
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dont-add-lengthy-prose-explanations" class="md-nav__link">
+    <span class="md-ellipsis">
+      DON'T: Add lengthy prose explanations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dont-add-more-than-one-vulnerability-class-per-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      DON'T: Add more than one vulnerability class per file
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-full-skill-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      7. Full Skill Template
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      Testing Checklist
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Testing Checklist">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#test-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Test 1:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#test-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Test 2:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#test-3-manual" class="md-nav__link">
+    <span class="md-ellipsis">
+      Test 3: (Manual)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-payloads" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Payloads
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tools-available" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tools Available
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exploitation-when-vulnerability-is-confirmed" class="md-nav__link">
+    <span class="md-ellipsis">
+      Exploitation (When Vulnerability is Confirmed)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-bypasses" class="md-nav__link">
+    <span class="md-ellipsis">
+      Common Bypasses
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remediation-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      Remediation Summary
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Changelog
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#table-of-contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      Table of Contents
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-what-are-skills" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. What are Skills?
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-how-skills-work-internally" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. How Skills Work Internally
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. How Skills Work Internally">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-discovery-at-startup" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.1 Discovery at startup
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-on-demand-loading-by-the-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.2 On-demand loading by the agent
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-why-this-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.3 Why this design?
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-available-skills-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Available Skills Reference
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Available Skills Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vulnerabilities-skillsvulnerabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      Vulnerabilities (skills/vulnerabilities/)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reconnaissance-skillsreconnaissance" class="md-nav__link">
+    <span class="md-ellipsis">
+      Reconnaissance (skills/reconnaissance/)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#frameworks-skillsframeworks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Frameworks (skills/frameworks/)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#technologies-skillstechnologies" class="md-nav__link">
+    <span class="md-ellipsis">
+      Technologies (skills/technologies/)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#protocols-skillsprotocols" class="md-nav__link">
+    <span class="md-ellipsis">
+      Protocols (skills/protocols/)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#payloads-skillspayloads" class="md-nav__link">
+    <span class="md-ellipsis">
+      Payloads (skills/payloads/)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tools-skillstools" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tools (skills/tools/)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-airecon-skills-community-library" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. airecon-skills Community Library
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. airecon-skills Community Library">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#whats-included" class="md-nav__link">
+    <span class="md-ellipsis">
+      What's included
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Installation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verifying-community-skills-are-loaded" class="md-nav__link">
+    <span class="md-ellipsis">
+      Verifying community skills are loaded
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#contributing-to-airecon-skills" class="md-nav__link">
+    <span class="md-ellipsis">
+      Contributing to airecon-skills
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-creating-a-custom-skill" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. Creating a Custom Skill
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Creating a Custom Skill">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-1-choose-the-right-location" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 1: Choose the right location
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-2-choose-the-right-category" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 2: Choose the right category
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-3-create-the-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 3: Create the file
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-4-write-the-skill-see-full-template-below" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 4: Write the skill (see Full Template below)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-5-restart-airecon" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 5: Restart AIRecon
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-6-verify" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 6: Verify
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-skill-writing-guidelines" class="md-nav__link">
+    <span class="md-ellipsis">
+      6. Skill Writing Guidelines
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. Skill Writing Guidelines">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#do-be-specific-and-actionable" class="md-nav__link">
+    <span class="md-ellipsis">
+      DO: Be specific and actionable
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#do-include-exact-commands-with-real-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      DO: Include exact commands with real flags
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#do-explain-what-success-looks-like" class="md-nav__link">
+    <span class="md-ellipsis">
+      DO: Explain what success looks like
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#do-keep-payloads-focused-5-representative-ones-not-50" class="md-nav__link">
+    <span class="md-ellipsis">
+      DO: Keep payloads focused — 5 representative ones, not 50
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dont-write-generic-advice" class="md-nav__link">
+    <span class="md-ellipsis">
+      DON'T: Write generic advice
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dont-add-lengthy-prose-explanations" class="md-nav__link">
+    <span class="md-ellipsis">
+      DON'T: Add lengthy prose explanations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dont-add-more-than-one-vulnerability-class-per-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      DON'T: Add more than one vulnerability class per file
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-full-skill-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      7. Full Skill Template
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      Testing Checklist
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Testing Checklist">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#test-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Test 1:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#test-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Test 2:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#test-3-manual" class="md-nav__link">
+    <span class="md-ellipsis">
+      Test 3: (Manual)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-payloads" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Payloads
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tools-available" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tools Available
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exploitation-when-vulnerability-is-confirmed" class="md-nav__link">
+    <span class="md-ellipsis">
+      Exploitation (When Vulnerability is Confirmed)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-bypasses" class="md-nav__link">
+    <span class="md-ellipsis">
+      Common Bypasses
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remediation-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      Remediation Summary
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="skills-system-complete-guide">Skills System — Complete Guide<a class="headerlink" href="#skills-system-complete-guide" title="Permanent link">&para;</a></h1>
+<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
+<ol>
+<li><a href="#1-what-are-skills">What are Skills?</a></li>
+<li><a href="#2-how-skills-work-internally">How Skills Work Internally</a></li>
+<li><a href="#3-available-skills-reference">Available Skills Reference</a></li>
+<li><a href="#4-airecon-skills-community-library">airecon-skills Community Library</a></li>
+<li><a href="#5-creating-a-custom-skill">Creating a Custom Skill</a></li>
+<li><a href="#6-skill-writing-guidelines">Skill Writing Guidelines</a></li>
+<li><a href="#7-full-skill-template">Full Skill Template</a></li>
+<li><a href="#8-testing-your-skill">Testing Your Skill</a></li>
+</ol>
+<hr />
+<h2 id="1-what-are-skills">1. What are Skills?<a class="headerlink" href="#1-what-are-skills" title="Permanent link">&para;</a></h2>
+<p>Skills are plain Markdown (<code>.md</code>) files stored in <code>airecon/proxy/skills/</code>. They contain specialized knowledge about attack techniques, tool usage, and testing procedures for specific technologies or vulnerability classes.</p>
+<p><strong>Skills complement the system prompt.</strong> The system prompt gives the agent general security methodology. Skills provide deep, specific knowledge on-demand — without bloating the main prompt with information that is irrelevant to most targets.</p>
+<p><strong>Examples of what skills contain:</strong>
+- Step-by-step testing checklists for a specific vulnerability (e.g., SQLi, SSRF)
+- Exact tool commands for a specific technology (e.g., GraphQL introspection, Firebase rules)
+- Payload collections tailored to a specific attack surface
+- Knowledge about a specific framework's security model (e.g., Next.js server actions, FastAPI auth)</p>
+<hr />
+<h2 id="2-how-skills-work-internally">2. How Skills Work Internally<a class="headerlink" href="#2-how-skills-work-internally" title="Permanent link">&para;</a></h2>
+<h3 id="21-discovery-at-startup">2.1 Discovery at startup<a class="headerlink" href="#21-discovery-at-startup" title="Permanent link">&para;</a></h3>
+<p>When AIRecon starts, <code>system.py</code> scans the entire <code>skills/</code> tree and builds a list of all <code>.md</code> files with their absolute paths:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># airecon/proxy/system.py</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">_load_local_skills</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">skills_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;skills&quot;</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">skills_dir</span><span class="o">.</span><span class="n">rglob</span><span class="p">(</span><span class="s2">&quot;*.md&quot;</span><span class="p">)):</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>        <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;- </span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">absolute</span><span class="p">()</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span></code></pre></div>
+<p>This list is injected into the system prompt as an <code>&lt;available_skills&gt;</code> block:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>&lt;available_skills&gt;
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>You have access to the following skill documents. If you need specific guidance
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>on a topic, use the `read_file` tool with the EXACT absolute path listed below:
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>- /home/user/.../airecon/proxy/skills/vulnerabilities/xss.md
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>- /home/user/.../airecon/proxy/skills/vulnerabilities/sqli.md
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>- /home/user/.../airecon/proxy/skills/protocols/graphql.md
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>...
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>&lt;/available_skills&gt;
+</span></code></pre></div>
+<h3 id="22-on-demand-loading-by-the-agent">2.2 On-demand loading by the agent<a class="headerlink" href="#22-on-demand-loading-by-the-agent" title="Permanent link">&para;</a></h3>
+<p>The agent does <strong>not</strong> preload skill content into its context. Skills are loaded on demand using the <code>read_file</code> tool:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a># Agent calls:
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>read_file(path=&quot;/absolute/path/to/skills/vulnerabilities/ssrf.md&quot;)
+</span></code></pre></div>
+<p>The agent decides to read a skill when:
+- It detects a relevant technology in scan results (e.g., <code>whatweb</code> returns "GraphQL")
+- It encounters a vulnerability class it wants detailed guidance on
+- The user prompt references a specific topic (e.g., "test for JWT issues")
+- A tool output contains keywords that match a skill topic</p>
+<h3 id="23-why-this-design">2.3 Why this design?<a class="headerlink" href="#23-why-this-design" title="Permanent link">&para;</a></h3>
+<p>Loading all skills at startup would consume 50,000+ tokens of context window — wasted on irrelevant content for most targets. On-demand loading means the agent only pays the context cost for skills it actually needs.</p>
+<hr />
+<h2 id="3-available-skills-reference">3. Available Skills Reference<a class="headerlink" href="#3-available-skills-reference" title="Permanent link">&para;</a></h2>
+<h3 id="vulnerabilities-skillsvulnerabilities">Vulnerabilities (<code>skills/vulnerabilities/</code>)<a class="headerlink" href="#vulnerabilities-skillsvulnerabilities" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Topic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>api_testing.md</code></td>
+<td>REST/SOAP/GraphQL parameter discovery, verb tampering, rate limit bypass</td>
+</tr>
+<tr>
+<td><code>authentication_jwt.md</code></td>
+<td>JWT attacks: alg:none, weak secrets, RS256→HS256 confusion, kid injection</td>
+</tr>
+<tr>
+<td><code>bfla.md</code></td>
+<td>BFLA / privilege escalation via HTTP method tampering</td>
+</tr>
+<tr>
+<td><code>business_logic.md</code></td>
+<td>Business logic flaws, 7-step procedure, workflow abuse, state machine attacks</td>
+</tr>
+<tr>
+<td><code>csrf.md</code></td>
+<td>CSRF bypass techniques: SameSite confusion, token stealing, JSON CSRF, multipart</td>
+</tr>
+<tr>
+<td><code>deserialization.md</code></td>
+<td>Java gadget chains, PHP object injection, Python pickle, .NET deserialization</td>
+</tr>
+<tr>
+<td><code>exploitation.md</code></td>
+<td>General exploitation patterns, PoC construction, post-exploitation</td>
+</tr>
+<tr>
+<td><code>grpc.md</code></td>
+<td>gRPC proto enumeration, reflection API abuse, auth bypass, injection</td>
+</tr>
+<tr>
+<td><code>http_smuggling.md</code></td>
+<td>CL.TE, TE.CL, TE.TE desync, request tunneling</td>
+</tr>
+<tr>
+<td><code>idor.md</code></td>
+<td>IDOR discovery and exploitation: numeric, UUID, encoded IDs</td>
+</tr>
+<tr>
+<td><code>information_disclosure.md</code></td>
+<td>Sensitive data leakage: error messages, debug endpoints, JS secrets</td>
+</tr>
+<tr>
+<td><code>insecure_file_uploads.md</code></td>
+<td>File upload bypass: extension spoofing, polyglots, path traversal via upload</td>
+</tr>
+<tr>
+<td><code>kubernetes.md</code></td>
+<td>RBAC misconfig, etcd exposure, container escape, service account abuse</td>
+</tr>
+<tr>
+<td><code>mass_assignment.md</code></td>
+<td>Mass assignment and parameter pollution attacks</td>
+</tr>
+<tr>
+<td><code>oauth_saml.md</code></td>
+<td>Authorization code abuse, implicit flow, SAML assertion manipulation</td>
+</tr>
+<tr>
+<td><code>open_redirect.md</code></td>
+<td>Open redirect detection and OAuth <code>redirect_uri</code> abuse</td>
+</tr>
+<tr>
+<td><code>path_traversal.md</code></td>
+<td>Path traversal, LFI, RFI, PHP wrapper chains, log poisoning</td>
+</tr>
+<tr>
+<td><code>privilege_escalation.md</code></td>
+<td>Vertical/horizontal privilege escalation, JWT privilege claims, role confusion</td>
+</tr>
+<tr>
+<td><code>prototype_pollution.md</code></td>
+<td>Client-side and server-side (Node.js), lodash/merge sinks</td>
+</tr>
+<tr>
+<td><code>race_conditions.md</code></td>
+<td>Race condition testing: limit bypass, TOCTOU, last-write-wins</td>
+</tr>
+<tr>
+<td><code>rce.md</code></td>
+<td>Remote code execution via SSTI, command injection, deserialization gadgets</td>
+</tr>
+<tr>
+<td><code>sql_injection.md</code></td>
+<td>SQLi: error-based, blind, time-based, OOB, WAF bypass, SQLMap advanced</td>
+</tr>
+<tr>
+<td><code>ssrf.md</code></td>
+<td>SSRF: cloud metadata, internal ports, DNS rebinding, protocol wrappers, filter bypass</td>
+</tr>
+<tr>
+<td><code>ssti.md</code></td>
+<td>SSTI: Jinja2, Twig, Freemarker, Smarty, Pebble template injection</td>
+</tr>
+<tr>
+<td><code>subdomain_takeover.md</code></td>
+<td>Takeover detection and exploitation for unclaimed DNS/cloud resources</td>
+</tr>
+<tr>
+<td><code>supply_chain.md</code></td>
+<td>Dependency confusion, typosquatting, malicious package injection</td>
+</tr>
+<tr>
+<td><code>waf_detection.md</code></td>
+<td>WAF fingerprinting, bypass techniques, encoding evasion</td>
+</tr>
+<tr>
+<td><code>web_cache_poisoning.md</code></td>
+<td>Header injection, cache key normalization, CPDoS</td>
+</tr>
+<tr>
+<td><code>websocket.md</code></td>
+<td>WS hijacking, CSWSH, protocol downgrade, message injection</td>
+</tr>
+<tr>
+<td><code>xss.md</code></td>
+<td>XSS: reflected, stored, DOM-based, mutation, CSP bypass, exfiltration</td>
+</tr>
+<tr>
+<td><code>xxe.md</code></td>
+<td>XXE: file read, SSRF via DTD, billion laughs, SVG/XLSX vectors</td>
+</tr>
+</tbody>
+</table>
+<h3 id="reconnaissance-skillsreconnaissance">Reconnaissance (<code>skills/reconnaissance/</code>)<a class="headerlink" href="#reconnaissance-skillsreconnaissance" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Topic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>full_recon.md</code></td>
+<td>19KB Standard Operating Procedure — complete recon workflow with concrete success criteria, tool sequencing, artifact requirements, and phase transition rules</td>
+</tr>
+</tbody>
+</table>
+<h3 id="frameworks-skillsframeworks">Frameworks (<code>skills/frameworks/</code>)<a class="headerlink" href="#frameworks-skillsframeworks" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Topic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fastapi.md</code></td>
+<td>FastAPI security: dependency injection abuse, auth bypass, OpenAPI exposure, validation bypass</td>
+</tr>
+<tr>
+<td><code>nextjs.md</code></td>
+<td>Next.js security: middleware bypass, server actions, API routes, ISR cache poisoning, SSRF via redirects</td>
+</tr>
+</tbody>
+</table>
+<h3 id="technologies-skillstechnologies">Technologies (<code>skills/technologies/</code>)<a class="headerlink" href="#technologies-skillstechnologies" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Topic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cloud_security.md</code></td>
+<td>AWS/GCP/Azure misconfigs: S3 ACLs, IAM privilege escalation, metadata service abuse</td>
+</tr>
+<tr>
+<td><code>firebase_firestore.md</code></td>
+<td>Firebase security rules testing, unauthenticated access, NoSQL injection</td>
+</tr>
+<tr>
+<td><code>supabase.md</code></td>
+<td>Supabase RLS bypass, storage misconfigs, service key exposure, API key abuse</td>
+</tr>
+</tbody>
+</table>
+<h3 id="protocols-skillsprotocols">Protocols (<code>skills/protocols/</code>)<a class="headerlink" href="#protocols-skillsprotocols" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Topic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>active_directory.md</code></td>
+<td>Kerberoasting, AS-REP roasting, BloodHound, lateral movement, DCSync</td>
+</tr>
+<tr>
+<td><code>graphql.md</code></td>
+<td>GraphQL introspection, injection, batching abuse, IDOR via aliases, DoS</td>
+</tr>
+</tbody>
+</table>
+<h3 id="payloads-skillspayloads">Payloads (<code>skills/payloads/</code>)<a class="headerlink" href="#payloads-skillspayloads" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Topic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>command_injection.md</code></td>
+<td>Command injection payload collection with filter bypass variants</td>
+</tr>
+<tr>
+<td><code>lfi.md</code></td>
+<td>LFI payload collection: path normalization, PHP wrappers, null bytes</td>
+</tr>
+<tr>
+<td><code>sqli.md</code></td>
+<td>SQL injection payload collection by database type and technique</td>
+</tr>
+<tr>
+<td><code>ssrf.md</code></td>
+<td>SSRF payload collection: cloud metadata URLs, protocol wrappers</td>
+</tr>
+<tr>
+<td><code>ssti.md</code></td>
+<td>SSTI payload collection by template engine</td>
+</tr>
+<tr>
+<td><code>xss.md</code></td>
+<td>XSS payload collection: filter bypass, DOM sinks, CSP bypass</td>
+</tr>
+<tr>
+<td><code>xxe.md</code></td>
+<td>XXE payload collection: OOB exfil, DTD injection, SVG/XLSX vectors</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tools-skillstools">Tools (<code>skills/tools/</code>)<a class="headerlink" href="#tools-skillstools" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Topic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>advanced_fuzzing.md</code></td>
+<td>AIRecon fuzzing engine usage: quick_fuzz, advanced_fuzz, deep_fuzz, schemathesis</td>
+</tr>
+<tr>
+<td><code>browser_automation.md</code></td>
+<td>Playwright browser automation: auth flows, JS execution, network capture</td>
+</tr>
+<tr>
+<td><code>caido.md</code></td>
+<td>Caido proxy integration: HTTPQL filters, §FUZZ§ markers, automate patterns</td>
+</tr>
+<tr>
+<td><code>dalfox.md</code></td>
+<td>Dalfox XSS scanner: flags, blind XSS, DOM scan, custom payloads</td>
+</tr>
+<tr>
+<td><code>install.md</code></td>
+<td>Tool installation procedures for the Kali sandbox</td>
+</tr>
+<tr>
+<td><code>nmap.md</code></td>
+<td>Nmap usage: script categories, output formats, NSE scripts for web</td>
+</tr>
+<tr>
+<td><code>nuclei.md</code></td>
+<td>Nuclei templates: custom templates, severity filters, OOB templates</td>
+</tr>
+<tr>
+<td><code>scripting.md</code></td>
+<td>81KB scripting guide: Python patterns for HTTP testing, auth, rate limiting</td>
+</tr>
+<tr>
+<td><code>semgrep.md</code></td>
+<td>Semgrep SAST: custom rules, OWASP rulesets, triage workflow</td>
+</tr>
+<tr>
+<td><code>sqlmap.md</code></td>
+<td>SQLmap: tamper scripts, blind injection, file read/write, OS shell</td>
+</tr>
+<tr>
+<td><code>tool_catalog.md</code></td>
+<td>Full catalog of all preinstalled Kali sandbox tools with usage examples</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="4-airecon-skills-community-library">4. airecon-skills Community Library<a class="headerlink" href="#4-airecon-skills-community-library" title="Permanent link">&para;</a></h2>
+<p><strong><a href="https://github.com/pikpikcu/airecon-skills">airecon-skills</a></strong> is the official community skill library for AIRecon — a collection of CLI-based playbooks for CTF, bug bounty, and pentesting that extend the built-in skill set.</p>
+<h3 id="whats-included">What's included<a class="headerlink" href="#whats-included" title="Permanent link">&para;</a></h3>
+<p>The library provides specialized skills not bundled with AIRecon by default:</p>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Examples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CTF</td>
+<td>Reverse engineering, binary exploitation, crypto challenges, web CTF</td>
+</tr>
+<tr>
+<td>Bug Bounty</td>
+<td>Platform-specific recon SOPs, disclosure tips, P1 hunting patterns</td>
+</tr>
+<tr>
+<td>Protocols</td>
+<td>MQTT, Redis, MongoDB, Kafka, Elasticsearch attack playbooks</td>
+</tr>
+<tr>
+<td>Cloud</td>
+<td>AWS privilege escalation chains, GCP service account abuse, Azure AD attacks</td>
+</tr>
+<tr>
+<td>Mobile</td>
+<td>Android APK decompile + secrets scan, iOS plist inspection</td>
+</tr>
+<tr>
+<td>Frameworks</td>
+<td>Django, Rails, Spring Boot, Laravel, WordPress deep dives</td>
+</tr>
+</tbody>
+</table>
+<h3 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Clone into your local skills directory</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/pikpikcu/airecon-skills<span class="w"> </span>~/.airecon/skills
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Or clone alongside the built-in skills</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/pikpikcu/airecon-skills<span class="w"> </span>/path/to/airecon-skills
+</span></code></pre></div>
+<p>Then configure AIRecon to load skills from the additional directory by setting the path in your config or by symlinking into the built-in skills folder:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Option 1: Symlink into built-in skills (recommended)</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>ln<span class="w"> </span>-s<span class="w"> </span>~/.airecon/skills/skills/*<span class="w"> </span>/path/to/airecon/airecon/proxy/skills/
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Option 2: Copy skills you want</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>cp<span class="w"> </span>-r<span class="w"> </span>~/.airecon/skills/skills/ctf<span class="w"> </span>/path/to/airecon/airecon/proxy/skills/
+</span></code></pre></div>
+<p>After adding skills, restart AIRecon — they will appear automatically in <code>&lt;available_skills&gt;</code>.</p>
+<h3 id="verifying-community-skills-are-loaded">Verifying community skills are loaded<a class="headerlink" href="#verifying-community-skills-are-loaded" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="s2">from airecon.proxy.system import get_system_prompt</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="s2">p = get_system_prompt()</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="s2">start = p.find(&#39;&lt;available_skills&gt;&#39;)</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="s2">end = p.find(&#39;&lt;/available_skills&gt;&#39;) + len(&#39;&lt;/available_skills&gt;&#39;)</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="s2">print(p[start:end])</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span>ctf<span class="w">  </span><span class="c1"># or whatever category you added</span>
+</span></code></pre></div>
+<h3 id="contributing-to-airecon-skills">Contributing to airecon-skills<a class="headerlink" href="#contributing-to-airecon-skills" title="Permanent link">&para;</a></h3>
+<p>If you write a skill that could be useful to others, consider contributing it upstream:</p>
+<ol>
+<li>Fork <a href="https://github.com/pikpikcu/airecon-skills">github.com/pikpikcu/airecon-skills</a></li>
+<li>Add your skill in the appropriate category folder</li>
+<li>Follow the <a href="#6-skill-writing-guidelines">Skill Writing Guidelines</a> below</li>
+<li>Open a pull request</li>
+</ol>
+<hr />
+<h2 id="5-creating-a-custom-skill">5. Creating a Custom Skill<a class="headerlink" href="#5-creating-a-custom-skill" title="Permanent link">&para;</a></h2>
+<h3 id="step-1-choose-the-right-location">Step 1: Choose the right location<a class="headerlink" href="#step-1-choose-the-right-location" title="Permanent link">&para;</a></h3>
+<p><strong>Built-in skills</strong> (ship with AIRecon): add to <code>airecon/proxy/skills/&lt;category&gt;/</code></p>
+<p><strong>Community skills</strong> (airecon-skills library): contribute to <a href="https://github.com/pikpikcu/airecon-skills">github.com/pikpikcu/airecon-skills</a></p>
+<p><strong>Private skills</strong> (your own): place anywhere and symlink into the built-in skills directory.</p>
+<h3 id="step-2-choose-the-right-category">Step 2: Choose the right category<a class="headerlink" href="#step-2-choose-the-right-category" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Your skill is about...</th>
+<th>Folder</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A specific vulnerability class</td>
+<td><code>skills/vulnerabilities/</code></td>
+</tr>
+<tr>
+<td>A web framework</td>
+<td><code>skills/frameworks/</code></td>
+</tr>
+<tr>
+<td>A backend technology or SaaS</td>
+<td><code>skills/technologies/</code></td>
+</tr>
+<tr>
+<td>A protocol (GraphQL, WebSocket, gRPC, AD)</td>
+<td><code>skills/protocols/</code></td>
+</tr>
+<tr>
+<td>Recon methodology / SOP</td>
+<td><code>skills/reconnaissance/</code></td>
+</tr>
+<tr>
+<td>Payload collections</td>
+<td><code>skills/payloads/</code></td>
+</tr>
+<tr>
+<td>Tool usage guide</td>
+<td><code>skills/tools/</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="step-3-create-the-file">Step 3: Create the file<a class="headerlink" href="#step-3-create-the-file" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Example: adding a WebSocket testing skill</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>touch<span class="w"> </span>airecon/proxy/skills/protocols/websocket.md
+</span></code></pre></div>
+<h3 id="step-4-write-the-skill-see-full-template-below">Step 4: Write the skill (see <a href="#7-full-skill-template">Full Template</a> below)<a class="headerlink" href="#step-4-write-the-skill-see-full-template-below" title="Permanent link">&para;</a></h3>
+<h3 id="step-5-restart-airecon">Step 5: Restart AIRecon<a class="headerlink" href="#step-5-restart-airecon" title="Permanent link">&para;</a></h3>
+<p>Skills are scanned at startup. Restart for the new file to appear in the <code>&lt;available_skills&gt;</code> list.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Stop current session and restart</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>airecon<span class="w"> </span>start
+</span></code></pre></div>
+<h3 id="step-6-verify">Step 6: Verify<a class="headerlink" href="#step-6-verify" title="Permanent link">&para;</a></h3>
+<p>Ask the agent to check a relevant target. When it detects the relevant technology, it should read your skill. You can also manually trigger it:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a># In the TUI, type:
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>read the websocket skill and test this target for WebSocket vulnerabilities
+</span></code></pre></div>
+<hr />
+<h2 id="6-skill-writing-guidelines">6. Skill Writing Guidelines<a class="headerlink" href="#6-skill-writing-guidelines" title="Permanent link">&para;</a></h2>
+<h3 id="do-be-specific-and-actionable">DO: Be specific and actionable<a class="headerlink" href="#do-be-specific-and-actionable" title="Permanent link">&para;</a></h3>
+<div class="language-markdown highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="gh"># Good</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>Run: <span class="sb">`python3 /home/pentester/tools/jwt_tool/jwt_tool.py &lt;token&gt; -X a`</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>This tests the alg:none bypass — if it succeeds, the server accepts unsigned tokens.
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="gh"># Bad</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>&quot;Test the JWT implementation for common vulnerabilities.&quot;
+</span></code></pre></div>
+<h3 id="do-include-exact-commands-with-real-flags">DO: Include exact commands with real flags<a class="headerlink" href="#do-include-exact-commands-with-real-flags" title="Permanent link">&para;</a></h3>
+<div class="language-markdown highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="gh"># Good</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="sb">`subfinder -d &lt;target&gt; -all -recursive -o output/subdomains.txt`</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="gh"># Bad</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>&quot;Use subfinder to find subdomains.&quot;
+</span></code></pre></div>
+<h3 id="do-explain-what-success-looks-like">DO: Explain what success looks like<a class="headerlink" href="#do-explain-what-success-looks-like" title="Permanent link">&para;</a></h3>
+<div class="language-markdown highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="gs">**Success indicator:**</span> Response changes from 403 to 200, or user data from a different account appears in the response body.
+</span></code></pre></div>
+<h3 id="do-keep-payloads-focused-5-representative-ones-not-50">DO: Keep payloads focused — 5 representative ones, not 50<a class="headerlink" href="#do-keep-payloads-focused-5-representative-ones-not-50" title="Permanent link">&para;</a></h3>
+<div class="language-markdown highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="gh"># Good (5 payloads covering different bypass patterns)</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>```sql
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>&#39; OR 1=1--
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>&#39; OR &#39;1&#39;=&#39;1
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>admin&#39;--
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>&#39; UNION SELECT NULL--
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>1; DROP TABLE users--
+</span></code></pre></div>
+<h3 id="dont-write-generic-advice">DON'T: Write generic advice<a class="headerlink" href="#dont-write-generic-advice" title="Permanent link">&para;</a></h3>
+<div class="language-markdown highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="gh"># Bad — this is already in the system prompt</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>&quot;Test all endpoints for injection vulnerabilities.&quot;
+</span></code></pre></div>
+<h3 id="dont-add-lengthy-prose-explanations">DON'T: Add lengthy prose explanations<a class="headerlink" href="#dont-add-lengthy-prose-explanations" title="Permanent link">&para;</a></h3>
+<p>Skills go into context window. Every word costs tokens. If something is already covered by general security knowledge, skip it.</p>
+<h3 id="dont-add-more-than-one-vulnerability-class-per-file">DON'T: Add more than one vulnerability class per file<a class="headerlink" href="#dont-add-more-than-one-vulnerability-class-per-file" title="Permanent link">&para;</a></h3>
+<p>Split <code>sql_and_nosql_injection.md</code> into <code>sql_injection.md</code> and <code>nosql_injection.md</code>. The agent searches for specific skills — mixing topics makes skills harder to locate and use efficiently.</p>
+<hr />
+<h2 id="7-full-skill-template">7. Full Skill Template<a class="headerlink" href="#7-full-skill-template" title="Permanent link">&para;</a></h2>
+<div class="language-markdown highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="gh"># &lt;Skill Name&gt;</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="gs">**Trigger condition:**</span> &lt;When should the agent load this skill? What observation in scan output indicates this skill is relevant?&gt;
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="gu">## Overview</span>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>&lt;2–3 sentences max. What is this vulnerability/technology and why does it matter for security testing?&gt;
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="gu">## Detection</span>
+</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>How to confirm the target uses this technology or is affected:
+</span><span id="__span-14-10"><a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>
+</span><span id="__span-14-11"><a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>```bash
+</span><span id="__span-14-12"><a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="gh"># Detection command 1</span>
+</span><span id="__span-14-13"><a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>&lt;exact command&gt;
+</span><span id="__span-14-14"><a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>
+</span><span id="__span-14-15"><a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a><span class="gh"># Detection command 2</span>
+</span><span id="__span-14-16"><a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a>&lt;exact command&gt;
+</span></code></pre></div>
+<p><strong>Indicators in tool output:</strong>
+- <code>&lt;string or pattern to look for in httpx/nuclei/browser output&gt;</code>
+- <code>&lt;another indicator&gt;</code></p>
+<h2 id="testing-checklist">Testing Checklist<a class="headerlink" href="#testing-checklist" title="Permanent link">&para;</a></h2>
+<h3 id="test-1">Test 1: <Name><a class="headerlink" href="#test-1" title="Permanent link">&para;</a></h3>
+<p><strong>Tool:</strong> <code>&lt;command with exact flags&gt;</code>
+<strong>What to look for:</strong> <code>&lt;success indicator&gt;</code></p>
+<h3 id="test-2">Test 2: <Name><a class="headerlink" href="#test-2" title="Permanent link">&para;</a></h3>
+<p><strong>Tool:</strong> <code>&lt;command&gt;</code>
+<strong>What to look for:</strong> <code>&lt;success indicator&gt;</code></p>
+<h3 id="test-3-manual">Test 3: <Name> (Manual)<a class="headerlink" href="#test-3-manual" title="Permanent link">&para;</a></h3>
+<ol>
+<li><code>&lt;step 1&gt;</code></li>
+<li><code>&lt;step 2&gt;</code></li>
+<li><code>&lt;expected result&gt;</code></li>
+</ol>
+<h2 id="key-payloads">Key Payloads<a class="headerlink" href="#key-payloads" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>&lt;payload 1 — covers bypass pattern A&gt;
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>&lt;payload 2 — covers bypass pattern B&gt;
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>&lt;payload 3 — WAF evasion variant&gt;
+</span></code></pre></div>
+<h2 id="tools-available">Tools Available<a class="headerlink" href="#tools-available" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Command</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt;tool&gt;</code></td>
+<td><code>&lt;exact invocation&gt;</code></td>
+<td><one-line purpose></td>
+</tr>
+<tr>
+<td><code>python3 /home/pentester/tools/&lt;t&gt;/&lt;s&gt;.py</code></td>
+<td><code>&lt;args&gt;</code></td>
+<td><purpose></td>
+</tr>
+</tbody>
+</table>
+<h2 id="exploitation-when-vulnerability-is-confirmed">Exploitation (When Vulnerability is Confirmed)<a class="headerlink" href="#exploitation-when-vulnerability-is-confirmed" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Document: capture the exact request/response pair demonstrating impact</li>
+<li>Prove impact: <code>&lt;exact command or payload that demonstrates damage&gt;</code></li>
+<li>Report: call <code>create_vulnerability_report</code> with:</li>
+<li><code>poc_script_code</code>: working Python script that reproduces the issue</li>
+<li><code>impact</code>: exact data accessed or action taken</li>
+</ol>
+<h2 id="common-bypasses">Common Bypasses<a class="headerlink" href="#common-bypasses" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>WAF filter:</strong> <code>&lt;bypass technique&gt;</code></li>
+<li><strong>Encoding:</strong> <code>&lt;alternative encoding&gt;</code></li>
+<li><strong>Edge case:</strong> <code>&lt;less-obvious variant&gt;</code></li>
+</ul>
+<h2 id="remediation-summary">Remediation Summary<a class="headerlink" href="#remediation-summary" title="Permanent link">&para;</a></h2>
+<ul>
+<li><Fix point 1></li>
+<li><Fix point 2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>---
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>## 8. Testing Your Skill
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>After creating a skill, verify it works as expected:
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>
+</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>**1. Check it appears in the skill list:**
+</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>
+</span><span id="__span-16-9"><a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>```bash
+</span><span id="__span-16-10"><a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a># Start AIRecon and look at the system prompt (dev mode)
+</span><span id="__span-16-11"><a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>python3 -c &quot;
+</span><span id="__span-16-12"><a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>from airecon.proxy.system import get_system_prompt
+</span><span id="__span-16-13"><a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a>p = get_system_prompt()
+</span><span id="__span-16-14"><a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a># Find the available_skills block
+</span><span id="__span-16-15"><a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a>start = p.find(&#39;&lt;available_skills&gt;&#39;)
+</span><span id="__span-16-16"><a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a>end = p.find(&#39;&lt;/available_skills&gt;&#39;) + len(&#39;&lt;/available_skills&gt;&#39;)
+</span><span id="__span-16-17"><a id="__codelineno-16-17" name="__codelineno-16-17" href="#__codelineno-16-17"></a>print(p[start:end])
+</span><span id="__span-16-18"><a id="__codelineno-16-18" name="__codelineno-16-18" href="#__codelineno-16-18"></a>&quot;
+</span></code></pre></div></li>
+</ul>
+<p><strong>2. Test the read_file path directly:</strong></p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># Find the exact absolute path AIRecon will use</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="s2">from pathlib import Path</span>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="s2">import airecon.proxy.system as sp</span>
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="s2">skills_dir = Path(sp.__file__).resolve().parent / &#39;skills&#39;</span>
+</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="s2">for p in sorted(skills_dir.rglob(&#39;*.md&#39;)):</span>
+</span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="s2">    if &#39;your_skill_name&#39; in str(p):</span>
+</span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="s2">        print(p.absolute().as_posix())</span>
+</span><span id="__span-17-9"><a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="s2">&quot;</span>
+</span></code></pre></div>
+<p><strong>3. Manually trigger in the TUI:</strong></p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a># Type in the TUI:
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>read the skill at /absolute/path/to/your/skill.md and summarize it
+</span></code></pre></div>
+<p>If the agent reads and summarizes it correctly, the skill is working.</p>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+  <form class="md-feedback" name="feedback" hidden>
+    <fieldset>
+      <legend class="md-feedback__title">
+        Was this page helpful?
+      </legend>
+      <div class="md-feedback__inner">
+        <div class="md-feedback__list">
+          
+            <button class="md-feedback__icon md-icon" type="submit" title="This page was helpful" data-md-value="1">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 9v12H1V9zm4 12a2 2 0 0 1-2-2V9c0-.55.22-1.05.59-1.41L14.17 1l1.06 1.06c.27.27.44.64.44 1.05l-.03.32L14.69 8H21a2 2 0 0 1 2 2v2c0 .26-.05.5-.14.73l-3.02 7.05C19.54 20.5 18.83 21 18 21zm0-2h9.03L21 12v-2h-8.79l1.13-5.32L9 9.03z"/></svg>
+            </button>
+          
+            <button class="md-feedback__icon md-icon" type="submit" title="This page could be improved" data-md-value="0">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 15V3h4v12zM15 3a2 2 0 0 1 2 2v10c0 .55-.22 1.05-.59 1.41L9.83 23l-1.06-1.06c-.27-.27-.44-.64-.44-1.06l.03-.31.95-4.57H3a2 2 0 0 1-2-2v-2c0-.26.05-.5.14-.73l3.02-7.05C4.46 3.5 5.17 3 6 3zm0 2H5.97L3 12v2h8.78l-1.13 5.32L15 14.97z"/></svg>
+            </button>
+          
+        </div>
+        <div class="md-feedback__note">
+          
+            <div data-md-value="1" hidden>
+              
+              
+                
+              
+              Thanks for your feedback!
+            </div>
+          
+            <div data-md-value="0" hidden>
+              
+              
+                
+              
+              Thanks for your feedback!
+            </div>
+          
+        </div>
+      </div>
+    </fieldset>
+  </form>
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../../tools/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Tools Reference">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Tools Reference
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../../changelog/" class="md-footer__link md-footer__link--next" aria-label="Next: Changelog">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Changelog
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2026 pikpikcu — <a href="https://github.com/pikpikcu/airecon/blob/main/LICENSE">MIT License</a>
+
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://github.com/pikpikcu/airecon" target="_blank" rel="noopener" title="AIRecon on GitHub" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://github.com/pikpikcu/airecon-skills" target="_blank" rel="noopener" title="airecon-skills community library" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.top", "navigation.footer", "search.highlight", "search.suggest", "search.share", "content.code.copy", "content.code.annotate", "content.tabs.link", "toc.follow"], "search": "../../assets/javascripts/workers/search.f8cc74c7.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.c8b220af.min.js"></script>
+      
+    
+  </body>
+</html>
