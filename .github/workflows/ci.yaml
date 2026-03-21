@@ -2,63 +2,97 @@ name: AIRecon CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
 
 jobs:
-  quality-and-security:
+  # ── Job 1: Lint, Security, Type-check ────────────────────────────────────
+  quality:
+    name: Quality (${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python-version }}
+          cache: pip
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install ruff bandit pytest pytest-cov pytest-asyncio pytest-mock pytest-timeout
+          pip install ruff bandit
 
       - name: Lint with Ruff
-        run: ruff check . --fix
-        
-      - name: Security Scan with Bandit
-        run: bandit -r airecon/ -x "**/tests/**,**/__pycache__/**" --skip B105,B107 -ll
+        run: ruff check . --output-format=github
 
-      - name: Type Check with Pyright
+      - name: Security scan with Bandit
+        # B105/B107: CSS-selector false positives in Textual widget IDs
+        # -ll: only LOW severity and above (suppress noise)
+        # Findings are shown in log but contain no secrets — verified by policy
+        run: |
+          bandit -r airecon/ \
+            -x "**/tests/**,**/__pycache__/**" \
+            --skip B105,B107 \
+            -ll
+
+      - name: Type check with Pyright
         uses: jakebailey/pyright-action@v2
         with:
           working-directory: .
 
-  unit-tests:
-    needs: quality-and-security
+  # ── Job 2: Unit Tests ─────────────────────────────────────────────────────
+  test:
+    name: Tests (${{ matrix.python-version }})
+    needs: quality
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python-version }}
+          cache: pip
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-cov pytest-asyncio pytest-mock pytest-timeout pytest-anyio
+          pip install pytest pytest-cov pytest-asyncio pytest-mock pytest-timeout anyio
 
-      - name: Run Tests with Coverage
+      - name: Run tests with coverage
         run: |
-          pytest tests/ --junitxml=junit/test-results.xml --cov=airecon --cov-report=xml --cov-fail-under=52
+          pytest tests/ \
+            --junitxml=junit/test-results.xml \
+            --cov=airecon \
+            --cov-report=xml \
+            --cov-fail-under=52 \
+            -q
 
-      - name: Upload Test Results
-        if: always()
+      # Upload artifact only on failure to minimise public exposure of test output
+      # (Agent2 finding: test XML may contain stdout dumps on failure)
+      - name: Upload test results on failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: pytest-results
-          path: junit/test-results.xml
+          name: test-results-py${{ matrix.python-version }}
+          path: |
+            junit/test-results.xml
+            coverage.xml
+          retention-days: 7
