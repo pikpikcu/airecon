@@ -17,14 +17,14 @@ Engines provided:
 """
 
 from __future__ import annotations
-from pathlib import Path
-import json
 
 import asyncio
+import json
 import logging
 import math
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, AsyncIterator, Callable
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
@@ -235,7 +235,9 @@ class Fuzzer:
             return baseline
         except Exception as exc:
             logger.debug(f"Baseline fetch failed for param={param}: {exc}")
-            return {"body": "", "status": 200, "time_ms": 0.0, "length": 0, "length_variance": 0}
+            # Use status=-1 (not 200) so fuzz_parameters can skip unreachable
+            # params rather than including them with a misleading 200 baseline.
+            return {"body": "", "status": -1, "time_ms": 0.0, "length": 0, "length_variance": 0}
 
     async def fuzz_parameters(
         self,
@@ -253,6 +255,10 @@ class Fuzzer:
                 its type (e.g. SSRF params get ssrf payloads, not XSS/SQLi).
                 Use session.injection_points to populate this.
         """
+        # Reset per-session timeout tracking — prevents false positives when the
+        # Fuzzer instance is reused across multiple fuzz_parameters() calls.
+        self._timeout_counts.clear()
+
         if not FUZZ_PAYLOADS:
             logger.error(
                 "Fuzzer payload data is empty — fuzzer_data.json was not loaded. "
@@ -273,7 +279,11 @@ class Fuzzer:
         clean_params: list[str] = []
         for param in params:
             b_status = self._baseline.get(param, {}).get("status", 200)
-            if b_status in (429, 503):
+            if b_status == -1:
+                logger.warning(
+                    f"Skipping param '{param}' — baseline fetch failed (target unreachable)"
+                )
+            elif b_status in (429, 503):
                 logger.warning(
                     f"Skipping param '{param}' — baseline returned HTTP {b_status} "
                     "(rate-limited / service unavailable)"

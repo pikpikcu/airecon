@@ -242,7 +242,7 @@ def _load_local_skills(ctf_mode: bool = False) -> str:
             f"Categories ({total} total): {cat_list}\n"
             "Auto-load will inject relevant skills based on keywords in the request.\n"
             "If you need a specific one, call read_file with the full path.\n"
-            f"Example: {base_path}/tools/nmap.md\n"
+            f"Example: {base_path}/tools/<skill_name>.md\n"
             "</available_skills>\n"
         )
 

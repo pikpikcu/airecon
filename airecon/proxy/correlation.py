@@ -13,10 +13,10 @@ Correlation rules are stored as JSON files in data/ and loaded at import time:
 from __future__ import annotations
 
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Any
-import logging
 
 from .agent.session import SessionData
 

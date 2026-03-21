@@ -2,16 +2,18 @@
 Vulnerability reporting tool for AIRecon.
 """
 from __future__ import annotations
+
+import logging
 import os
 import re
-import logging
-from typing import Any
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
+
 from .config import get_workspace_root
 
-_CVE_RE = re.compile(r'^CVE-\d{4}-\d{4,}$', re.IGNORECASE)
+_CVE_RE = re.compile(r'^CVE-\d{4}-\d{4,7}$', re.IGNORECASE)
 
 logger = logging.getLogger("airecon.proxy.reporting")
 

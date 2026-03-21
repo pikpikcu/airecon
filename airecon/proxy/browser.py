@@ -1,4 +1,5 @@
 import asyncio
+import atexit
 import base64
 import contextlib
 import hashlib
@@ -9,11 +10,17 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast, Literal
-import atexit
+from typing import Any, Literal, cast
 
-from playwright.async_api import Browser, BrowserContext, Page, Playwright, async_playwright
-from .config import get_workspace_root, get_config
+from playwright.async_api import (
+    Browser,
+    BrowserContext,
+    Page,
+    Playwright,
+    async_playwright,
+)
+
+from .config import get_config, get_workspace_root
 
 logger = logging.getLogger("airecon.proxy.browser")
 
@@ -897,7 +904,7 @@ class BrowserInstance:
                 await page.wait_for_load_state("networkidle", timeout=15000)
             current_url = page.url
             if callback_prefix and current_url.startswith(callback_prefix):
-                from urllib.parse import urlparse, parse_qs
+                from urllib.parse import parse_qs, urlparse
                 parsed = urlparse(current_url)
                 params = parse_qs(parsed.query)
                 frag = parse_qs(parsed.fragment)

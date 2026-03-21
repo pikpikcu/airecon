@@ -23,6 +23,22 @@ logger = logging.getLogger("airecon.agent.pipeline")
 
 _PROMPTS_DIR = Path(__file__).parent.parent / "prompts" / "phases"
 
+# Load tool-agnostic phase hints from tools_meta.json so tool names stay out of Python code.
+try:
+    import json as _json
+    _tools_meta = _json.loads(
+        (Path(__file__).parent.parent / "data" / "tools_meta.json").read_text(encoding="utf-8")
+    )
+    _recon_hints: dict[str, str] = _tools_meta.get("recon_phase_hints", {})
+except Exception:
+    _recon_hints = {}
+
+_LIVE_HOST_HINT: str = _recon_hints.get(
+    "live_host_validation",
+    "CRITICAL: After subdomain enumeration, ALWAYS validate which hosts are alive before "
+    "port scanning or directory brute-force. Never scan dead/unresolved hosts.",
+)
+
 
 class PipelinePhase(Enum):
     """Ordered phases of the security testing pipeline."""
@@ -62,8 +78,7 @@ DEFAULT_PHASES: dict[PipelinePhase, PhaseConfig] = {
         max_iterations=500,
         objective=(
             "Enumerate attack surface: subdomains, open ports, directories, technologies, endpoints. "
-            "CRITICAL: After subdomain enumeration, ALWAYS run httpx/dnsx to validate which hosts "
-            "are alive BEFORE port scanning or directory brute-force. Never scan dead/unresolved hosts."
+            + _LIVE_HOST_HINT
         ),
         recommended_tools=[
             "execute", "web_search", "browser_action", "create_file",
@@ -72,7 +87,7 @@ DEFAULT_PHASES: dict[PipelinePhase, PhaseConfig] = {
         ],
         transition_criteria=[
             "subdomains_discovered",      # session.subdomains is non-empty
-            "live_hosts_validated",       # session.live_hosts is non-empty (httpx/dnsx ran)
+            "live_hosts_validated",       # session.live_hosts is non-empty (host probing ran)
             "ports_scanned",              # session.open_ports is non-empty
             "recon_artifacts_saved",      # output/ directory has files
             "subdomain_depth_met",        # >= pipeline_recon_min_subdomains discovered
@@ -288,8 +303,7 @@ class PipelineEngine:
             if not has_live_hosts and has_any_data:
                 logger.warning(
                     "RECON soft timeout (%d iter) but live_hosts_validated not met — "
-                    "agent must run httpx/dnsx to confirm live hosts before ANALYSIS. "
-                    "Blocking transition.",
+                    "agent must validate live hosts before ANALYSIS. Blocking transition.",
                     iterations_in_phase,
                 )
                 return False
@@ -326,7 +340,7 @@ class PipelineEngine:
         if phase == PipelinePhase.RECON:
             if getattr(session, "subdomains", []):
                 met.append("subdomains_discovered")
-            # live_hosts_validated: agent ran httpx/dnsx and confirmed at least one host responds.
+            # live_hosts_validated: agent ran host probing and confirmed at least one host responds.
             # This forces the agent to filter dead subdomains before proceeding.
             if getattr(session, "live_hosts", []):
                 met.append("live_hosts_validated")

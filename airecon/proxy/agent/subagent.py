@@ -20,8 +20,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, AsyncIterator
 
-from ..ollama import OllamaClient
 from ..config import get_config
+from ..ollama import OllamaClient
 from .models import AgentEvent
 from .session import SessionData, save_session
 

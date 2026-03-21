@@ -209,7 +209,8 @@ RUN pipx install arjun && \
     pipx install whatwaf && \
     pipx install git+https://github.com/s0md3v/XSStrike.git 2>/dev/null || true && \
     pipx install git+https://github.com/vladko312/SSTImap.git 2>/dev/null || true && \
-    pipx install git+https://github.com/defparam/smuggler.git 2>/dev/null || true
+    pipx install git+https://github.com/defparam/smuggler.git 2>/dev/null || true && \
+    pipx install schemathesis 2>/dev/null || true
 
 # ── Node.js Tools & Linters ──
 ENV NPM_CONFIG_PREFIX=/home/pentester/.npm-global

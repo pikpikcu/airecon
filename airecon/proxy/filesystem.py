@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Any
+
 from .config import get_workspace_root
 
 _LINE_COUNT_EXTENSIONS = {

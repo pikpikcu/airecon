@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 import shlex
 
-
 _WRAPPER_TOKENS = {
     "sudo", "timeout", "stdbuf", "env", "command", "nice", "nohup",
 }
@@ -26,7 +25,7 @@ def extract_primary_binary(command: str) -> str:
     if not cmd:
         return ""
 
-    cmd = re.sub(r"^cd\s+/workspace/[^\s]+\s*&&\s*", "", cmd)
+    cmd = re.sub(r"^cd\s+/workspace(?:/[^\s]*)?\s*&&\s*", "", cmd)
 
     try:
         tokens = shlex.split(cmd)

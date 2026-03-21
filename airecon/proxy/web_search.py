@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import logging
 import re
 import time
-from typing import Any
 from pathlib import Path
-import json
-import hashlib
+from typing import Any
 
 logger = logging.getLogger("airecon.web_search")
 
@@ -97,7 +97,10 @@ async def _ddg_search(query: str, max_results: int) -> dict[str, Any]:
 
     try:
         from duckduckgo_search import DDGS
-        from duckduckgo_search.exceptions import RatelimitException, DuckDuckGoSearchException
+        from duckduckgo_search.exceptions import (
+            DuckDuckGoSearchException,
+            RatelimitException,
+        )
     except ImportError:
         return {
             "success": False,
