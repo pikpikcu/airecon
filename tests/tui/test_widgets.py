@@ -97,3 +97,63 @@ def test_status_bar_set_status_coerces_numeric_fields():
     assert status_bar.exec_used == 7
     assert status_bar.subagents_spawned == 2
     assert status_bar.caido_findings == 9
+
+
+# ── StatusBar caido rendering ─────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_status_bar_caido_active_shows_indicator():
+    async with WidgetTestApp().run_test() as pilot:
+        status_bar = pilot.app.query_one("#status", StatusBar)
+        status_bar.set_status(caido_active=True, caido_findings=5)
+        await pilot.pause()
+        content = str(status_bar.query_one("#status-caido-exec").render())
+        assert "Caido" in content
+        assert "5" in content
+
+
+@pytest.mark.asyncio
+async def test_status_bar_caido_inactive_hides_indicator():
+    async with WidgetTestApp().run_test() as pilot:
+        status_bar = pilot.app.query_one("#status", StatusBar)
+        status_bar.set_status(caido_active=False)
+        await pilot.pause()
+        content = str(status_bar.query_one("#status-caido-exec").render())
+        assert "Caido" not in content
+
+
+def test_status_bar_caido_active_reactive_default_false():
+    status_bar = StatusBar()
+    assert status_bar.caido_active is False
+    assert status_bar.caido_findings == 0
+
+
+def test_status_bar_caido_findings_negative_clamped():
+    status_bar = StatusBar()
+    status_bar.set_status(caido_findings="-3")
+    assert status_bar.caido_findings == 0
+
+
+# ── StatusBar token color scale ───────────────────────────────────────────────
+
+def test_status_bar_token_color_low():
+    assert StatusBar._token_color_for_cumulative(500_000) == "#00d4aa"
+
+
+def test_status_bar_token_color_medium():
+    assert StatusBar._token_color_for_cumulative(2_000_000) == "#f59e0b"
+
+
+def test_status_bar_token_color_high():
+    assert StatusBar._token_color_for_cumulative(10_000_000) == "#ef4444"
+
+
+def test_status_bar_format_token_billion():
+    status_bar = StatusBar()
+    result = status_bar._format_token_count(1_500_000_000)
+    assert result.endswith("B")
+
+
+def test_status_bar_format_token_zero():
+    status_bar = StatusBar()
+    assert status_bar._format_token_count(0) == "0"
