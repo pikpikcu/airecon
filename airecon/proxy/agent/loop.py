@@ -24,7 +24,8 @@ from ..system import (
     get_system_prompt,
     _is_ctf_target,
 )
-from .file_reference import (
+from .file_reference import (  
+    
     parse_refs, strip_refs, resolve_ref,
     build_injection_message, workspace_name_for_ref,
 )
@@ -461,7 +462,7 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
                 if t["function"]["name"] not in self._blocked_tools
             ]
 
-        logger.info(f"Agent initialized with {len(self._tools_ollama)} tools")
+        logger.info("Agent initialized with %d tools", len(self._tools_ollama))
 
         tool_names = [t["function"]["name"] for t in self._tools_ollama]
         self.state.add_message(
@@ -483,7 +484,7 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
             )
         else:
             self._session = SessionData(target="")
-            logger.info(f"Created new session {self._session.session_id}")
+            logger.info("Created new session %s", self._session.session_id)
         self._sync_token_usage_from_session()
 
         self.pipeline = PipelineEngine(self._session)
@@ -603,7 +604,7 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
                 and extracted_target.lower() in _msg_lower
             )
             if cfg.deep_recon_autostart and _is_simple_target_msg:
-                logger.info(f"Auto-starting deep recon for {extracted_target}")
+                logger.info("Auto-starting deep recon for %s", extracted_target)
                 user_message = (
                     f"Perform a comprehensive full deep recon and "
                     f"vulnerability scan on {extracted_target}. "
@@ -729,35 +730,6 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
                         _resumed_phase = self.pipeline.get_current_phase()
                         self._sync_phase_objectives(_resumed_phase)
                         self._update_objectives_from_session(_resumed_phase)
-
-            # Ensure a compact, pinned target context is always present so the
-            # model never loses the primary target during long sessions.
-            self.state.conversation = [
-                msg
-                for msg in self.state.conversation
-                if not (
-                    msg.get("role") == "system"
-                    and msg.get("content", "").startswith("[SYSTEM: PINNED CONTEXT]")
-                )
-            ]
-            if self.state.active_target:
-                phase_hint = ""
-                try:
-                    if self.pipeline:
-                        phase_hint = self.pipeline.get_current_phase().value
-                except Exception:
-                    phase_hint = ""
-                pin_lines = [
-                    "[SYSTEM: PINNED CONTEXT]",
-                    f"TARGET: {self.state.active_target}",
-                ]
-                if phase_hint:
-                    pin_lines.append(f"PHASE: {phase_hint}")
-                pin_lines.append("Do not change target unless the user explicitly asks.")
-                pin_lines.append("Use session summary and critical findings as the source of truth.")
-                self.state.conversation.append(
-                    {"role": "system", "content": "\n".join(pin_lines)}
-                )
 
             # Ensure a compact, pinned target context is always present so the
             # model never loses the primary target during long sessions.
@@ -1843,7 +1815,7 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
                             )
                         else:
                             error_msg = f"Model connection error: {err_str}"
-                        logger.error(f"Ollama stream error: {stream_err}")
+                        logger.error("Ollama stream error: %s", stream_err)
                         yield AgentEvent(type="error", data={"message": error_msg})
                         yield AgentEvent(type="done", data={})
                         return
@@ -2464,7 +2436,7 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
                         results = await asyncio.gather(*tasks, return_exceptions=True)
                         for res in results:
                             if isinstance(res, Exception):
-                                logger.error(f"Parallel tool error: {res}")
+                                logger.error("Parallel tool error: %s", res)
                             else:
                                 all_results[res[0]] = res
                     else:
@@ -3246,7 +3218,7 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
         )
 
         if tc_name and tc_name in registered_tools:
-            logger.info(f"[fallback] Extracted tool_call: {tc_name}")
+            logger.info("[fallback] Extracted tool_call: %s", tc_name)
             return {"function": {"name": tc_name, "arguments": tc_args}}
         return None
 
@@ -3396,7 +3368,7 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
                 f"{len(merged)} total lines (sorted)"
             )
         except Exception as e:
-            logger.warning(f"Failed to merge output file '{output_file}': {e}")
+            logger.warning("Failed to merge output file '%s': %s", output_file, e)
 
     # Tool alternative suggestions for smart retry
     _TOOL_ALTERNATIVES: dict[str, str] = _TOOLS_META.get(
