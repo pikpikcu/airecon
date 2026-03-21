@@ -85,6 +85,17 @@ _RECON_PORT_SCAN_BINS: frozenset[str] = _load_recon_bins(
     frozenset({"nmap", "masscan", "naabu", "rustscan"}),
 )
 
+# Template-based scanners that should run at most twice per session (across all
+# phases).  These fire hundreds of generic templates and are NOT a substitute
+# for targeted manual testing.  Blocking after 2 runs forces the agent to
+# switch to sqlmap/dalfox/custom payloads instead of re-scanning templates.
+_TEMPLATE_SCANNER_BINS: frozenset[str] = _load_recon_bins(
+    "template_scanners",
+    frozenset({"nuclei", "nikto", "wpscan", "wapiti", "jaeles"}),
+)
+# Max times a template scanner binary may run in a session before it is blocked.
+_TEMPLATE_SCANNER_MAX_RUNS: int = 2
+
 def _load_tool_flag_conflicts() -> dict[str, tuple[list[str], str]]:
     """Load tool flag conflict rules from data/tools_meta.json.
 
@@ -131,14 +142,29 @@ class _ExecutorMixin:
         return extract_primary_binary(command)
 
     def _is_recon_phase_repeat_blocked(self, tool_name: str, arguments: dict[str, Any], count: int) -> bool:
-        """Return True if a repeated recon execute command should be blocked.
+        """Return True if a repeated execute command should be blocked.
 
-        Recon enumeration binaries are blocked after first successful execution
-        in RECON phase to avoid low-value loops (e.g. subfinder rerun spam).
+        Two independent blocking rules (checked in order):
+
+        1. Template scanners (nuclei, nikto, wpscan…) — blocked after
+           _TEMPLATE_SCANNER_MAX_RUNS successful runs in ANY phase.  Their
+           template flags are normalised in _normalize_args_for_dedup, so
+           different -t/--tags combos against the same target share one counter.
+
+        2. Recon enumeration binaries (subfinder, nmap…) — blocked after the
+           FIRST run in RECON phase only.  They are fine to re-run in
+           ANALYSIS/EXPLOIT for targeted rescans.
         """
         if tool_name != "execute" or count < 1:
             return False
 
+        binary = self._extract_command_binary(arguments.get("command", ""))
+
+        # Rule 1 — template scanners: phase-agnostic, limited to MAX_RUNS
+        if binary in _TEMPLATE_SCANNER_BINS:
+            return count >= _TEMPLATE_SCANNER_MAX_RUNS
+
+        # Rule 2 — recon enumeration: only in RECON phase
         phase_name = ""
         try:
             if hasattr(self, "_get_current_phase"):
@@ -149,7 +175,6 @@ class _ExecutorMixin:
         if phase_name != "RECON":
             return False
 
-        binary = self._extract_command_binary(arguments.get("command", ""))
         return binary in _RECON_SUBDOMAIN_BINS or binary in _RECON_PORT_SCAN_BINS
 
     async def _execute_local_browser_tool(
@@ -2087,6 +2112,14 @@ class _ExecutorMixin:
             cmd = re.sub(r'(\s+--cookie(?:-jar)?\s+[^\s]+)', '', cmd)
             # Remove timestamp patterns commonly used in typical output files
             cmd = re.sub(r'_[0-9]{8}_[0-9]{6}\.', '.', cmd)
+            # Normalize template-scanner flags so different -t/--tags variations
+            # map to the same dedup key.  Prevents nuclei from bypassing the
+            # _TEMPLATE_SCANNER_MAX_RUNS limit by switching template categories.
+            _bin = self._extract_command_binary(cmd)
+            if _bin in _TEMPLATE_SCANNER_BINS:
+                cmd = re.sub(r'\s+--?(?:t|templates?)\s+\S+', '', cmd)
+                cmd = re.sub(r'\s+--?tags?\s+\S+', '', cmd)
+                cmd = re.sub(r'\s+--?(?:severity|s)\s+\S+', '', cmd)
             args_copy["command"] = cmd.strip()
 
         return tool_name, json.dumps(args_copy, sort_keys=True, default=str)
@@ -2106,13 +2139,21 @@ class _ExecutorMixin:
 
         if self._is_recon_phase_repeat_blocked(tool_name, arguments, count):
             binary = self._extract_command_binary(arguments.get("command", ""))
-            return False, 0.0, {
-                "success": False,
-                "error": (
+            if binary in _TEMPLATE_SCANNER_BINS:
+                _err = (
+                    f"Template scanner '{binary}' has already run {count}x "
+                    f"(limit: {_TEMPLATE_SCANNER_MAX_RUNS}). "
+                    "Template scans are capped to prevent generic-scanner spam. "
+                    "Switch to TARGETED manual testing: sqlmap, dalfox, custom "
+                    "curl/httpx payloads, or browser-based exploitation of specific "
+                    "endpoints. Do NOT run nuclei/nikto again."
+                )
+            else:
+                _err = (
                     f"Duplicate recon execution blocked for '{binary}'. "
                     "Use previous results and pivot to a new recon vector."
-                ),
-            }, None
+                )
+            return False, 0.0, {"success": False, "error": _err}, None
 
         if count >= limit:
             return False, 0.0, {

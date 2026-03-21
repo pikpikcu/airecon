@@ -2849,8 +2849,10 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
 
         lines.append(
             "\nPriority order: CRITICAL > HIGH > MEDIUM. "
-            "Use sqlmap, dalfox, nuclei, custom payloads. "
-            "Confirm each exploit with proof-of-concept output."
+            "Use TARGETED tools: sqlmap (SQLi), dalfox (XSS), custom curl/httpx payloads, "
+            "browser_action for auth bypass. DO NOT use nuclei/nikto repeatedly — "
+            "template scanners are already capped and will be blocked if re-run. "
+            "Confirm each exploit with proof-of-concept output showing actual impact."
         )
 
         vuln_ctx = "\n".join(lines)
