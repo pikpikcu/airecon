@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 
 from textual.app import ComposeResult
-from textual.message import Message
 from textual.binding import Binding
+from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Label, ListItem, ListView, TextArea
 

@@ -45,6 +45,40 @@ def test_validator_browser_actions(validator):
     assert valid
 
 
+def test_validator_browser_action_nonstring_args(validator):
+    """Non-string LLM args must not crash with AttributeError/TypeError."""
+    # action=dict would cause TypeError: unhashable type before fix
+    valid, msg = validator._validate_tool_args(
+        "browser_action", {"action": {"evil": "dict"}})
+    assert not valid
+    assert msg is not None
+
+    # action=int same issue
+    valid, msg = validator._validate_tool_args(
+        "browser_action", {"action": 42})
+    assert not valid
+
+    # url=dict would cause AttributeError on .strip() before fix
+    valid, msg = validator._validate_tool_args(
+        "browser_action", {"action": "goto", "url": {"evil": "dict"}})
+    assert not valid
+
+    # text=dict for "type" action — was only checking is None, not isinstance
+    valid, msg = validator._validate_tool_args(
+        "browser_action", {"action": "type", "text": {"evil": "dict"}})
+    assert not valid
+
+    # text=None still rejected
+    valid, msg = validator._validate_tool_args(
+        "browser_action", {"action": "type", "text": None})
+    assert not valid
+
+    # text="" (empty string) — valid (clearing a field)
+    valid, msg = validator._validate_tool_args(
+        "browser_action", {"action": "type", "text": ""})
+    assert valid
+
+
 def test_validator_read_file(validator):
     # Negative Offset
     valid, msg = validator._validate_tool_args(
@@ -55,6 +89,28 @@ def test_validator_read_file(validator):
     valid, msg = validator._validate_tool_args(
         "read_file", {"path": "test.txt", "offset": 10, "limit": 100})
     assert valid
+
+
+def test_validator_report_nonstring_args(validator):
+    """Non-string args to create_vulnerability_report must not crash."""
+    # poc_script_code=dict would AttributeError on .strip() before fix
+    valid, msg = validator._validate_tool_args("create_vulnerability_report", {
+        "poc_script_code": {"evil": "dict"},
+        "poc_description": "desc",
+        "title": "title",
+        "technical_analysis": "tech",
+    })
+    assert not valid
+    assert msg is not None
+
+    # title=int
+    valid, msg = validator._validate_tool_args("create_vulnerability_report", {
+        "poc_script_code": "curl http://x",
+        "poc_description": "desc",
+        "title": 42,
+        "technical_analysis": "tech",
+    })
+    assert not valid
 
 
 def test_validator_report_rejections(validator):

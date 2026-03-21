@@ -32,6 +32,13 @@ class TestExtractPrimaryBinaryWorkspacePrefix:
     def test_strips_cd_workspace_with_domain(self):
         assert extract_primary_binary("cd /workspace/example.com && gobuster dir -u http://example.com") == "gobuster"
 
+    def test_strips_cd_workspace_no_subdir(self):
+        """cd /workspace && (without subdirectory) must be stripped (regression fix)."""
+        assert extract_primary_binary("cd /workspace && nmap -sV target") == "nmap"
+
+    def test_strips_cd_workspace_no_subdir_subfinder(self):
+        assert extract_primary_binary("cd /workspace && subfinder -d target.com -o subs.txt") == "subfinder"
+
 
 class TestExtractPrimaryBinarySudo:
     def test_sudo_simple(self):

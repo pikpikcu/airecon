@@ -225,6 +225,7 @@ class TestLoopStreamingWithMockedOllama:
     @pytest.mark.asyncio
     async def test_error_event_on_connection_refused(self, loop, mocker):
         mocker.patch("airecon.proxy.agent.loop.get_system_prompt", return_value="SYS")
+        mocker.patch("airecon.proxy.agent.loop.asyncio.sleep")  # prevent 10+30+60+120s retry waits
         await loop.initialize(target="test.com", user_message="go")
 
         async def _failing_stream(*args, **kwargs):
@@ -302,8 +303,9 @@ class TestLoopStreamingWithMockedOllama:
         assert tool_start.data.get("tool") == "execute"
 
     @pytest.mark.asyncio
-    async def test_watchdog_forces_tool_call_after_text_only_retries(self, loop, mocker):
-        """After repeated text-only iterations, watchdog should inject a tool call."""
+    async def test_watchdog_injects_nudge_then_aborts_after_text_only_retries(self, loop, mocker):
+        """After repeated text-only bash-block responses, watchdog injects recovery nudges
+        and eventually aborts with an error event (no longer forces a specific tool call)."""
         mocker.patch("airecon.proxy.agent.loop.get_system_prompt", return_value="SYS")
         mocker.patch.object(loop, "_scan_workspace_state", return_value="")
         await loop.initialize(target="test.com", user_message="start recon test.com")
@@ -331,12 +333,21 @@ class TestLoopStreamingWithMockedOllama:
         events = []
         async for event in loop.process_message("continue recon test.com"):
             events.append(event)
-            if event.type == "tool_start":
-                break
 
+        # Multiple stream calls should have happened (retry + nudge cycles)
         assert stream_calls >= 3
-        tool_start = next(e for e in events if e.type == "tool_start")
-        assert tool_start.data.get("tool") in ("execute", "list_files")
+        # The loop should have aborted with an error after exhausting watchdog attempts
+        error_events = [e for e in events if e.type == "error"]
+        assert error_events, "Expected watchdog to abort with an error event"
+        assert "stuck" in error_events[0].data.get("message", "").lower() or \
+               "text-only" in error_events[0].data.get("message", "").lower() or \
+               "watchdog" in error_events[0].data.get("message", "").lower()
+        # Loop emits error then done — verify error comes before final done
+        event_types = [e.type for e in events]
+        assert "error" in event_types, "watchdog abort must emit an error event"
+        error_idx = next(i for i, e in enumerate(events) if e.type == "error")
+        remaining = [e.type for e in events[error_idx + 1:]]
+        assert remaining in ([], ["done"]), f"unexpected events after error: {remaining}"
 
 
 class TestAdvancedStateOrchestration:

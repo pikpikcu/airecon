@@ -1,9 +1,10 @@
 import json
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from unittest.mock import patch, MagicMock
 from airecon.proxy.agent.executors import _ExecutorMixin
+from airecon.proxy.agent.validators import _ValidatorMixin
 
 
 class DummyState:
@@ -13,7 +14,7 @@ class DummyState:
         self.tool_counts = {"exec": 0, "total": 0}
 
 
-class DummyAgent(_ExecutorMixin):
+class DummyAgent(_ExecutorMixin, _ValidatorMixin):
     def __init__(self):
         self.state = DummyState()
         self._executed_tool_counts = {}
@@ -85,22 +86,74 @@ async def test_execute_report_tool(agent, mocker):
     assert result["finding_id"] == "VULN-1"
 
 
-# ── schemathesis success flag fix ─────────────────────────────────────────────
+# ── schemathesis behavioral tests ─────────────────────────────────────────────
 
-def test_schemathesis_res_dict_uses_success_variable():
-    """res_dict['success'] must use the computed variable, not hardcoded True."""
-    src = Path(__file__).parents[3] / "airecon/proxy/agent/executors.py"
-    text = src.read_text()
-    start = text.find("schemathesis_fuzz error:")
-    block = text[text.rfind("res_dict = {", 0, start):start]
-    assert '"success": success' in block
+@pytest.mark.asyncio
+async def test_schemathesis_malformed_schema_url_dict(agent, mocker):
+    """schema_url=dict must not crash — _str_arg coerces to '' → early return."""
+    success, duration, result, _ = await agent._execute_schemathesis_tool(
+        "schemathesis_fuzz", {"schema_url": {"url": "http://evil"}}
+    )
+    assert success is False
+    assert "schema_url" in result.get("error", "")
 
 
-def test_schemathesis_res_dict_error_on_failure():
-    """When success is False, res_dict must include an error key."""
-    src = Path(__file__).parents[3] / "airecon/proxy/agent/executors.py"
-    text = src.read_text()
-    assert 'res_dict["error"]' in text or "res_dict['error']" in text
+@pytest.mark.asyncio
+async def test_schemathesis_malformed_max_examples(agent, mocker):
+    """max_examples='abc' must fall back to 30, not raise ValueError."""
+    mock_exec = AsyncMock(return_value={
+        "success": True, "stdout": "1 PASSED", "result": "1 PASSED",
+        "error": "", "stderr": "",
+    })
+    agent.engine = mocker.MagicMock()
+    agent.engine.execute_tool = mock_exec
+
+    success, duration, result, _ = await agent._execute_schemathesis_tool(
+        "schemathesis_fuzz",
+        {"schema_url": "http://target/openapi.json", "max_examples": "abc"},
+    )
+    assert success is True
+    called_cmd = mock_exec.call_args[0][1]["command"]
+    assert "--hypothesis-max-examples 30" in called_cmd
+
+
+@pytest.mark.asyncio
+async def test_schemathesis_engine_failure_not_masked(agent, mocker):
+    """engine_ok=False must make success=False even when stdout is non-empty."""
+    mock_exec = AsyncMock(return_value={
+        "success": False,
+        "stdout": "some partial output",
+        "result": "some partial output",
+        "error": "Docker exec failed",
+        "stderr": "",
+    })
+    agent.engine = mocker.MagicMock()
+    agent.engine.execute_tool = mock_exec
+
+    success, duration, result, _ = await agent._execute_schemathesis_tool(
+        "schemathesis_fuzz", {"schema_url": "http://target/openapi.json"}
+    )
+    assert success is False
+    assert "error" in result
+
+
+@pytest.mark.asyncio
+async def test_schemathesis_happy_path(agent, mocker):
+    """Normal successful run reports passes and violations."""
+    output = "PASSED\nPASSED\nFAILED\n"
+    mock_exec = AsyncMock(return_value={
+        "success": True, "stdout": output, "result": output,
+        "error": "", "stderr": "",
+    })
+    agent.engine = mocker.MagicMock()
+    agent.engine.execute_tool = mock_exec
+
+    success, duration, result, _ = await agent._execute_schemathesis_tool(
+        "schemathesis_fuzz", {"schema_url": "http://target/openapi.json"}
+    )
+    assert success is True
+    assert result["violations"] == 1
+    assert result["summary"].startswith("Schemathesis completed: 2 passed")
 
 
 # ── browser_action_timeout from config fix ────────────────────────────────────

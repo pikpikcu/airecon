@@ -1,13 +1,14 @@
 """File preview modal: displays file content with follow-up prompt."""
 
-from pathlib import Path
-from textual.app import ComposeResult
-from textual.containers import Vertical, VerticalScroll, Horizontal
-from textual.screen import ModalScreen
-from textual.widgets import Button, Static, Input
-from textual.message import Message
-from rich.text import Text
 import re
+from pathlib import Path
+
+from rich.text import Text
+from textual.app import ComposeResult
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.message import Message
+from textual.screen import ModalScreen
+from textual.widgets import Button, Input, Static
 
 # Strip ANSI VT100 escape sequences
 _ANSI_ESCAPE_RE = re.compile(r'\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')

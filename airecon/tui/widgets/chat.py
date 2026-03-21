@@ -1,16 +1,15 @@
 """Chat widget: displays conversation with clean CLI-style rendering."""
 
 from __future__ import annotations
-from textual.containers import Horizontal
 
-from textual.app import ComposeResult
-from textual.widgets import Static, LoadingIndicator, RichLog
-from textual.containers import VerticalScroll, Vertical
-from textual.reactive import reactive
-from textual.message import Message
-from rich.text import Text
 import re
 
+from rich.text import Text
+from textual.app import ComposeResult
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.message import Message
+from textual.reactive import reactive
+from textual.widgets import LoadingIndicator, RichLog, Static
 
 # ── ANSI Stripper ──
 _ANSI_RE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
