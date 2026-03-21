@@ -175,7 +175,13 @@ class DockerEngine:
 
         # Run apt update silently in the background so future "apt install"
         # commands don't fail due to stale repos
-        asyncio.create_task(self.execute("sudo apt-get update -y -qq"))
+        async def _bg_apt_update() -> None:
+            try:
+                await self.execute("sudo apt-get update -y -qq")
+            except Exception as exc:
+                logger.debug("Background apt-get update failed (non-fatal): %s", exc)
+
+        asyncio.create_task(_bg_apt_update())
 
         return True
 
@@ -531,6 +537,20 @@ class DockerEngine:
                 logger.debug("Process already terminated, nothing to kill")
             except Exception as _e:
                 logger.debug("Could not kill cancelled process: %s", _e)
+
+        # Straggler check: a new process may have been registered between the
+        # lock release above and the kill loop completing.  Kill any such
+        # stragglers before proceeding to the container-level pkill.
+        async with self._proc_lock:
+            stragglers = list(self._active_procs)
+            self._active_procs.clear()
+        for proc in stragglers:
+            try:
+                if proc.returncode is None:
+                    proc.kill()
+                    logger.debug("Killed straggler process registered during force_stop()")
+            except Exception as _e:
+                logger.debug("Could not kill straggler process: %s", _e)
 
         # 2. Kill ALL user processes inside the container (SIGTERM then
         # SIGKILL)

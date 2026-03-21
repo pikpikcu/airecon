@@ -776,3 +776,92 @@ PathCompleter ListItem > Label {
 PathCompleter ListItem.--highlight > Label {
     color: #00d4aa;
 }
+
+/* ═══════════════════════════════════════════
+   Startup Screen
+   ═══════════════════════════════════════════ */
+
+StartupScreen {
+    align: center middle;
+    background: #0a0e17;
+}
+
+#startup-box {
+    width: 60;
+    height: auto;
+    border: round #00d4aa;
+    background: #0d1117;
+    padding: 1 0;
+}
+
+#startup-logo {
+    height: auto;
+    padding: 0 0 1 0;
+    color: #00d4aa;
+}
+
+#startup-divider {
+    height: 1;
+    color: #21262d;
+    margin-bottom: 1;
+}
+
+.startup-step {
+    height: 1;
+    padding: 0;
+    margin: 0;
+}
+
+#startup-status {
+    height: auto;
+    color: #8b949e;
+    padding-top: 1;
+}
+
+#startup-session {
+    height: 1;
+    color: #f59e0b;
+    padding-top: 1;
+}
+
+/* ═══════════════════════════════════════════
+   Quit Confirmation Modal
+   ═══════════════════════════════════════════ */
+
+QuitConfirmScreen {
+    align: center middle;
+}
+
+QuitConfirmScreen > Vertical {
+    background: #161b22;
+    border: heavy #00d4aa;
+    width: 44;
+    height: auto;
+    padding: 1 2;
+}
+
+QuitConfirmScreen Label#title {
+    text-style: bold;
+    color: #f59e0b;
+    width: 1fr;
+    text-align: center;
+    padding-bottom: 1;
+}
+
+QuitConfirmScreen Label#msg {
+    color: #8b949e;
+    width: 1fr;
+    text-align: center;
+    padding-bottom: 1;
+}
+
+QuitConfirmScreen Horizontal {
+    align: center middle;
+    height: auto;
+    padding-top: 1;
+}
+
+QuitConfirmScreen Button {
+    width: 14;
+    margin: 0 1;
+}

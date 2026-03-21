@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import argparse
-import sys
 import logging
+import sys
 
 from airecon._version import __version__
 
@@ -120,6 +120,7 @@ def _run_proxy(args) -> None:
     import atexit
     atexit.register(_unload_model_safely)
     import os
+
     import airecon.proxy.config as _cfg_module
 
     # Set env vars BEFORE resetting the singleton so they are picked up
@@ -138,145 +139,22 @@ def _run_proxy(args) -> None:
 
 
 def _run_tui(args) -> None:
-    """Start TUI (optionally with embedded proxy)."""
+    """Start TUI — startup checks run inside the TUI itself."""
     import atexit
-    atexit.register(_unload_model_safely)
-    import threading
     import os
 
-    # If a session ID was requested, pass it via env var so the proxy picks it
-    # up
-    if getattr(args, "session", None):
-        os.environ["AIRECON_SESSION_ID"] = args.session
-        print(f"[AIRecon] Resuming session: {args.session}", flush=True)
+    atexit.register(_unload_model_safely)
 
-    # Ensure config is loaded
     from airecon.proxy.config import get_config
     cfg = get_config()
 
-    # ----- DOCKER AUTO-BUILD CHECK -----
-    import asyncio
-    from airecon.proxy.docker import DockerEngine
-
-    print("\n[AIRecon] Checking Docker Sandbox environment...", flush=True)
-    engine = DockerEngine()
-    build_success = asyncio.run(engine.ensure_image())
-    if not build_success:
-        print(
-            "\n\033[31m[!] Critical: Failed to find or build the Docker image ('airecon-sandbox').\033[0m")
-        print("Please check Docker is installed and running, or build manually:")
-        print(f"  docker build -t airecon-sandbox {engine.DOCKERFILE_DIR}")
-        sys.exit(1)
-    # -----------------------------------
-
-    # ----- SEARXNG AUTO-START CHECK -----
-    from airecon.proxy.searxng import SearXNGManager
-
-    _should_manage_searxng = (
-        not cfg.searxng_url
-        or "localhost" in cfg.searxng_url
-        or "127.0.0.1" in cfg.searxng_url
-    )
-    if _should_manage_searxng:
-        print("\n[AIRecon] Checking SearXNG search engine...", flush=True)
-        _searxng_mgr = SearXNGManager()
-        _searxng_url = asyncio.run(_searxng_mgr.ensure_running())
-        if _searxng_url:
-            # Auto-write searxng_url into user config if it was empty
-            if not cfg.searxng_url:
-                _set_config_value("searxng_url", _searxng_url)
-            print(f"[AIRecon] SearXNG ready at {_searxng_url}", flush=True)
-        else:
-            print(
-                "[AIRecon] SearXNG failed to start — falling back to DuckDuckGo.",
-                flush=True,
-            )
-    # ------------------------------------
-
-    if not args.no_proxy:
-        # Start proxy in background thread
-        _proxy_error: list[str] = []
-
-        def start_proxy():
-            import logging
-            import traceback
-            # Suppress proxy logs (they go to stderr and mess with TUI)
-            # We use CRITICAL to be absolutely sure nothing leaks
-            logging.getLogger("airecon").setLevel(logging.CRITICAL)
-            logging.getLogger("uvicorn").setLevel(logging.CRITICAL)
-            logging.getLogger("uvicorn.access").setLevel(logging.CRITICAL)
-            logging.getLogger("uvicorn.error").setLevel(logging.CRITICAL)
-            logging.getLogger("httpx").setLevel(logging.CRITICAL)
-            logging.getLogger("httpcore").setLevel(logging.CRITICAL)
-
-            try:
-                from airecon.proxy.server import run_server
-                run_server()
-            except Exception as e:
-                _proxy_error.append(str(e))
-                with open("airecon_proxy_crash.log", "w") as f:
-                    traceback.print_exc(file=f)
-
-        proxy_thread = threading.Thread(target=start_proxy, daemon=True)
-        proxy_thread.start()
-
-        # Wait for proxy to be ready (MCP connection takes ~5s)
-        import time
-        import urllib.request
-
-        # Use config or args for URL
-        proxy_url = args.proxy_url.rstrip("/")
-        # If user didn't override proxy_url, use config default
-        if args.proxy_url == "http://127.0.0.1:3000":
-            proxy_url = f"http://{cfg.proxy_host}:{cfg.proxy_port}"
-
-        print(f"Starting AIRecon proxy at {proxy_url}... ", end="", flush=True)
-
-        for attempt in range(40):  # up to 20 seconds
-            # Check if proxy thread crashed immediately
-            if _proxy_error:
-                print(f"\n[!] Proxy failed to start: {_proxy_error[0]}")
-                print("    Check airecon_proxy_crash.log for details.")
-                sys.exit(1)
-
-            try:
-                req = urllib.request.urlopen(  # nosec B310 - localhost proxy only
-                    f"{proxy_url}/api/status", timeout=2)
-                import json
-                data = json.loads(req.read())
-                # Proxy is responding — services may still be initializing
-                docker_ok = data.get("docker", {}).get("connected", False)
-                ollama_ok = data.get("ollama", {}).get("connected", False)
-                if docker_ok and ollama_ok:
-                    print("ready!")
-                else:
-                    print("proxy running.")
-                break
-            except Exception:
-                print(".", end="", flush=True)
-                time.sleep(0.5)
-        else:
-            if _proxy_error:
-                print(f"\n[!] Proxy crashed: {_proxy_error[0]}")
-                print("    Check airecon_proxy_crash.log for details.")
-                sys.exit(1)
-            print(" (proxy did not respond — check for port conflicts)")
-
-    from airecon.tui.app import AIReconApp
-
-    # If using custom config, the proxy_url arg might need to follow config unless overridden
-    # But for TUI client, args.proxy_url is the target.
-    # Logic: If config changed port, TUI should know.
-    # We used args.proxy_url default "http://127.0.0.1:3000".
-    # If config says port 4000, we should probably use that unless user
-    # explicitly said --proxy-url ...
+    if getattr(args, "session", None):
+        os.environ["AIRECON_SESSION_ID"] = args.session
 
     final_proxy_url = args.proxy_url
     if final_proxy_url == "http://127.0.0.1:3000" and not args.no_proxy:
-        # Use config values if default was kept
         final_proxy_url = f"http://{cfg.proxy_host}:{cfg.proxy_port}"
 
-    # logs globally before starting anything
     logging.getLogger("uvicorn").setLevel(logging.CRITICAL)
     logging.getLogger("uvicorn.access").setLevel(logging.CRITICAL)
     logging.getLogger("uvicorn.error").setLevel(logging.CRITICAL)
@@ -284,11 +162,16 @@ def _run_tui(args) -> None:
     logging.getLogger("httpcore").setLevel(logging.CRITICAL)
     logging.getLogger("multipart").setLevel(logging.CRITICAL)
 
-    app = AIReconApp(proxy_url=final_proxy_url)
+    from airecon.tui.app import AIReconApp
+
+    app = AIReconApp(
+        proxy_url=final_proxy_url,
+        no_proxy=args.no_proxy,
+        session_id=getattr(args, "session", None),
+    )
     try:
         app.run()
     except Exception as e:
-        # If TUI crashes, we want to see why, but maybe to a file
         with open("airecon_crash.log", "w") as f:
             import traceback
             traceback.print_exc(file=f)
@@ -300,12 +183,13 @@ def _run_tui(args) -> None:
 def _run_status(args) -> None:
     """Check status of all services."""
     import asyncio
-    import httpx
     import re as _re
 
+    import httpx
+
     async def check():
-        from airecon.proxy.config import get_config
         from airecon._version import __version__ as version
+        from airecon.proxy.config import get_config
         cfg = get_config()
 
         # Colors
@@ -471,105 +355,152 @@ def _set_config_value(key: str, value: str) -> None:
 
 
 def _unload_model_safely():
-    """Attempt to unload model safely on exit using curl (most robust)."""
+    """Styled shutdown summary + Docker cleanup + Ollama VRAM unload."""
+    import json
+    import shutil
+    import subprocess  # nosec B404
+    import urllib.request
+
+    # ── ANSI palette ──────────────────────────────────────────────
+    C = "\033[36m"   # cyan
+    G = "\033[32m"   # green
+    Y = "\033[33m"   # yellow
+    R = "\033[31m"   # red
+    D = "\033[2m"    # dim
+    B = "\033[1m"    # bold
+    X = "\033[0m"    # reset
+    W = 54           # box inner width
+
+    def _row(content: str = "") -> str:
+        import re
+        visible = len(re.sub(r"\033\[[0-9;]*m", "", content))
+        pad = max(0, W - visible)
+        return f"  {C}║{X} {content}{' ' * pad}{C}║{X}"
+
+    def _divider() -> None:
+        print(f"  {C}╠{'═' * (W + 2)}╣{X}")
+
+    def _fmt_tokens(n: int) -> str:
+        if n >= 1_000_000_000:
+            return f"{n / 1_000_000_000:.3f}B"
+        if n >= 1_000_000:
+            return f"{n / 1_000_000:.3f}M"
+        if n >= 1_000:
+            return f"{n / 1_000:.1f}k"
+        return str(n)
+
     try:
         from airecon.proxy.config import get_config
-        import shutil
-        import subprocess  # nosec B404
-        import json
+        cfg = get_config()
+    except BaseException:
+        return
 
-        # Try to get loaded config, or load default
-        try:
-            cfg = get_config()
-        except BaseException:
-            # Fallback if config completely fails
-            return
+    proxy_url = f"http://{cfg.proxy_host}:{cfg.proxy_port}"
+    model = cfg.ollama_model
+    _docker = shutil.which("docker") or "docker"
 
-        _docker = shutil.which("docker") or "docker"
-        url = cfg.ollama_url.rstrip("/")
-        model = cfg.ollama_model
+    # ── Fetch session stats from proxy (daemon still alive) ───────
+    session_info: dict = {}
+    agent_stats: dict = {}
+    try:
+        resp = urllib.request.urlopen(  # nosec B310
+            f"{proxy_url}/api/status", timeout=1)
+        data = json.loads(resp.read())
+        agent_stats = data.get("agent", {})
+    except Exception:  # nosec B110 - best-effort
+        pass
+    try:
+        resp2 = urllib.request.urlopen(  # nosec B310
+            f"{proxy_url}/api/session/current", timeout=1)
+        session_info = json.loads(resp2.read()).get("session") or {}
+    except Exception:  # nosec B110 - best-effort
+        pass
 
-        print("\n[AIRecon] Cleaning up Docker Sandbox...", end="", flush=True)
+    token_usage = agent_stats.get("token_usage", {})
+    tool_counts = agent_stats.get("tool_counts", {})
+    cumulative_tokens = token_usage.get("cumulative", token_usage.get("used", 0))
+    exec_count = tool_counts.get("execute", 0)
+    total_tools = sum(tool_counts.values()) if tool_counts else 0
+
+    # ── Print shutdown box ────────────────────────────────────────
+    print()
+    print(f"  {C}╔{'═' * (W + 2)}╗{X}")
+    print(_row())
+    print(_row(f"  {B}Session Summary{X}"))
+    print(_row())
+    _divider()
+    print(_row())
+
+    if session_info:
+        sid = session_info.get("session_id", "—")
+        target = session_info.get("target") or "—"
+        scans = session_info.get("scan_count", 0)
+        subdomains = session_info.get("subdomains", 0)
+        live_hosts = session_info.get("live_hosts", 0)
+        vulns = session_info.get("vulnerabilities", 0)
+        print(_row(f"  {D}Session{X}      {C}{sid}{X}"))
+        print(_row(f"  {D}Target{X}       {B}{target}{X}"))
+        print(_row(f"  {D}Scans{X}        {Y}{scans}{X}"))
+        if subdomains:
+            print(_row(f"  {D}Subdomains{X}   {G}{subdomains}{X}"))
+        if live_hosts:
+            print(_row(f"  {D}Live Hosts{X}   {G}{live_hosts}{X}"))
+        if vulns:
+            print(_row(f"  {D}Findings{X}     {R}{vulns}{X}"))
+    else:
+        print(_row(f"  {D}No active session{X}"))
+
+    print(_row())
+    _divider()
+    print(_row())
+
+    tok_color = G if cumulative_tokens < 1_000_000 else (Y if cumulative_tokens < 5_000_000 else R)
+    print(_row(f"  {D}Tokens used{X}  {tok_color}{_fmt_tokens(cumulative_tokens)}{X}"))
+    print(_row(f"  {D}Tool calls{X}   {Y}{total_tools}{X}  {D}(exec: {exec_count}){X}"))
+
+    print(_row())
+    _divider()
+    print(_row())
+
+    # ── Cleanup steps ─────────────────────────────────────────────
+    print(_row(f"  {D}Stopping sandbox container…{X}"), end="\r", flush=True)
+    subprocess.run(  # nosec B603
+        [_docker, "rm", "-f", "airecon-sandbox-active"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+    print(_row(f"  {G}✓{X} Docker Sandbox       {D}stopped{X}"))
+
+    try:
+        if not cfg.searxng_url or "localhost" in cfg.searxng_url or "127.0.0.1" in cfg.searxng_url:
+            from airecon.proxy.searxng import CONTAINER_NAME as _SX_NAME
+            subprocess.run(  # nosec B603
+                [_docker, "rm", "-f", _SX_NAME],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+            print(_row(f"  {G}✓{X} SearXNG              {D}stopped{X}"))
+    except Exception:  # nosec B110
+        pass
+
+    print(_row(f"  {D}Unloading model…{X}"), end="\r", flush=True)
+    try:
+        ollama_url = cfg.ollama_url.rstrip("/")
+        cmd = [
+            "curl", "-s", "-X", "POST", f"{ollama_url}/api/generate",
+            "-d", json.dumps({"model": model, "keep_alive": 0}),
+        ]
         subprocess.run(  # nosec B603
-            [_docker, "rm", "-f", "airecon-sandbox-active"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=5)
-        print("Done.")
-
-        # Remove SearXNG container on exit (image is kept, so next start is
-        # fast)
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+    except Exception:  # nosec B110
         try:
-            from airecon.proxy.config import get_config as _gc
-            _cfg = _gc()
-            if not _cfg.searxng_url or "localhost" in _cfg.searxng_url or "127.0.0.1" in _cfg.searxng_url:
-                from airecon.proxy.searxng import CONTAINER_NAME as _SX_NAME
-                subprocess.run(  # nosec B603
-                    [_docker, "rm", "-f", _SX_NAME],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10,
-                )
+            data = json.dumps({"model": model, "keep_alive": 0}).encode()
+            req = urllib.request.Request(
+                f"{cfg.ollama_url.rstrip('/')}/api/generate", data=data, method="POST")
+            urllib.request.urlopen(req, timeout=2)  # nosec B310
         except Exception:  # nosec B110
             pass
+    print(_row(f"  {G}✓{X} Ollama model         {D}VRAM released{X}"))
 
-        print(
-            f"[AIRecon] Unloading model '{model}' (releasing VRAM)... ",
-            end="",
-            flush=True)
-
-        # Construct curl command
-        # curl -X POST http://localhost:11434/api/generate -d '{"model": "...",
-        # "keep_alive": 0}'
-        cmd = [
-            "curl", "-s", "-X", "POST", f"{url}/api/generate",
-            "-d", json.dumps({"model": model, "keep_alive": 0})
-        ]
-
-        # Run with timeout — cmd is hardcoded with no user input
-        subprocess.run(  # nosec B603
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=2)
-        print("Done.")
-
-    except Exception:
-        try:
-            import urllib.request
-            import json
-
-            print(
-                "\n[AIRecon] Cleaning up Docker Sandbox...",
-                end="",
-                flush=True)
-            import shutil as _shutil
-            import subprocess  # nosec B404
-            _docker2 = _shutil.which("docker") or "docker"
-            subprocess.run(  # nosec B603
-                [_docker2, "rm", "-f", "airecon-sandbox-active"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=5)
-            print("Done.")
-
-            print(
-                "[AIRecon] Unloading model (releasing VRAM)... ",
-                end="",
-                flush=True)
-
-            # Fetch config again strictly for the urllib try block
-            from airecon.proxy.config import get_config
-            cfg = get_config()
-            url = cfg.ollama_url.rstrip("/")
-            model = cfg.ollama_model
-
-            data = json.dumps(
-                {"model": model, "keep_alive": 0}).encode("utf-8")
-            req = urllib.request.Request(
-                f"{url}/api/generate", data=data, method="POST")
-            urllib.request.urlopen(req, timeout=2)  # nosec B310 - localhost only
-            print("Done (via urllib).")
-        except Exception:
-            print("Failed.")
+    print(_row())
+    print(f"  {C}╚{'═' * (W + 2)}╝{X}")
+    print()
 
 
 def _run_list_sessions() -> None:
@@ -617,8 +548,8 @@ def _run_list_sessions() -> None:
 
 def _run_clean(args) -> None:
     """Clean Docker build cache, orphan containers, and unused volumes."""
-    import subprocess  # nosec B404
     import shutil
+    import subprocess  # nosec B404
 
     CYAN = "\033[96m"
     GREEN = "\033[92m"

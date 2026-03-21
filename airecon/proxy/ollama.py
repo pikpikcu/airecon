@@ -8,9 +8,21 @@ import threading
 from typing import Any, AsyncIterator
 
 import ollama
+
 from .config import get_config
 
 logger = logging.getLogger("airecon.ollama")
+
+# Ollama errors that must NOT be retried — retrying wastes 14s and the
+# model/context state won't change between attempts.
+_PERMANENT_OLLAMA_ERRORS: frozenset[str] = frozenset([
+    "model not found",
+    "model is not loaded",
+    "unsupported model",
+    "context length exceeded",
+    "out of memory",
+    "no gpu",
+])
 
 
 def _detect_model_capabilities_from_show(
@@ -311,6 +323,11 @@ class OllamaClient:
                             "Try: `systemctl restart ollama` or reduce `ollama_num_ctx` in config.",
                             status_code=e.status_code,
                         )
+                    # Permanent errors must not be retried
+                    err_lower = err_str.lower()
+                    if any(p in err_lower for p in _PERMANENT_OLLAMA_ERRORS):
+                        logger.error("Permanent Ollama error (not retrying): %s", err_str)
+                        raise
                     # Other ResponseErrors (model loading, transient) → retry
                     if attempt < max_retries:
                         wait = 2 ** (attempt + 1)  # 2s, 4s, 8s

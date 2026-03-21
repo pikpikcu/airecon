@@ -15,8 +15,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
-from .agent import AgentLoop
 from airecon._version import __version__ as _version
+
+from .agent import AgentLoop
 from .config import get_config
 from .docker import DockerEngine
 from .ollama import OllamaClient
@@ -29,16 +30,55 @@ engine: DockerEngine | None = None
 agent: AgentLoop | None = None
 _chat_lock: asyncio.Lock | None = None
 
+# Skills cache — built once at startup, served on every /api/skills request.
+# Skills files don't change at runtime so there is no need to re-scan the
+# filesystem on each call (109 files × read_text = noticeable event-loop block).
+_skills_cache: list[dict] | None = None
+
+
+def _build_skills_cache_sync() -> list[dict]:
+    """Synchronous helper: scan skills dir and extract name/description/category.
+
+    Designed to run in a thread executor so it never blocks the event loop.
+    """
+    skills_dir = Path(__file__).resolve().parent / "skills"
+    if not skills_dir.exists():
+        return []
+    result: list[dict] = []
+    for path in sorted(skills_dir.rglob("*.md")):
+        category = path.parent.name
+        raw_name = path.stem.replace("_", " ").replace("-", " ")
+        name = f"[{category}] {raw_name.title()}"
+        description = ""
+        try:
+            for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+                line = line.strip()
+                if line.startswith("#"):
+                    description = line.lstrip("#").strip()
+                    break
+                if line and not line.startswith("<!--"):
+                    description = line[:120]
+                    break
+        except Exception:  # nosec B110
+            pass
+        result.append({"name": name, "description": description, "category": category})
+    return result
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup/shutdown lifecycle."""
-    global ollama_client, engine, agent, _chat_lock
+    global ollama_client, engine, agent, _chat_lock, _skills_cache
 
     cfg = get_config()
     logger.info(f"Starting AIRecon Proxy on {cfg.proxy_host}:{cfg.proxy_port}")
     logger.info(f"  Ollama: {cfg.ollama_url} (model: {cfg.ollama_model})")
     logger.info(f"  Docker image: {cfg.docker_image}")
+
+    # Pre-build skills cache in thread executor so /api/skills is instant
+    # (109 × read_text on main event loop caused visible TUI lag).
+    _skills_cache = await asyncio.to_thread(_build_skills_cache_sync)
+    logger.info("  Skills cache: %d skills loaded", len(_skills_cache))
 
     # Initialize clients
     ollama_client = OllamaClient()
@@ -170,38 +210,16 @@ async def list_tools() -> JSONResponse:
 
 @app.get("/api/skills")
 async def list_skills() -> JSONResponse:
-    """List available skill .md files grouped by category."""
-    skills_dir = Path(__file__).resolve().parent / "skills"
-    if not skills_dir.exists():
-        return JSONResponse({"count": 0, "skills": []})
+    """List available skill .md files grouped by category.
 
-    skills = []
-    for path in sorted(skills_dir.rglob("*.md")):
-        category = path.parent.name
-        # Prettify name from filename: "sql_injection" → "SQL Injection"
-        raw_name = path.stem.replace("_", " ").replace("-", " ")
-        name = f"[{category}] {raw_name.title()}"
-
-        # Extract description from first non-empty heading or paragraph
-        description = ""
-        try:
-            for line in path.read_text(
-                    encoding="utf-8", errors="replace").splitlines():
-                line = line.strip()
-                if line.startswith("#"):
-                    description = line.lstrip("#").strip()
-                    break
-                if line and not line.startswith("<!--"):
-                    description = line[:120]
-                    break
-        except Exception:  # nosec B110 - description extraction is best-effort
-            pass
-
-        skills.append({"name": name,
-                       "description": description,
-                       "category": category})
-
-    return JSONResponse({"count": len(skills), "skills": skills})
+    Returns the pre-built cache (populated at startup).  If the cache is
+    missing for any reason (e.g. test environment without lifespan), fall back
+    to building it in a thread executor so the event loop is never blocked.
+    """
+    global _skills_cache
+    if _skills_cache is None:
+        _skills_cache = await asyncio.to_thread(_build_skills_cache_sync)
+    return JSONResponse({"count": len(_skills_cache), "skills": _skills_cache})
 
 
 @app.post("/api/chat", response_model=None)

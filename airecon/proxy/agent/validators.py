@@ -64,12 +64,12 @@ def extract_paths_from_command(command: str) -> list[str]:
     choice to avoid false positives on host/URL arguments.
     """
     patterns = [
-        r"-o\s+(\S+)",        # -o /path/to/output
-        r"-output\s+(\S+)",   # -output /path
-        r">\s*(\S+)",         # > /path (redirect)
-        r">>\s*(\S+)",        # >> /path (append)
-        r"-t\s+(\S+)",        # -t /path/to/targets
-        r"--targets\s+(\S+)", # --targets /path
+        r"-o\s+(\S+)",              # -o /path/to/output
+        r"-output\s+(\S+)",         # -output /path
+        r">>\s*(\S+)",              # >> /path (append) — must come BEFORE single >
+        r"(?<!>)>(?!>)\s*(\S+)",   # > /path (redirect) — excludes >>
+        r"-t\s+(\S+)",              # -t /path/to/targets
+        r"--targets\s+(\S+)",       # --targets /path
     ]
     paths: list[str] = []
     for pattern in patterns:
@@ -221,6 +221,17 @@ _HTTP_EVIDENCE_PATTERNS = {
 
 class _ValidatorMixin:
 
+    @staticmethod
+    def _str_arg(arguments: dict[str, Any], key: str) -> str:
+        """Return the string value of *key* or '' if missing or not a str.
+
+        Guards against AttributeError when malformed LLM tool-call arguments
+        pass a non-string type (e.g. a dict or int) for a field that is
+        expected to be a string.
+        """
+        val = arguments.get(key)
+        return val if isinstance(val, str) else ""
+
     _VALID_BROWSER_ACTIONS = frozenset({
         "launch", "goto", "click", "type", "scroll_down", "scroll_up", "back",
         "forward", "new_tab", "switch_tab", "close_tab", "wait", "execute_js",
@@ -244,38 +255,36 @@ class _ValidatorMixin:
                 return False, f"Command rejected: {danger_msg}"
 
         elif tool_name == "browser_action":
-            action = arguments.get("action", "")
+            action = self._str_arg(arguments, "action")
             if action not in self._VALID_BROWSER_ACTIONS:
                 return False, (
                     f"Invalid browser action '{action}'. "
                     f"Valid actions: {sorted(self._VALID_BROWSER_ACTIONS)}"
                 )
-            if action in ("goto", "new_tab") and not arguments.get(
-                    "url", "").strip():
+            if action in ("goto", "new_tab") and not self._str_arg(arguments, "url").strip():
                 return False, f"browser_action '{action}' requires a non-empty 'url'."
-            if action == "click" and not arguments.get(
-                    "coordinate", "").strip():
+            if action == "click" and not self._str_arg(arguments, "coordinate").strip():
                 return False, "browser_action 'click' requires 'coordinate' (format: 'x,y')."
-            if action == "type" and arguments.get("text") is None:
-                return False, "browser_action 'type' requires a 'text' argument."
-            if action == "switch_tab" and not arguments.get(
-                    "tab_id", "").strip():
+            if action == "type" and not isinstance(arguments.get("text"), str):
+                return False, "browser_action 'type' requires a 'text' string argument."
+            if action == "switch_tab" and not self._str_arg(arguments, "tab_id").strip():
                 return False, "browser_action 'switch_tab' requires 'tab_id'."
-            if action == "press_key" and not arguments.get("key", "").strip():
+            if action == "press_key" and not self._str_arg(arguments, "key").strip():
                 return False, "browser_action 'press_key' requires 'key'."
 
         elif tool_name == "web_search":
-            if not arguments.get("query", "").strip():
+            if not self._str_arg(arguments, "query").strip():
                 return False, "'query' must be a non-empty string."
 
         elif tool_name == "create_file":
-            if not arguments.get("path", "").strip():
+            path_str = self._str_arg(arguments, "path")
+            if not path_str.strip():
                 return False, "'path' must be a non-empty string."
             if "content" not in arguments:
                 return False, "'content' argument is required."
             # Block writing security reports as markdown files — must use
             # create_vulnerability_report
-            path_lower = arguments["path"].strip().lower()
+            path_lower = path_str.strip().lower()
             _REPORT_NAMES = (
                 "final_report", "report", "vuln", "vulnerability", "finding",
                 "assessment", "security_report", "pentest_report", "summary_report",
@@ -290,7 +299,7 @@ class _ValidatorMixin:
                 )
 
         elif tool_name == "read_file":
-            if not arguments.get("path", "").strip():
+            if not self._str_arg(arguments, "path").strip():
                 return False, "'path' must be a non-empty string."
             if "offset" in arguments:
                 try:
@@ -309,12 +318,36 @@ class _ValidatorMixin:
         elif tool_name == "list_files":
             pass  # path is optional; defaults to target root
 
+        elif tool_name in ("caido_send_request", "caido_automate"):
+            host_raw = self._str_arg(arguments, "host").removeprefix("https://").removeprefix("http://").rstrip("/")
+            if not host_raw.strip():
+                return False, (
+                    f"'{tool_name}' requires a non-empty 'host' (e.g. 'target.com', not a full URL)."
+                )
+            if tool_name == "caido_automate":
+                if not self._str_arg(arguments, "raw_http").strip():
+                    return False, "'caido_automate' requires 'raw_http' with §FUZZ§ marker."
+                if not arguments.get("payloads"):
+                    return False, "'caido_automate' requires a non-empty 'payloads' list."
+
+        elif tool_name == "schemathesis_fuzz":
+            if not self._str_arg(arguments, "schema_url").strip():
+                return False, "'schema_url' is required for schemathesis_fuzz."
+            raw_examples = arguments.get("max_examples")
+            if raw_examples is not None:
+                try:
+                    int(raw_examples)
+                except (TypeError, ValueError):
+                    return False, (
+                        f"'max_examples' must be an integer, got {type(raw_examples).__name__}."
+                    )
+
         elif tool_name == "create_vulnerability_report":
-            poc_code = arguments.get("poc_script_code", "").strip()
-            poc_desc = arguments.get("poc_description", "").strip()
-            title = arguments.get("title", "").strip()
-            technical = arguments.get("technical_analysis", "").strip()
-            is_ctf = bool(arguments.get("flag", "").strip())
+            poc_code = self._str_arg(arguments, "poc_script_code").strip()
+            poc_desc = self._str_arg(arguments, "poc_description").strip()
+            title = self._str_arg(arguments, "title").strip()
+            technical = self._str_arg(arguments, "technical_analysis").strip()
+            is_ctf = bool(self._str_arg(arguments, "flag").strip())
 
             if not poc_code:
                 return False, (

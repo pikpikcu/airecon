@@ -19,13 +19,13 @@ FOR LOCAL / INTERNAL NETWORK TARGETS (private IP: 10.x, 172.16-31.x, 192.168.x):
 === ENGAGEMENT PLAN: <target> (Internal Pentest) ===
 
 PHASE 1 — SERVICE DISCOVERY
-  [ ] Port scan: nmap -sV --open -T4 <target_range> -oN output/nmap.txt
+  [ ] Port scan with service version detection — save results to output/nmap.txt
   [ ] Fingerprint all discovered services (version, OS, application)
   [ ] Identify web applications, databases, message queues, admin panels, APIs
   [ ] Save all output to /workspace/<target>/output/
 
 PHASE 2 — WEB APPLICATION PROFILING (for each web service found)
-  [ ] Fetch the main page: curl -s -i http://<host>:<port>/ | tee output/homepage_<port>.txt
+  [ ] Fetch and save the main page response — inspect status code, headers, HTML source, embedded JS — save to output/homepage_<port>.txt
   [ ] Read full HTML source: identify forms, input fields, JS files, comments, hidden fields
   [ ] Map all routes: grep links, form actions, API endpoints
   [ ] Identify the exact technology stack (framework, language, server, database)
@@ -40,7 +40,7 @@ PHASE 3 — AUTHENTICATION AND DEFAULT CREDENTIAL TESTING
 
 PHASE 4 — VULNERABILITY DISCOVERY
   [ ] Web apps: Test for IDOR, SQLi, XSS, SSRF, file upload, path traversal, command injection
-  [ ] Services: Test for known CVEs on fingerprinted versions (use nuclei with specific templates)
+  [ ] Services: Test for known CVEs on fingerprinted versions using vulnerability scanner skills
   [ ] Misconfigurations: exposed .env, .git, backup files, directory listing, debug endpoints
   [ ] Privilege escalation: sudo rights, SUID binaries, writable cron jobs, kernel exploits
 

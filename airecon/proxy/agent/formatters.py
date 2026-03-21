@@ -211,6 +211,15 @@ class _FormatterMixin:
                 parts.append(
                     "TIP: Network unreachable from container. Check Docker network settings."
                 )
+            elif exit_code == 3 and "curl" in command:
+                parts.append(
+                    "TIP: curl exit code 3 = URL malformed. "
+                    "Special characters in the payload must be percent-encoded:\n"
+                    "  ' → %27   space → %20   ( → %28   ) → %29   & → %26\n"
+                    "OPTION 1 — encode manually: ?lang=test%27%20AND%20SLEEP%283%29--\n"
+                    "OPTION 2 — use --data-urlencode (GET): "
+                    "curl -sk -G https://target.com/path --data-urlencode 'param=payload with spaces'"
+                )
             else:
                 parts.append(
                     "ACTION REQUIRED: Analyze the error. "

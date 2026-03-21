@@ -127,9 +127,9 @@ EFFICIENCY AND TOOL USE:
 - Use Caido as web proxy (port 48080). Route traffic: curl -x http://127.0.0.1:48080 -k
   Set scope via the proxy scope tool at start. Retrieve proxy annotations via the findings tool.
 - Automate repetitive tasks with Python scripts. Batch similar operations.
-- For injection-class testing, use established tools: ffuf, sqlmap, nuclei, arjun, dalfox.
+- For injection-class testing, use your loaded injection and fuzzing skills.
   But only after manually confirming the specific input vector.
 - Use a web search tool for latest WAF bypass payloads and exploit techniques.
 - Implement concurrency in Python (asyncio/aiohttp) for scalable scanning.
-- For blind/OOB vulnerabilities, use interactsh for callback detection.
+- For blind/OOB vulnerabilities, use an OOB callback listener for blind execution detection.
 </efficiency_tactics>

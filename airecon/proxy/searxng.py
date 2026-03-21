@@ -153,11 +153,10 @@ class SearXNGManager:
 
     async def _pull_image(self) -> bool:
         """Pull the SearXNG Docker image."""
-        import sys
         proc = await asyncio.create_subprocess_exec(
             "docker", "pull", SEARXNG_IMAGE,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
         )
         await proc.wait()
         if proc.returncode != 0:

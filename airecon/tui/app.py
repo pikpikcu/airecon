@@ -15,18 +15,48 @@ from typing import Any
 import httpx
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container
-from textual.widgets import Header, Static, DirectoryTree
+from textual.containers import Container, Horizontal, Vertical
+from textual.screen import ModalScreen
+from textual.widgets import Button, DirectoryTree, Header, Label, Static
+
+from airecon.proxy.config import get_workspace_root
 
 from .widgets.chat import ChatPanel, ToolMessageSelected
-from .widgets.workspace import WorkspacePanel, WorkspaceTree
 from .widgets.file_preview import FilePreviewScreen
 from .widgets.input import CommandInput, SlashCompleter
 from .widgets.path_completer import PathCompleter
-from .widgets.status import StatusBar, SkillsModal
-from airecon.proxy.config import get_workspace_root
+from .widgets.status import SkillsModal, StatusBar
+from .widgets.workspace import WorkspacePanel, WorkspaceTree
 
 logger = logging.getLogger("airecon.tui")
+
+
+class QuitConfirmScreen(ModalScreen[bool]):
+    """Confirmation dialog shown when user presses Ctrl+C."""
+
+    DEFAULT_CSS = ""  # Styles defined in styles.tcss
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("  Quit AIRecon?", id="title")
+            yield Label("Active sessions will be saved.", id="msg")
+            with Horizontal():
+                yield Button("Yes, quit", variant="error", id="yes")
+                yield Button("No, stay", variant="success", id="no")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id == "yes")
+
+    def on_key(self, event) -> None:
+        if event.key == "escape":
+            self.dismiss(False)
+        elif event.key == "enter":
+            # Default to "No" on Enter so accidental Enter doesn't quit
+            self.dismiss(False)
+        elif event.key == "y":
+            self.dismiss(True)
+        elif event.key == "n":
+            self.dismiss(False)
 
 
 class AIReconApp(App):
@@ -36,8 +66,8 @@ class AIReconApp(App):
     SUB_TITLE = "AI Security Reconnaissance"
     CSS_PATH = "styles.tcss"
     BINDINGS = [
-        Binding("ctrl+c", "quit", "Quit", show=True, priority=True),
-        Binding("ctrl+q", "quit", "Quit", show=False, priority=True),
+        Binding("ctrl+c", "request_quit", "Quit", show=True, priority=True),
+        Binding("ctrl+q", "request_quit", "Quit", show=False, priority=True),
         Binding("ctrl+l", "clear", "Clear Chat", show=True),
         Binding("ctrl+r", "reset", "Reset", show=True),
         Binding("pageup", "scroll_chat_up", "Scroll Up", show=False),
@@ -64,10 +94,17 @@ class AIReconApp(App):
         if status_bar.skills_used:
             self.push_screen(SkillsModal(status_bar.skills_used))
 
-    def __init__(self, proxy_url: str = "http://127.0.0.1:3000",
-                 **kwargs) -> None:
+    def __init__(
+        self,
+        proxy_url: str = "http://127.0.0.1:3000",
+        no_proxy: bool = False,
+        session_id: str | None = None,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self.proxy_url = proxy_url.rstrip("/")
+        self._no_proxy = no_proxy
+        self._session_id = session_id
         # SSE streaming requires no read timeout; connect still has a limit
         _sse_timeout = httpx.Timeout(connect=10.0, read=None, write=10.0, pool=10.0)
         self._http = httpx.AsyncClient(base_url=self.proxy_url, timeout=_sse_timeout)
@@ -128,8 +165,20 @@ class AIReconApp(App):
         # Focus input
         self.query_one("#command-input", CommandInput).focus()
 
-        # Start background status polling (retries until connected)
-        self._status_task = asyncio.create_task(self._poll_services())
+        # Push startup screen — status polling starts only after it dismisses
+        from .startup import StartupScreen
+
+        def _on_startup_done(success: bool) -> None:
+            self._status_task = asyncio.create_task(self._poll_services())
+
+        self.push_screen(
+            StartupScreen(
+                proxy_url=self.proxy_url,
+                no_proxy=self._no_proxy,
+                session_id=self._session_id,
+            ),
+            _on_startup_done,
+        )
 
     async def on_unmount(self) -> None:
         """Best-effort cleanup for test/exit paths that bypass action_quit."""
@@ -324,6 +373,7 @@ class AIReconApp(App):
                     tokens_used = token_info.get("cumulative", token_info.get("used", 0))
                     tokens_limit = token_info.get("limit", 65536)
                     skills_info = agent_stats.get("skills_used", [])
+                    caido_data = agent_stats.get("caido", {})
 
                     proxy_reachable = True
                     status_bar.set_status(
@@ -335,6 +385,8 @@ class AIReconApp(App):
                         exec_used=exec_used,
                         subagents=subagents,
                         skills=skills_info,
+                        caido_active=caido_data.get("active", False),
+                        caido_findings=caido_data.get("findings_count", 0),
                     )
 
                     if ollama_ok and docker_ok:
@@ -1169,19 +1221,20 @@ class AIReconApp(App):
                     data = resp.json()
                     skills = data.get("skills", [])
 
-                    skills_md = f"AI Skills & Capabilities ({len(skills)} skills)\n\n"
-                    current_category = None
-                    for s in skills:
-                        name = s.get("name", "Unknown")
-                        desc = s.get("description", "")
-                        category = s.get("category", "")
-                        if category != current_category:
-                            current_category = category
-                            skills_md += f"\n[{category.upper()}]\n"
-                        desc_line = f" — {desc}" if desc else ""
-                        skills_md += f"  • {name}{desc_line}\n"
-
-                    chat.add_assistant_message(skills_md)
+                    # Group by category — count only, no per-skill dump.
+                    # Rendering 109+ lines in a Static widget blocks Textual layout.
+                    from collections import Counter
+                    cat_counts: Counter = Counter(
+                        s.get("category", "uncategorized") for s in skills
+                    )
+                    lines = [f"AI Skills & Capabilities — {len(skills)} skills loaded\n"]
+                    for cat, count in sorted(cat_counts.items()):
+                        lines.append(f"  {cat:<22} {count} skills")
+                    lines.append(
+                        "\nSkills are auto-loaded per phase. "
+                        "Active skills shown in status bar."
+                    )
+                    chat.add_assistant_message("\n".join(lines))
                 else:
                     chat.add_error_message("Failed to fetch skills.")
             except Exception as e:
@@ -1289,6 +1342,13 @@ class AIReconApp(App):
         except Exception as e:
             logger.error(f"Failed to send stop signal: {e}")
 
+    def action_request_quit(self) -> None:
+        """Show confirmation dialog before quitting."""
+        def _on_dismiss(confirmed: bool) -> None:
+            if confirmed:
+                self.run_worker(self.action_quit(), exclusive=True)
+        self.push_screen(QuitConfirmScreen(), _on_dismiss)
+
     async def action_quit(self) -> None:
         """Force quit — cancel tasks, unload model, and close."""
         # 0. Send remote STOP signal to kill running tools
@@ -1304,9 +1364,10 @@ class AIReconApp(App):
         # Try to unload model from Ollama DIRECTLY (release VRAM)
         # Using subprocess curl for robustness against event loop shutdown
         try:
-            from airecon.proxy.config import get_config
-            import subprocess  # nosec B404
             import json
+            import subprocess  # nosec B404
+
+            from airecon.proxy.config import get_config
 
             cfg = get_config()
             ollama_url = cfg.ollama_url.rstrip("/")

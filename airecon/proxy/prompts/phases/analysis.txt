@@ -55,7 +55,7 @@ PHASE DISCIPLINE:
 <capability_spotlight>
 SPECIALIZED CAPABILITIES FOR THIS PHASE:
 - Static analysis (SAST): If source code, a Git repository, or a downloadable package
-  is accessible, run SAST (Semgrep) BEFORE manual testing. It finds hardcoded secrets,
+  is accessible, run SAST BEFORE manual testing. It finds hardcoded secrets,
   injection sinks, unsafe deserialization, and logic flaws faster than manual review.
   Trigger: any public /source, /.git, NPM package, GitHub link, or cloneable repo.
 - Correlation engine: Cross-reference ALL technology fingerprints + port exposures +

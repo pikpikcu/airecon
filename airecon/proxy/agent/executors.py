@@ -17,9 +17,9 @@ from ..config import get_config, get_workspace_root
 from ..filesystem import create_file, list_files, read_file
 from ..reporting import create_vulnerability_report
 from ..web_search import web_search
+from .command_parse import extract_primary_binary
 from .models import ToolExecution
 from .session import _is_duplicate_vulnerability
-from .command_parse import extract_primary_binary
 
 if TYPE_CHECKING:
     from ..docker import DockerEngine
@@ -27,6 +27,21 @@ if TYPE_CHECKING:
     from .session import SessionData
 
 logger = logging.getLogger("airecon.agent")
+
+# ---------------------------------------------------------------------------
+# Specialist prompts — loaded from data/tools_meta.json["specialist_prompts"].
+# Tool names live in JSON, not in Python code.
+# ---------------------------------------------------------------------------
+def _load_specialist_prefixes() -> dict[str, str]:
+    try:
+        path = Path(__file__).resolve().parent.parent / "data" / "tools_meta.json"
+        return json.loads(path.read_text(encoding="utf-8")).get("specialist_prompts", {})
+    except Exception as exc:
+        logger.warning("Could not load specialist_prompts from tools_meta.json: %s", exc)
+        return {}
+
+
+_SPECIALIST_PREFIXES: dict[str, str] = _load_specialist_prefixes()
 
 # ---------------------------------------------------------------------------
 # Magic numbers extracted to constants for maintainability
@@ -85,14 +100,6 @@ _RECON_PORT_SCAN_BINS: frozenset[str] = _load_recon_bins(
     frozenset({"nmap", "masscan", "naabu", "rustscan"}),
 )
 
-# Template-based scanners — recognised for phase-aware advanced usage guidance.
-# These tools are NOT blocked; the agent is guided on WHEN and HOW to use them
-# (targeted templates based on detected technologies, not generic mass-scans).
-_TEMPLATE_SCANNER_BINS: frozenset[str] = _load_recon_bins(
-    "template_scanners",
-    frozenset({"nuclei", "nikto", "wpscan", "wapiti", "jaeles"}),
-)
-
 def _load_tool_flag_conflicts() -> dict[str, tuple[list[str], str]]:
     """Load tool flag conflict rules from data/tools_meta.json.
 
@@ -141,10 +148,9 @@ class _ExecutorMixin:
     def _is_recon_phase_repeat_blocked(self, tool_name: str, arguments: dict[str, Any], count: int) -> bool:
         """Return True if a repeated recon execute command should be blocked.
 
-        Recon enumeration binaries are blocked after first successful execution
-        in RECON phase to avoid low-value loops (e.g. subfinder rerun spam).
-        Template scanners (nuclei, nikto…) are NOT blocked — they are guided
-        via _build_nuclei_advanced_hint() to use targeted templates instead.
+        Recon enumeration binaries (subfinder, nmap…) are blocked after the
+        first successful run in RECON phase only. Template scanners are
+        unrestricted — tool selection is left to the LLM via prompt guidance.
         """
         if tool_name != "execute" or count < 1:
             return False
@@ -162,107 +168,6 @@ class _ExecutorMixin:
         binary = self._extract_command_binary(arguments.get("command", ""))
         return binary in _RECON_SUBDOMAIN_BINS or binary in _RECON_PORT_SCAN_BINS
 
-    def _build_nuclei_advanced_hint(self, command: str) -> str | None:
-        """Return an advanced-usage hint when nuclei is called generically.
-
-        Inspects the command for common anti-patterns (no -t, broad -t cves/,
-        no -severity) and returns a guidance string prepended to the tool result.
-        Returns None when the command already looks targeted/advanced.
-
-        Examples of GENERIC (triggers hint):
-          nuclei -l urls.txt
-          nuclei -u https://target.com -t cves/
-          nuclei -l hosts.txt -t cves/ -t exposures/
-
-        Examples of ADVANCED (no hint):
-          nuclei -l live_hosts.txt -t cves/apache/ -t technologies/nginx/ -severity critical,high
-          nuclei -u https://api.target.com -t cves/2024/ -tags sqli,rce -severity critical,high
-          nuclei -l endpoints.txt -t fuzzing/ -t injection/ -severity high -rl 50 -c 20
-        """
-        cmd_lower = command.lower()
-        issues: list[str] = []
-
-        # Check 1: No -t / --templates flag at all
-        has_template = bool(re.search(r'\s--?(?:t|templates?)\s+\S+', command))
-        if not has_template:
-            issues.append("no -t/--templates flag — nuclei will run ALL templates (very slow, low signal)")
-
-        # Check 2: Only broad top-level categories (cves/, exposures/) with no sub-path
-        elif re.search(r'\s--?(?:t|templates?)\s+(cves|exposures|vulnerabilities|technologies)/?\s', cmd_lower):
-            if not re.search(r'\s--?(?:t|templates?)\s+\S+/\S+', command):
-                issues.append(
-                    "template too broad (e.g. -t cves/) — use sub-paths like "
-                    "-t cves/apache/, -t cves/wordpress/, -t cves/2024/"
-                )
-
-        # Check 3: No -severity filter
-        has_severity = bool(re.search(r'\s--?(?:severity|s)\s+\S+', command))
-        if not has_severity:
-            issues.append("no -severity filter — add -severity critical,high to skip low-signal findings")
-
-        # Check 4: No -tags narrowing (when not already using specific template paths)
-        has_tags = bool(re.search(r'\s--?tags?\s+\S+', command))
-        has_specific_template = bool(re.search(r'\s--?(?:t|templates?)\s+\S+/\S+', command))
-        if not has_tags and not has_specific_template:
-            issues.append(
-                "no -tags filter — use -tags to target specific CVE categories "
-                "(e.g. -tags sqli,rce,lfi,ssrf,xss,auth-bypass)"
-            )
-
-        if not issues:
-            return None  # command already looks advanced
-
-        # Build technology context from session if available
-        tech_examples = ""
-        session = getattr(self, "_session", None)
-        if session:
-            technologies = getattr(session, "technologies", {})
-            if technologies:
-                detected = list(technologies.keys())[:5]
-                tech_map = {
-                    "wordpress": "-t cves/wordpress/ -t technologies/wordpress/ -tags wordpress",
-                    "apache": "-t cves/apache/ -t technologies/apache/ -tags apache",
-                    "nginx": "-t technologies/nginx/ -tags nginx",
-                    "php": "-t cves/ -tags php,rce,sqli,lfi -severity critical,high",
-                    "django": "-t cves/ -tags django,python,sqli -severity critical,high",
-                    "spring": "-t cves/spring/ -tags spring,rce,ssrf -severity critical,high",
-                    "joomla": "-t cves/joomla/ -tags joomla -severity critical,high",
-                    "drupal": "-t cves/drupal/ -tags drupal -severity critical,high",
-                    "jenkins": "-t cves/jenkins/ -tags jenkins,rce -severity critical,high",
-                    "tomcat": "-t cves/apache/ -tags tomcat,rce -severity critical,high",
-                    "iis": "-t cves/ -tags iis,windows -severity critical,high",
-                    "grafana": "-t cves/grafana/ -tags grafana -severity critical,high",
-                    "gitlab": "-t cves/gitlab/ -tags gitlab,rce -severity critical,high",
-                    "jira": "-t cves/atlassian/ -tags jira,ssrf -severity critical,high",
-                }
-                hints = [
-                    f"  {tech}: `nuclei -l live_hosts.txt {tech_map[tech.lower()]} -rl 100 -c 25`"
-                    for tech in detected
-                    if tech.lower() in tech_map
-                ]
-                if hints:
-                    tech_examples = "\nTechnology-targeted examples based on discovered tech:\n" + "\n".join(hints)
-
-        hint = (
-            "\n[NUCLEI ADVANCED USAGE GUIDANCE]\n"
-            f"Issues detected in this nuclei call: {'; '.join(issues)}\n"
-            "Advanced nuclei usage requires:\n"
-            "  1. Specific -t paths based on detected technology (not broad -t cves/)\n"
-            "  2. -severity critical,high minimum (skip info/low noise)\n"
-            "  3. -tags to focus on relevant CVE categories (sqli, rce, lfi, ssrf, xss)\n"
-            "  4. -rl (rate-limit) and -c (concurrency) tuned to target responsiveness\n"
-            "  5. Target specific endpoints from output/urls.txt, not all hosts\n"
-            "Advanced examples:\n"
-            "  CVE hunt:   nuclei -l output/live_hosts.txt -t cves/2023/ -t cves/2024/ "
-            "-severity critical,high -rl 150 -c 25 -o output/nuclei_cves.txt\n"
-            "  Injection:  nuclei -l output/urls.txt -t fuzzing/ -t injection/ "
-            "-tags sqli,rce,lfi,ssrf -severity critical,high -rl 100 -c 20\n"
-            "  Auth/Misconfig: nuclei -l output/live_hosts.txt -t exposures/configs/ "
-            "-t default-logins/ -tags misconfig,auth -severity critical,high"
-            f"{tech_examples}\n"
-        )
-        return hint
-
     async def _execute_local_browser_tool(
         self,
         tool_name: str,
@@ -271,14 +176,12 @@ class _ExecutorMixin:
         self._last_output_file = None
 
         args_key = self._normalize_args_for_dedup(tool_name, arguments)
-        allow_repeat = arguments.get("action") in [
-            "wait", "scroll_down", "scroll_up", "get_console_logs", "get_network_logs", "execute_js",
-            "goto", "click", "type", "press_key",
-            # Auth actions may legitimately be called multiple times (e.g. re-login)
-            "login_form", "inject_cookies", "handle_totp",
-        ]
+        # browser_action is inherently stateful — the same action (launch, goto, screenshot,
+        # close, etc.) produces different results at different points in the test workflow.
+        # Dedup does not apply; loop prevention is handled by MAX_TOOL_ITERATIONS.
+        allow_repeat = True  # noqa: SIM210
 
-        if not allow_repeat:
+        if not allow_repeat:  # pragma: no cover — kept for future per-action opt-in
             count = self._executed_tool_counts.get(
                 args_key, 0)
             limit = get_config().agent_repeat_tool_call_limit
@@ -1111,11 +1014,22 @@ class _ExecutorMixin:
         self._last_output_file = None
         start_time = time.time()
 
-        request_id = arguments.get("request_id", "")
-        raw_http = arguments.get("raw_http", "")
-        host = arguments.get("host", "")
-        port = int(arguments.get("port", 443))
-        is_tls = bool(arguments.get("is_tls", True))
+        request_id = self._str_arg(arguments, "request_id")
+        raw_http = self._str_arg(arguments, "raw_http")
+        # Strip protocol prefix if LLM passes full URL instead of bare host
+        host = self._str_arg(arguments, "host").removeprefix("https://").removeprefix("http://").rstrip("/")
+        # is_tls: handle both real bool and string "false"/"true" from LLM
+        _is_tls_raw = arguments.get("is_tls", True)
+        if isinstance(_is_tls_raw, str):
+            is_tls = _is_tls_raw.lower() not in ("false", "0", "no", "")
+        else:
+            is_tls = bool(_is_tls_raw)
+        # Default port: 443 for TLS, 80 for plain — respect explicit override
+        _port_raw = arguments.get("port")
+        try:
+            port = int(_port_raw) if _port_raw is not None else (443 if is_tls else 80)
+        except (TypeError, ValueError):
+            port = 443 if is_tls else 80
 
         try:
             async with asyncio.timeout(60):
@@ -1191,10 +1105,18 @@ class _ExecutorMixin:
         self._last_output_file = None
         start_time = time.time()
 
-        raw_http = arguments.get("raw_http", "")
-        host = arguments.get("host", "")
-        port = int(arguments.get("port", 443))
-        is_tls = bool(arguments.get("is_tls", True))
+        raw_http = self._str_arg(arguments, "raw_http")
+        host = self._str_arg(arguments, "host").removeprefix("https://").removeprefix("http://").rstrip("/")
+        _is_tls_raw = arguments.get("is_tls", True)
+        if isinstance(_is_tls_raw, str):
+            is_tls = _is_tls_raw.lower() not in ("false", "0", "no", "")
+        else:
+            is_tls = bool(_is_tls_raw)
+        _port_raw = arguments.get("port")
+        try:
+            port = int(_port_raw) if _port_raw is not None else (443 if is_tls else 80)
+        except (TypeError, ValueError):
+            port = 443 if is_tls else 80
         payloads = arguments.get("payloads", [])
         workers = min(int(arguments.get("workers", 10)), 50)
 
@@ -1821,14 +1743,18 @@ class _ExecutorMixin:
         self._last_output_file = None
         start_time = time.time()
 
-        target_path = arguments.get("target_path", ".")
+        target_path = self._str_arg(arguments, "target_path") or "."
         rules = arguments.get("rules") or None
         languages = arguments.get("languages") or None
 
-        # Resolve path relative to target workspace
+        # Resolve and validate path — guard against ../traversal escaping /workspace
         active_target = self.state.active_target or "unknown"
-        if not target_path.startswith("/"):
-            target_path = f"/workspace/{active_target}/{target_path}"
+        from .validators import validate_target_path  # local import — no circular dep
+        _base = "/workspace" if target_path.startswith("/") else f"/workspace/{active_target}"
+        _ok, _resolved = validate_target_path(target_path, _base)
+        if not _ok:
+            return False, 0.0, {"success": False, "error": f"Invalid target_path: {_resolved}"}, None
+        target_path = str(_resolved)
 
         try:
             result = await run_code_analysis(
@@ -1898,11 +1824,14 @@ class _ExecutorMixin:
         self._last_output_file = None
         start_time = time.time()
 
-        schema_url = arguments.get("schema_url", "").strip()
-        base_url = arguments.get("base_url", "").strip()
-        auth_header = arguments.get("auth_header", "").strip()
+        schema_url = self._str_arg(arguments, "schema_url").strip()
+        base_url = self._str_arg(arguments, "base_url").strip()
+        auth_header = self._str_arg(arguments, "auth_header").strip()
         checks = arguments.get("checks") or []
-        max_examples = int(arguments.get("max_examples") or 30)
+        try:
+            max_examples = int(arguments.get("max_examples") or 30)
+        except (TypeError, ValueError):
+            max_examples = 30
 
         if not schema_url:
             return False, 0.0, {"success": False,
@@ -1930,7 +1859,7 @@ class _ExecutorMixin:
         output_file = shlex.quote(f"/workspace/{active_target}/output/schemathesis_results.txt")
         joined_cmd = " ".join(cmd_parts)
         full_cmd = (
-            f"cd {workspace_dir} && pip install -q schemathesis 2>/dev/null; "
+            f"cd {workspace_dir} && "
             f"{joined_cmd} 2>&1 | tee {output_file}"
         )
 
@@ -1946,7 +1875,8 @@ class _ExecutorMixin:
             # or explicit exec error). Schemathesis normally prints "ERROR:"
             # level lines for individual test cases — those are NOT failures.
             exec_error = exec_result.get("error") or exec_result.get("stderr") or ""
-            success = bool(stdout.strip()) or not bool(exec_error)
+            engine_ok = bool(exec_result.get("success", True))
+            success = engine_ok and (bool(stdout.strip()) or not bool(exec_error))
 
             # Parse summary line counts
             violations = stdout.count("FAILED") + \
@@ -2004,48 +1934,8 @@ class _ExecutorMixin:
         specialist = _RAW_SPECIALIST.lower().strip() if _RAW_SPECIALIST.lower(
         ).strip() in _VALID_SPECIALISTS else "exploit"
 
-        _SPECIALIST_PREFIXES: dict[str, str] = {
-            "sqli": (
-                "Focus EXCLUSIVELY on SQL injection. Test all input parameters for "
-                "error-based, blind time-based, and UNION-based SQLi. "
-                "Use manual payloads first, then sqlmap to confirm."
-            ),
-            "xss": (
-                "Focus EXCLUSIVELY on Cross-Site Scripting (XSS). Test all input "
-                "reflection points for stored, reflected, and DOM-based XSS. "
-                "Use dalfox for automated scanning after manual confirmation."
-            ),
-            "ssrf": (
-                "Focus EXCLUSIVELY on SSRF. Test all URL/redirect/callback parameters. "
-                "Try AWS metadata (169.254.169.254), internal hosts (127.0.0.1, localhost), "
-                "and protocol wrappers (file://, gopher://, dict://)."
-            ),
-            "lfi": (
-                "Focus EXCLUSIVELY on LFI and Path Traversal. Test all file/path/include "
-                "parameters with traversal sequences (../), null bytes, and encoding variants."
-            ),
-            "recon": (
-                "Perform deep reconnaissance ONLY. Enumerate subdomains, open ports, "
-                "directories, and JavaScript files. Map all endpoints and parameters. "
-                "Do NOT attempt exploitation."
-            ),
-            "exploit": (
-                "Test and exploit all discovered input parameters. Use all available "
-                "fuzzing and scanning tools. Focus on achieving impact."
-            ),
-            "analyzer": (
-                "Focus EXCLUSIVELY on source code and configuration analysis. "
-                "Use code_analysis tool to run Semgrep scans. Review application "
-                "logic, authentication flows, and data handling patterns. "
-                "Look for hardcoded secrets, insecure crypto, and logic flaws."
-            ),
-            "reporter": (
-                "Focus EXCLUSIVELY on generating comprehensive vulnerability reports. "
-                "Review all findings from the session and create detailed "
-                "create_vulnerability_report entries for each confirmed issue. "
-                "Include proper CVSS scores, PoC scripts, and remediation steps."
-            ),
-        }
+        # Specialist prompts loaded from prompts/specialists/*.txt at module level.
+        # Tool names belong in text files, not in Python code — see _SPECIALIST_PREFIXES.
 
         prompt = (
             f"[SUBAGENT — Specialist: {specialist.upper()}]\n"
@@ -2063,8 +1953,8 @@ class _ExecutorMixin:
             # `ollama show` network call on every spawn_agent invocation.
             parent_ollama = getattr(self, "ollama", None)
             if parent_ollama is None:
-                from ..ollama import OllamaClient
                 from ..config import get_config
+                from ..ollama import OllamaClient
                 parent_ollama = OllamaClient(model=get_config().ollama_model)
 
             # Subagent uses same engine as parent
@@ -2281,7 +2171,7 @@ class _ExecutorMixin:
                     "success": False,
                     "error": (
                         "Tool call error: 'command' argument is required and cannot be empty. "
-                        "Example: {\"name\": \"execute\", \"arguments\": {\"command\": \"nmap -sV target.com\"}}"
+                        "Example: {\"name\": \"execute\", \"arguments\": {\"command\": \"ls -la /workspace\"}}"
                     ),
                 }, None
             if len(cmd) > _MAX_COMMAND_LENGTH:
@@ -2337,25 +2227,11 @@ class _ExecutorMixin:
                 arguments["command"] = f"cd {workspace_dir} && {cmd}"
                 logger.info("Enforced workspace context: %s", arguments["command"])
 
-        # Pre-execution nuclei advanced-usage check.
-        # Detects generic nuclei invocations and stores a guidance string that
-        # will be appended to the result so the agent learns to improve flags.
-        _nuclei_hint: str | None = None
-        if tool_name == "execute":
-            _raw_cmd = arguments.get("command", "")
-            if self._extract_command_binary(_raw_cmd) in _TEMPLATE_SCANNER_BINS:
-                _nuclei_hint = self._build_nuclei_advanced_hint(_raw_cmd)
-
         start_time = time.time()
         output_file: str | None = None
         try:
             result = await self.engine.execute_tool(tool_name, arguments)
             success = result.get("success", False)
-            # Append nuclei guidance to stdout so the agent sees it alongside
-            # the scan output and adjusts flags on the next run.
-            if _nuclei_hint and success:
-                result = dict(result)
-                result["stdout"] = (result.get("stdout") or "") + _nuclei_hint
             try:
                 # Capture returned path as local variable to avoid race
                 # condition when multiple tools run concurrently via gather().
