@@ -479,9 +479,7 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
             self._session = load_session(_session_id) or SessionData(
                 session_id=_session_id, target=""
             )
-            logger.info(
-                f"Loaded session {_session_id} (target={self._session.target})"
-            )
+            logger.info("Loaded session %s (target=%s)", _session_id, self._session.target)
         else:
             self._session = SessionData(target="")
             logger.info("Created new session %s", self._session.session_id)
@@ -2359,8 +2357,7 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
                     # validation/execution.
                     is_dup, dup_msg = self._is_duplicate_command(tn, args)
                     if is_dup:
-                        logger.info(
-                            f"Anti-repeat guard blocked duplicate: {tn}")
+                        logger.info("Anti-repeat guard blocked duplicate: %s", tn)
                         return (
                             idx, tc, tn, args,
                             True,   # treat as "success" so it is included in context
@@ -3336,12 +3333,9 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
         try:
             old_lines = full_path.read_text(errors="ignore").splitlines()
             self._pending_output_merges[str(full_path)] = old_lines
-            logger.info(
-                f"Saved {len(old_lines)} existing lines from '{output_file}' for post-run merge"
-            )
+            logger.info("Saved %d existing lines from '%s' for post-run merge", len(old_lines), output_file)
         except Exception as e:
-            logger.warning(
-                f"Could not save old content of '{output_file}' for merge: {e}")
+            logger.warning("Could not save old content of '%s' for merge: %s", output_file, e)
 
     def _apply_output_merge(
             self, arguments: dict[str, Any], success: bool) -> None:
@@ -3364,8 +3358,8 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
             merged = sorted(old_set | new_set)
             full_path.write_text("\n".join(merged) + "\n", encoding="utf-8")
             logger.info(
-                f"Merged '{output_file}': {len(added)} new entries added, "
-                f"{len(merged)} total lines (sorted)"
+                "Merged '%s': %d new entries added, %d total lines (sorted)",
+                output_file, len(added), len(merged),
             )
         except Exception as e:
             logger.warning("Failed to merge output file '%s': %s", output_file, e)

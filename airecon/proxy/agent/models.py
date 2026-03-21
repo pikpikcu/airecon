@@ -443,9 +443,7 @@ class AgentState:
         budget = max_messages - len(core_system) - len(ephemeral_system) - len(protected_system)
         if len(other_messages) <= budget:
             self.conversation = core_system + ephemeral_system + protected_system + other_messages
-            logger.info(
-                f"Truncated (compressed + text-drop): {len(self.conversation)} messages"
-            )
+            logger.info("Truncated (compressed + text-drop): %d messages", len(self.conversation))
             return
 
         # STEP 3: Pair-aware truncation — keep assistant+tool_calls with their
@@ -489,8 +487,8 @@ class AgentState:
             ([separator] if dropped_count > 0 else []) + trimmed
         self.conversation = core_system + ephemeral_system + protected_system + rebuilt
         logger.info(
-            f"Truncated (pair-preserving): {len(self.conversation)} messages "
-            f"(dropped {dropped_count} older messages)"
+            "Truncated (pair-preserving): %d messages (dropped %d older messages)",
+            len(self.conversation), dropped_count,
         )
 
     # ------------------------------------------------------------------
@@ -627,13 +625,12 @@ class AgentState:
                     ),
                 })
             except Exception as e:
-                logger.warning(
-                    f"Memory compression LLM call failed, keeping original: {e}")
+                logger.warning("Memory compression LLM call failed, keeping original: %s", e)
                 summaries.extend(chunk)  # Fallback: keep originals
 
         before = len(self.conversation)
         self.conversation = system_msgs + [first_user] + summaries + keep_tail
         logger.info(
-            f"Memory compressed: {len(to_compress)} messages → {len(summaries)} summaries "
-            f"({before} → {len(self.conversation)} total)"
+            "Memory compressed: %d messages → %d summaries (%d → %d total)",
+            len(to_compress), len(summaries), before, len(self.conversation),
         )
