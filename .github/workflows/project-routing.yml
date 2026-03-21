@@ -15,12 +15,12 @@ on:
     types: [labeled, closed]
 
 env:
-  PROJECT_ID: PVT_kwHOA5U7w84BQ8-i
-  STATUS_FIELD_ID: PVTSSF_lAHOA5U7w84BQ8-izg-7KBQ
-  OPTION_FEATURE: "4faccbe7"
-  OPTION_BUGS: "888ace52"
-  OPTION_PROGRESS: "2a2680d5"
-  OPTION_DONE: "0aac36d4"
+  PROJECT_ID: ${{ vars.GH_PROJECT_ID }}
+  STATUS_FIELD_ID: ${{ vars.GH_STATUS_FIELD_ID }}
+  OPTION_FEATURE: ${{ vars.GH_OPTION_FEATURE }}
+  OPTION_BUGS: ${{ vars.GH_OPTION_BUGS }}
+  OPTION_PROGRESS: ${{ vars.GH_OPTION_PROGRESS }}
+  OPTION_DONE: ${{ vars.GH_OPTION_DONE }}
 
 jobs:
   route:
@@ -30,10 +30,6 @@ jobs:
         run: |
           if [[ -z "${{ secrets.GH_PROJECT_TOKEN }}" ]]; then
             echo "::error::GH_PROJECT_TOKEN secret is not set."
-            echo "Create a Classic PAT with 'project' scope at:"
-            echo "  https://github.com/settings/tokens"
-            echo "Then add it as a repo secret at:"
-            echo "  https://github.com/pikpikcu/airecon/settings/secrets/actions"
             exit 1
           fi
 
