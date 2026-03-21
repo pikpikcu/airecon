@@ -462,12 +462,12 @@
     "asnmap": "reconnaissance/asn_whois_osint.md",
     "nrich": "reconnaissance/asn_whois_osint.md",
     "mapcidr": "reconnaissance/asn_whois_osint.md",
-    "subfinder": "reconnaissance/asn_whois_osint.md",
+    "subfinder": "tools/subfinder.md",
     "amass": "reconnaissance/asn_whois_osint.md",
     "ip enrichment": "reconnaissance/asn_whois_osint.md",
     "reverse whois": "reconnaissance/asn_whois_osint.md",
     "infrastructure mapping": "reconnaissance/asn_whois_osint.md",
-    "passive recon": "reconnaissance/asn_whois_osint.md",
+    "passive recon": "tools/subfinder.md",
     "crt.sh": "reconnaissance/asn_whois_osint.md",
     "dork": "reconnaissance/dorking.md",
     "dorking": "reconnaissance/dorking.md",
@@ -655,6 +655,9 @@
     "springboot": "frameworks/spring.md",
     "fast api": "frameworks/fastapi.md",
     "helm": "vulnerabilities/kubernetes.md",
-    "firestore": "technologies/firebase_firestore.md"
+    "firestore": "technologies/firebase_firestore.md",
+    "two-pass": "tools/nmap.md",
+    "two pass nmap": "tools/nmap.md",
+    "nmap two": "tools/nmap.md"
   }
 }

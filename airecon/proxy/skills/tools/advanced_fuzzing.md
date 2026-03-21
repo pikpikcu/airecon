@@ -57,18 +57,23 @@ jwt, graphql, race_condition
 
 When standard tools fail, use intelligent fuzzing:
 
+CRITICAL ffuf flag note: ffuf uses -rate (NOT -rl). -rl does NOT exist in ffuf.
+  Wrong: ffuf ... -rl 100    ← "flag provided but not defined: -rl"
+  Correct: ffuf ... -rate 100
+Also: ALWAYS add -noninteractive for agent use (prevents interactive console hanging).
+
 ```
 # Fuzz parameters with mutations
-ffuf -u "https://target.com/api?PARAM=FUZZ" -w /usr/share/seclists/Discovery/Web-Content/burp-parameter-names.txt -mr "error|exception|warning"
+ffuf -u "https://target.com/api?PARAM=FUZZ" -w /usr/share/seclists/Discovery/Web-Content/burp-parameter-names.txt -mr "error|exception|warning" -t 30 -rate 50 -noninteractive
 
 # Fuzz with payloads
-ffuf -u "https://target.com/search?q=FUZZ" -w xss_payloads.txt -fc 400,404
+ffuf -u "https://target.com/search?q=FUZZ" -w xss_payloads.txt -fc 400,404 -t 30 -rate 50 -noninteractive
 
 # Fuzz HTTP methods
 for method in GET POST PUT DELETE PATCH; do curl -X $method "https://target.com/api"; done
 
 # Fuzz headers
-ffuf -u "https://target.com/" -H "FUZZ: test" -w /usr/share/seclists/Discovery/Web-Content/burp-http-headers.txt
+ffuf -u "https://target.com/" -H "FUZZ: test" -w /usr/share/seclists/Discovery/Web-Content/burp-http-headers.txt -t 20 -rate 30 -noninteractive
 ```
 
 ### 2. Parameter Pollution Testing

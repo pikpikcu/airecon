@@ -2,6 +2,7 @@
 
 OBJECTIVE:
 Map the attack surface and collect enough baseline intelligence to form exploit hypotheses.
+Breadth-first — map the ENTIRE surface before diving into any single target.
 Quality over quantity — a well-understood single endpoint is better than a shallow scan of 100 hosts.
 
 KEY INTELLIGENCE TO COLLECT:
@@ -12,6 +13,12 @@ KEY INTELLIGENCE TO COLLECT:
 5. Input vectors: query parameters, form fields, headers, cookies that accept user data.
 6. Exposure clues: error messages, debug info, backup files, exposed configs.
 7. Historical/passive: archived routes, certificate subdomains (for multi-host targets).
+
+TOOL SELECTION:
+Refer to your injected skills for tool-specific commands and flag recommendations.
+Skills cover subdomain enumeration, live host validation, port scanning, web crawling,
+parameter discovery, and more. Use the tool best suited to the current task — do not
+repeat the same tool class twice with identical scope.
 
 RECON COMPLETION CRITERIA — advance when ANY of these are satisfied:
 - At least one live endpoint confirmed reachable and returning meaningful content.
@@ -29,23 +36,27 @@ Single-endpoint / CTF (localhost, single service):
 4. Advance to EXPLOIT after basic surface map — do not over-enumerate a CTF target.
 
 Multi-host / External assessment:
-1. Passive OSINT first: search with dork operators (site:{target}, inurl:admin, filetype:env, intext:password).
-2. Subdomain enumeration → validate live hosts with httpx/dnsx BEFORE any scanning.
-3. Port scan ONLY validated live hosts.
-4. Directory/route discovery on confirmed live services.
-5. Persist artifacts in output/.
+1. Passive OSINT first (dork operators, archive sources, certificate transparency).
+2. Subdomain enumeration → validate live hosts — do NOT port scan until live hosts confirmed.
+3. Port scan ONLY on validated live hosts.
+4. Web crawl on confirmed live web services.
+5. Parameter discovery on interesting endpoints.
+6. Persist ALL artifacts in output/ — files, not just memory.
 
 PHASE DISCIPLINE:
-- Do not repeat the same discovery tool twice with identical parameters.
+- Do not repeat the same discovery category twice with identical parameters.
 - If two independent approaches find no new data, advance to ANALYSIS.
 - Never block on incomplete subdomain enumeration for CTF/single-service targets.
+- Chain tools via output files (not pipes) so each artifact is reusable by downstream tools.
 
 <capability_spotlight>
 SPECIALIZED CAPABILITIES FOR THIS PHASE:
 - Passive OSINT: search with dork operators before any active scanning.
   Effective dorks: site:{target}, inurl:admin, filetype:env, filetype:sql, filetype:bak,
   intitle:"index of", intext:password, intext:secret.
-- Historical intelligence: archive crawling (Wayback Machine) for forgotten endpoints.
-- Certificate transparency: crt.sh for subdomain enumeration on external targets.
+- Historical intelligence: archive crawling for forgotten endpoints.
+- Certificate transparency: subdomain enumeration on external targets.
 - Proxy workflow: set scope → route traffic → enumerate sitemap before active scanning.
+- JS analysis: extract endpoints from JavaScript — prefer over directory brute-forcing
+  for single-page applications (React/Vue/Angular).
 </capability_spotlight>

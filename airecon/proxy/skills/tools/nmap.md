@@ -75,6 +75,27 @@ Port scanning without a stated purpose is reconnaissance noise, not intelligence
 
 ---
 
+## TWO-PASS SCANNING WORKFLOW (preferred — do not skip pass 1)
+
+  The two-pass approach avoids running -sV on all ports (slow + noisy) by first finding open ports,
+  then running service detection ONLY on those ports. Always prefer this over a single full scan.
+
+  PASS 1 — Discovery (fast, finds open ports):
+    nmap -n -Pn --top-ports 100 --open -T4 --max-retries 1 --host-timeout 90s -oN output/nmap_quick.txt <host>
+    Extract open ports: grep "^[0-9]" output/nmap_quick.txt | cut -d/ -f1 | paste -sd,
+
+  PASS 2 — Enrichment (service detection on discovered ports only):
+    nmap -n -Pn -sV -sC -p <comma_ports_from_pass1> --script-timeout 30s --host-timeout 3m -oN output/nmap_services.txt <host>
+
+  No-root fallback (when SYN scan not available):
+    nmap -n -Pn -sT --top-ports 100 --open --host-timeout 90s <host>
+
+  Prefer naabu for broad initial port discovery (faster):
+    naabu -host <host> -top-ports 1000 -silent -o output/ports.txt
+    Then feed to nmap enrichment: nmap -n -Pn -sV -sC -p $(cat output/ports.txt | grep -oP ':\K\d+' | paste -sd,) <host>
+
+---
+
 ## Usage Patterns
 
   Standard host profile scan (top ports, version detection):
