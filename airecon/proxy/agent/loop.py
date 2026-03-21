@@ -2849,9 +2849,12 @@ class AgentLoop(_ValidatorMixin, _FormatterMixin,
 
         lines.append(
             "\nPriority order: CRITICAL > HIGH > MEDIUM. "
-            "Use TARGETED tools: sqlmap (SQLi), dalfox (XSS), custom curl/httpx payloads, "
-            "browser_action for auth bypass. DO NOT use nuclei/nikto repeatedly — "
-            "template scanners are already capped and will be blocked if re-run. "
+            "Preferred tools: sqlmap (SQLi), dalfox (XSS), custom curl/httpx payloads, "
+            "browser_action (auth bypass/logic flaws). "
+            "When using nuclei: MUST be targeted — use specific -t paths + -severity critical,high + -tags. "
+            "Example: nuclei -l output/live_hosts.txt -t cves/apache/ -t cves/2024/ "
+            "-tags rce,sqli,ssrf,lfi -severity critical,high -rl 150 -c 25. "
+            "Generic nuclei (-t cves/ only) is low signal — always target by discovered technology. "
             "Confirm each exploit with proof-of-concept output showing actual impact."
         )
 

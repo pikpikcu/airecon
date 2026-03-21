@@ -85,16 +85,13 @@ _RECON_PORT_SCAN_BINS: frozenset[str] = _load_recon_bins(
     frozenset({"nmap", "masscan", "naabu", "rustscan"}),
 )
 
-# Template-based scanners that should run at most twice per session (across all
-# phases).  These fire hundreds of generic templates and are NOT a substitute
-# for targeted manual testing.  Blocking after 2 runs forces the agent to
-# switch to sqlmap/dalfox/custom payloads instead of re-scanning templates.
+# Template-based scanners — recognised for phase-aware advanced usage guidance.
+# These tools are NOT blocked; the agent is guided on WHEN and HOW to use them
+# (targeted templates based on detected technologies, not generic mass-scans).
 _TEMPLATE_SCANNER_BINS: frozenset[str] = _load_recon_bins(
     "template_scanners",
     frozenset({"nuclei", "nikto", "wpscan", "wapiti", "jaeles"}),
 )
-# Max times a template scanner binary may run in a session before it is blocked.
-_TEMPLATE_SCANNER_MAX_RUNS: int = 2
 
 def _load_tool_flag_conflicts() -> dict[str, tuple[list[str], str]]:
     """Load tool flag conflict rules from data/tools_meta.json.
@@ -142,29 +139,16 @@ class _ExecutorMixin:
         return extract_primary_binary(command)
 
     def _is_recon_phase_repeat_blocked(self, tool_name: str, arguments: dict[str, Any], count: int) -> bool:
-        """Return True if a repeated execute command should be blocked.
+        """Return True if a repeated recon execute command should be blocked.
 
-        Two independent blocking rules (checked in order):
-
-        1. Template scanners (nuclei, nikto, wpscan…) — blocked after
-           _TEMPLATE_SCANNER_MAX_RUNS successful runs in ANY phase.  Their
-           template flags are normalised in _normalize_args_for_dedup, so
-           different -t/--tags combos against the same target share one counter.
-
-        2. Recon enumeration binaries (subfinder, nmap…) — blocked after the
-           FIRST run in RECON phase only.  They are fine to re-run in
-           ANALYSIS/EXPLOIT for targeted rescans.
+        Recon enumeration binaries are blocked after first successful execution
+        in RECON phase to avoid low-value loops (e.g. subfinder rerun spam).
+        Template scanners (nuclei, nikto…) are NOT blocked — they are guided
+        via _build_nuclei_advanced_hint() to use targeted templates instead.
         """
         if tool_name != "execute" or count < 1:
             return False
 
-        binary = self._extract_command_binary(arguments.get("command", ""))
-
-        # Rule 1 — template scanners: phase-agnostic, limited to MAX_RUNS
-        if binary in _TEMPLATE_SCANNER_BINS:
-            return count >= _TEMPLATE_SCANNER_MAX_RUNS
-
-        # Rule 2 — recon enumeration: only in RECON phase
         phase_name = ""
         try:
             if hasattr(self, "_get_current_phase"):
@@ -175,7 +159,109 @@ class _ExecutorMixin:
         if phase_name != "RECON":
             return False
 
+        binary = self._extract_command_binary(arguments.get("command", ""))
         return binary in _RECON_SUBDOMAIN_BINS or binary in _RECON_PORT_SCAN_BINS
+
+    def _build_nuclei_advanced_hint(self, command: str) -> str | None:
+        """Return an advanced-usage hint when nuclei is called generically.
+
+        Inspects the command for common anti-patterns (no -t, broad -t cves/,
+        no -severity) and returns a guidance string prepended to the tool result.
+        Returns None when the command already looks targeted/advanced.
+
+        Examples of GENERIC (triggers hint):
+          nuclei -l urls.txt
+          nuclei -u https://target.com -t cves/
+          nuclei -l hosts.txt -t cves/ -t exposures/
+
+        Examples of ADVANCED (no hint):
+          nuclei -l live_hosts.txt -t cves/apache/ -t technologies/nginx/ -severity critical,high
+          nuclei -u https://api.target.com -t cves/2024/ -tags sqli,rce -severity critical,high
+          nuclei -l endpoints.txt -t fuzzing/ -t injection/ -severity high -rl 50 -c 20
+        """
+        cmd_lower = command.lower()
+        issues: list[str] = []
+
+        # Check 1: No -t / --templates flag at all
+        has_template = bool(re.search(r'\s--?(?:t|templates?)\s+\S+', command))
+        if not has_template:
+            issues.append("no -t/--templates flag — nuclei will run ALL templates (very slow, low signal)")
+
+        # Check 2: Only broad top-level categories (cves/, exposures/) with no sub-path
+        elif re.search(r'\s--?(?:t|templates?)\s+(cves|exposures|vulnerabilities|technologies)/?\s', cmd_lower):
+            if not re.search(r'\s--?(?:t|templates?)\s+\S+/\S+', command):
+                issues.append(
+                    "template too broad (e.g. -t cves/) — use sub-paths like "
+                    "-t cves/apache/, -t cves/wordpress/, -t cves/2024/"
+                )
+
+        # Check 3: No -severity filter
+        has_severity = bool(re.search(r'\s--?(?:severity|s)\s+\S+', command))
+        if not has_severity:
+            issues.append("no -severity filter — add -severity critical,high to skip low-signal findings")
+
+        # Check 4: No -tags narrowing (when not already using specific template paths)
+        has_tags = bool(re.search(r'\s--?tags?\s+\S+', command))
+        has_specific_template = bool(re.search(r'\s--?(?:t|templates?)\s+\S+/\S+', command))
+        if not has_tags and not has_specific_template:
+            issues.append(
+                "no -tags filter — use -tags to target specific CVE categories "
+                "(e.g. -tags sqli,rce,lfi,ssrf,xss,auth-bypass)"
+            )
+
+        if not issues:
+            return None  # command already looks advanced
+
+        # Build technology context from session if available
+        tech_examples = ""
+        session = getattr(self, "_session", None)
+        if session:
+            technologies = getattr(session, "technologies", {})
+            if technologies:
+                detected = list(technologies.keys())[:5]
+                tech_map = {
+                    "wordpress": "-t cves/wordpress/ -t technologies/wordpress/ -tags wordpress",
+                    "apache": "-t cves/apache/ -t technologies/apache/ -tags apache",
+                    "nginx": "-t technologies/nginx/ -tags nginx",
+                    "php": "-t cves/ -tags php,rce,sqli,lfi -severity critical,high",
+                    "django": "-t cves/ -tags django,python,sqli -severity critical,high",
+                    "spring": "-t cves/spring/ -tags spring,rce,ssrf -severity critical,high",
+                    "joomla": "-t cves/joomla/ -tags joomla -severity critical,high",
+                    "drupal": "-t cves/drupal/ -tags drupal -severity critical,high",
+                    "jenkins": "-t cves/jenkins/ -tags jenkins,rce -severity critical,high",
+                    "tomcat": "-t cves/apache/ -tags tomcat,rce -severity critical,high",
+                    "iis": "-t cves/ -tags iis,windows -severity critical,high",
+                    "grafana": "-t cves/grafana/ -tags grafana -severity critical,high",
+                    "gitlab": "-t cves/gitlab/ -tags gitlab,rce -severity critical,high",
+                    "jira": "-t cves/atlassian/ -tags jira,ssrf -severity critical,high",
+                }
+                hints = [
+                    f"  {tech}: `nuclei -l live_hosts.txt {tech_map[tech.lower()]} -rl 100 -c 25`"
+                    for tech in detected
+                    if tech.lower() in tech_map
+                ]
+                if hints:
+                    tech_examples = "\nTechnology-targeted examples based on discovered tech:\n" + "\n".join(hints)
+
+        hint = (
+            "\n[NUCLEI ADVANCED USAGE GUIDANCE]\n"
+            f"Issues detected in this nuclei call: {'; '.join(issues)}\n"
+            "Advanced nuclei usage requires:\n"
+            "  1. Specific -t paths based on detected technology (not broad -t cves/)\n"
+            "  2. -severity critical,high minimum (skip info/low noise)\n"
+            "  3. -tags to focus on relevant CVE categories (sqli, rce, lfi, ssrf, xss)\n"
+            "  4. -rl (rate-limit) and -c (concurrency) tuned to target responsiveness\n"
+            "  5. Target specific endpoints from output/urls.txt, not all hosts\n"
+            "Advanced examples:\n"
+            "  CVE hunt:   nuclei -l output/live_hosts.txt -t cves/2023/ -t cves/2024/ "
+            "-severity critical,high -rl 150 -c 25 -o output/nuclei_cves.txt\n"
+            "  Injection:  nuclei -l output/urls.txt -t fuzzing/ -t injection/ "
+            "-tags sqli,rce,lfi,ssrf -severity critical,high -rl 100 -c 20\n"
+            "  Auth/Misconfig: nuclei -l output/live_hosts.txt -t exposures/configs/ "
+            "-t default-logins/ -tags misconfig,auth -severity critical,high"
+            f"{tech_examples}\n"
+        )
+        return hint
 
     async def _execute_local_browser_tool(
         self,
@@ -2112,14 +2198,6 @@ class _ExecutorMixin:
             cmd = re.sub(r'(\s+--cookie(?:-jar)?\s+[^\s]+)', '', cmd)
             # Remove timestamp patterns commonly used in typical output files
             cmd = re.sub(r'_[0-9]{8}_[0-9]{6}\.', '.', cmd)
-            # Normalize template-scanner flags so different -t/--tags variations
-            # map to the same dedup key.  Prevents nuclei from bypassing the
-            # _TEMPLATE_SCANNER_MAX_RUNS limit by switching template categories.
-            _bin = self._extract_command_binary(cmd)
-            if _bin in _TEMPLATE_SCANNER_BINS:
-                cmd = re.sub(r'\s+--?(?:t|templates?)\s+\S+', '', cmd)
-                cmd = re.sub(r'\s+--?tags?\s+\S+', '', cmd)
-                cmd = re.sub(r'\s+--?(?:severity|s)\s+\S+', '', cmd)
             args_copy["command"] = cmd.strip()
 
         return tool_name, json.dumps(args_copy, sort_keys=True, default=str)
@@ -2139,21 +2217,13 @@ class _ExecutorMixin:
 
         if self._is_recon_phase_repeat_blocked(tool_name, arguments, count):
             binary = self._extract_command_binary(arguments.get("command", ""))
-            if binary in _TEMPLATE_SCANNER_BINS:
-                _err = (
-                    f"Template scanner '{binary}' has already run {count}x "
-                    f"(limit: {_TEMPLATE_SCANNER_MAX_RUNS}). "
-                    "Template scans are capped to prevent generic-scanner spam. "
-                    "Switch to TARGETED manual testing: sqlmap, dalfox, custom "
-                    "curl/httpx payloads, or browser-based exploitation of specific "
-                    "endpoints. Do NOT run nuclei/nikto again."
-                )
-            else:
-                _err = (
+            return False, 0.0, {
+                "success": False,
+                "error": (
                     f"Duplicate recon execution blocked for '{binary}'. "
                     "Use previous results and pivot to a new recon vector."
-                )
-            return False, 0.0, {"success": False, "error": _err}, None
+                ),
+            }, None
 
         if count >= limit:
             return False, 0.0, {
@@ -2267,11 +2337,25 @@ class _ExecutorMixin:
                 arguments["command"] = f"cd {workspace_dir} && {cmd}"
                 logger.info("Enforced workspace context: %s", arguments["command"])
 
+        # Pre-execution nuclei advanced-usage check.
+        # Detects generic nuclei invocations and stores a guidance string that
+        # will be appended to the result so the agent learns to improve flags.
+        _nuclei_hint: str | None = None
+        if tool_name == "execute":
+            _raw_cmd = arguments.get("command", "")
+            if self._extract_command_binary(_raw_cmd) in _TEMPLATE_SCANNER_BINS:
+                _nuclei_hint = self._build_nuclei_advanced_hint(_raw_cmd)
+
         start_time = time.time()
         output_file: str | None = None
         try:
             result = await self.engine.execute_tool(tool_name, arguments)
             success = result.get("success", False)
+            # Append nuclei guidance to stdout so the agent sees it alongside
+            # the scan output and adjusts flags on the next run.
+            if _nuclei_hint and success:
+                result = dict(result)
+                result["stdout"] = (result.get("stdout") or "") + _nuclei_hint
             try:
                 # Capture returned path as local variable to avoid race
                 # condition when multiple tools run concurrently via gather().
