@@ -202,9 +202,7 @@ class PipelineEngine:
                 else:
                     self._phase_prompts[phase] = self._default_prompt(phase)
             except Exception as e:
-                logger.warning(
-                    f"Failed to load phase prompt for {phase.value}: {e}"
-                )
+                logger.warning("Failed to load phase prompt for %s: %s", phase.value, e)
                 self._phase_prompts[phase] = self._default_prompt(phase)
 
     def _default_prompt(self, phase: PipelinePhase) -> str:
@@ -231,7 +229,7 @@ class PipelineEngine:
         """Set the current phase in session state."""
         self.session.current_phase = phase.value
         self._phase_entry_iteration = self._current_iteration
-        logger.info(f"Pipeline phase set to: {phase.value}")
+        logger.info("Pipeline phase set to: %s", phase.value)
 
     def set_ctf_mode(self, enabled: bool = True) -> None:
         """Activate CTF/benchmark mode.
@@ -407,8 +405,7 @@ class PipelineEngine:
 
         # Validate current phase has met minimum criteria (skipped on timeout bypass)
         if not _soft_timeout_bypass and not self._evaluate_criteria(current):
-            logger.warning(
-                f"Attempted transition from {current.value} without meeting criteria")
+            logger.warning("Attempted transition from %s without meeting criteria", current.value)
             return current
 
         # Mark current phase as completed
@@ -425,8 +422,7 @@ class PipelineEngine:
         self.set_phase(next_phase)
         # Reset cooldown timer for the new phase
         self._phase_entry_iteration = self._current_iteration
-        logger.info(
-            f"Pipeline transition: {current.value} → {next_phase.value}")
+        logger.info("Pipeline transition: %s → %s", current.value, next_phase.value)
         return next_phase
 
     def get_phase_prompt(self) -> str:

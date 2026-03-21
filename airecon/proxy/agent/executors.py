@@ -216,8 +216,7 @@ class _ExecutorMixin:
                                 url=arguments["url"]
                             )
                     except Exception as e:
-                        logger.warning(
-                            f"Failed to auto-inject session cookies: {e}")
+                        logger.warning("Failed to auto-inject session cookies: %s", e)
 
             success = not (isinstance(result, dict) and "error" in result)
             if not success and isinstance(result, dict) and "error" in result:
@@ -346,8 +345,7 @@ class _ExecutorMixin:
                             self._last_output_file = saved_path
 
                     except Exception as _e:
-                        logger.warning(
-                            f"Failed to auto-save browser result: {_e}")
+                        logger.warning("Failed to auto-save browser result: %s", _e)
 
             try:
                 self._save_tool_output(tool_name, arguments, result)
@@ -356,7 +354,7 @@ class _ExecutorMixin:
         except Exception as e:
             success = False
             result = {"success": False, "error": str(e)}
-            logger.error(f"Browser tool exec error: {e}")
+            logger.error("Browser tool exec error: %s", e)
 
         duration = time.time() - start_time
 
@@ -471,7 +469,7 @@ class _ExecutorMixin:
         except Exception as e:
             success = False
             result = {"success": False, "error": str(e)}
-            logger.error(f"Filesystem tool exec error: {e}")
+            logger.error("Filesystem tool exec error: %s", e)
 
         duration = time.time() - start_time
 
@@ -510,7 +508,7 @@ class _ExecutorMixin:
         except Exception as e:
             success = False
             result = {"success": False, "error": str(e)}
-            logger.error(f"Web search tool error: {e}")
+            logger.error("Web search tool error: %s", e)
 
         duration = time.time() - start_time
 
@@ -544,7 +542,7 @@ class _ExecutorMixin:
                     + f"\n\n[Auto-saved to {saved_path}]"
                 )
             except Exception as e:
-                logger.warning(f"Failed to auto-save dork results: {e}")
+                logger.warning("Failed to auto-save dork results: %s", e)
 
         self.state.tool_history.append(
             ToolExecution(
@@ -602,7 +600,7 @@ class _ExecutorMixin:
         except Exception as e:
             success = False
             result = {"success": False, "error": str(e)}
-            logger.error(f"Reporting tool exec error: {e}")
+            logger.error("Reporting tool exec error: %s", e)
 
         duration = time.time() - start_time
         self.state.tool_history.append(
@@ -664,7 +662,7 @@ class _ExecutorMixin:
                 logger.debug("Could not save tool output: %s", _e)
             success = True
         except Exception as e:
-            logger.error(f"Fuzzer error: {e}")
+            logger.error("Fuzzer error: %s", e)
             res_dict = {"success": False, "error": str(e)}
             success = False
 
@@ -735,7 +733,7 @@ class _ExecutorMixin:
                 logger.debug("Could not save tool output: %s", _e)
             success = True
         except Exception as e:
-            logger.error(f"quick_fuzz error: {e}")
+            logger.error("quick_fuzz error: %s", e)
             res_dict = {"success": False, "error": str(e)}
             success = False
 
@@ -792,7 +790,7 @@ class _ExecutorMixin:
                 logger.debug("Could not save tool output: %s", _e)
             success = True
         except Exception as e:
-            logger.error(f"deep_fuzz error: {e}")
+            logger.error("deep_fuzz error: %s", e)
             res_dict = {"success": False, "error": str(e)}
             success = False
 
@@ -853,7 +851,7 @@ class _ExecutorMixin:
                 logger.debug("Could not save tool output: %s", _e)
             success = True
         except Exception as e:
-            logger.error(f"generate_wordlist error: {e}")
+            logger.error("generate_wordlist error: %s", e)
             res_dict = {"success": False, "error": str(e)}
             success = False
 
@@ -899,7 +897,7 @@ class _ExecutorMixin:
                 logger.debug("Could not save tool output: %s", _e)
             success = True
         except Exception as e:
-            logger.error(f"Subagent runner error: {e}")
+            logger.error("Subagent runner error: %s", e)
             res_dict = {"success": False, "error": str(e)}
             success = False
 
@@ -980,7 +978,7 @@ class _ExecutorMixin:
                     "total": len(requests)}
                 success = True
         except Exception as e:
-            logger.error(f"caido_list_requests error: {e}")
+            logger.error("caido_list_requests error: %s", e)
             res_dict = {"success": False, "error": str(e)}
             success = False
 
@@ -1060,7 +1058,7 @@ class _ExecutorMixin:
                 "error": "Caido did not respond within 60 seconds"}
             success = False
         except Exception as e:
-            logger.error(f"caido_send_request error: {e}")
+            logger.error("caido_send_request error: %s", e)
             res_dict = {"success": False, "error": str(e)}
             success = False
 
@@ -1186,7 +1184,7 @@ class _ExecutorMixin:
                 "error": "Caido did not respond within 90 seconds"}
             success = False
         except Exception as e:
-            logger.error(f"caido_automate error: {e}")
+            logger.error("caido_automate error: %s", e)
             # Clean up session if task was never started
             if task_id is None:
                 await _cleanup_orphan_session()
@@ -1268,7 +1266,7 @@ class _ExecutorMixin:
                     "total": len(findings)}
                 success = True
         except Exception as e:
-            logger.error(f"caido_get_findings error: {e}")
+            logger.error("caido_get_findings error: %s", e)
             res_dict = {"success": False, "error": str(e)}
             success = False
 
@@ -1380,7 +1378,7 @@ class _ExecutorMixin:
                 }
                 success = True
         except Exception as e:
-            logger.error(f"caido_set_scope error: {e}")
+            logger.error("caido_set_scope error: %s", e)
             res_dict = {"success": False, "error": str(e)}
             success = False
 
@@ -1570,7 +1568,7 @@ class _ExecutorMixin:
                 success = False
 
         except Exception as e:
-            logger.error(f"caido_intercept error: {e}")
+            logger.error("caido_intercept error: %s", e)
             res_dict = {"success": False, "error": str(e)}
             success = False
 
@@ -1686,7 +1684,7 @@ class _ExecutorMixin:
                     success = True
 
         except Exception as e:
-            logger.error(f"caido_sitemap error: {e}")
+            logger.error("caido_sitemap error: %s", e)
             res_dict = {"success": False, "error": str(e)}
             success = False
 
@@ -1761,7 +1759,7 @@ class _ExecutorMixin:
                 logger.debug("Could not save tool output: %s", _e)
             success = True
         except Exception as e:
-            logger.error(f"code_analysis error: {e}")
+            logger.error("code_analysis error: %s", e)
             res_dict = {"success": False, "error": str(e)}
             success = False
 
@@ -1858,7 +1856,7 @@ class _ExecutorMixin:
             except Exception as _e:
                 logger.debug("Could not save tool output: %s", _e)
         except Exception as e:
-            logger.error(f"schemathesis_fuzz error: {e}")
+            logger.error("schemathesis_fuzz error: %s", e)
             res_dict = {"success": False, "error": str(e)}
             success = False
 
@@ -2040,7 +2038,7 @@ class _ExecutorMixin:
             }
             success = True
         except Exception as e:
-            logger.error(f"spawn_agent error: {e}")
+            logger.error("spawn_agent error: %s", e)
             res_dict = {"success": False, "error": str(e)}
             success = False
 
@@ -2226,9 +2224,7 @@ class _ExecutorMixin:
                 # inside the container are valid and stripping them breaks
                 # multi-path commands.
                 arguments["command"] = f"cd {workspace_dir} && {cmd}"
-                logger.info(
-                    f"Enforced workspace context: {arguments['command']}"
-                )
+                logger.info("Enforced workspace context: %s", arguments["command"])
 
         start_time = time.time()
         output_file: str | None = None
@@ -2244,7 +2240,7 @@ class _ExecutorMixin:
         except Exception as e:
             success = False
             result = {"success": False, "error": str(e)}
-            logger.error(f"Tool exec error: {e}")
+            logger.error("Tool exec error: %s", e)
 
         # Inject a helpful hint for common bash escaping errors (single quotes
         # inside single quotes)

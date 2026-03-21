@@ -618,13 +618,13 @@ def load_session(session_id: str) -> SessionData | None:
         )
         session.prune_old_data()
         logger.info(
-            f"Loaded session {session_id} (target={session.target}): "
-            f"{len(session.subdomains)} subs, {len(session.live_hosts)} live, "
-            f"{len(session.vulnerabilities)} vulns"
+            "Loaded session %s (target=%s): %d subs, %d live, %d vulns",
+            session_id, session.target,
+            len(session.subdomains), len(session.live_hosts), len(session.vulnerabilities),
         )
         return session
     except Exception as e:
-        logger.warning(f"Failed to load session {session_id}: {e}")
+        logger.warning("Failed to load session %s: %s", session_id, e)
         return None
 
 
@@ -657,11 +657,9 @@ def save_session(session: SessionData) -> None:
             payload[key] = list(payload.get(key, []))
         with open(filepath, "w") as f:
             json.dump(payload, f, indent=2, default=str)
-        logger.info(
-            f"Saved session {session.session_id} (target={session.target})"
-        )
+        logger.info("Saved session %s (target=%s)", session.session_id, session.target)
     except Exception as e:
-        logger.error(f"Failed to save session {session.session_id}: {e}")
+        logger.error("Failed to save session %s: %s", session.session_id, e)
 
 
 def list_sessions() -> list[dict]:

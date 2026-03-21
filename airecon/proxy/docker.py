@@ -91,16 +91,15 @@ class DockerEngine:
         await proc.wait()
 
         if proc.returncode == 0:
-            logger.info(f"Docker image '{self.IMAGE_NAME}' found")
+            logger.info("Docker image '%s' found", self.IMAGE_NAME)
             return True
 
         # Image doesn't exist — build it
-        logger.info(
-            f"Building Docker image '{self.IMAGE_NAME}' — this may take 10-20 minutes...")
+        logger.info("Building Docker image '%s' — this may take 10-20 minutes...", self.IMAGE_NAME)
         dockerfile_dir = self.DOCKERFILE_DIR
 
         if not dockerfile_dir.exists() or not (dockerfile_dir / "Dockerfile").exists():
-            logger.error(f"Dockerfile not found at {dockerfile_dir}")
+            logger.error("Dockerfile not found at %s", dockerfile_dir)
             return False
 
         import sys
@@ -120,7 +119,7 @@ class DockerEngine:
             logger.error("Docker build failed.")
             return False
 
-        logger.info(f"Docker image '{self.IMAGE_NAME}' built successfully")
+        logger.info("Docker image '%s' built successfully", self.IMAGE_NAME)
         return True
 
     # ── Container Lifecycle ──
@@ -160,14 +159,12 @@ class DockerEngine:
         stdout, stderr = await proc.communicate()
 
         if proc.returncode != 0:
-            logger.error(f"Failed to start container: {stderr.decode()}")
+            logger.error("Failed to start container: %s", stderr.decode())
             return False
 
         self._container_id = stdout.decode().strip()[:12]
         self._connected = True
-        logger.info(
-            f"Container started: {self._container_name} ({self._container_id})"
-        )
+        logger.info("Container started: %s (%s)", self._container_name, self._container_id)
 
         # If we have a target, create workspace dir
         if target:
@@ -503,7 +500,8 @@ class DockerEngine:
             timeout = max(float(explicit_timeout), cfg.command_timeout)
             if timeout != float(explicit_timeout):
                 logger.warning(
-                    f"Model set timeout={explicit_timeout}s, enforcing minimum {cfg.command_timeout}s"
+                    "Model set timeout=%ss, enforcing minimum %ss",
+                    explicit_timeout, cfg.command_timeout,
                 )
         else:
             timeout = cfg.command_timeout
@@ -560,7 +558,7 @@ class DockerEngine:
                 logger.info(
                     "Force stopped all pentester processes in container")
             except Exception as e:
-                logger.warning(f"force_stop container kill failed: {e}")
+                logger.warning("force_stop container kill failed: %s", e)
 
     async def close(self) -> None:
         """Shutdown — stop container."""

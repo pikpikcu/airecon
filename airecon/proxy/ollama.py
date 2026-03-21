@@ -104,12 +104,12 @@ class OllamaClient:
             self._supports_native_tools = False
 
         logger.info(
-            f"Initializing Ollama SDK client for host: {host}, model: {self.model}, "
-            f"timeout: {cfg.ollama_timeout}s"
+            "Initializing Ollama SDK client for host: %s, model: %s, timeout: %ss",
+            host, self.model, cfg.ollama_timeout,
         )
         logger.info(
-            f"Model capabilities: thinking={self._supports_thinking}, "
-            f"native_tools={self._supports_native_tools}"
+            "Model capabilities: thinking=%s, native_tools=%s",
+            self._supports_thinking, self._supports_native_tools,
         )
         self._client = ollama.AsyncClient(
             host=host, timeout=cfg.ollama_timeout)
@@ -176,11 +176,11 @@ class OllamaClient:
     async def unload_model(self) -> None:
         """Unload model from memory by setting keep_alive to 0."""
         try:
-            logger.info(f"Unloading model {self.model}...")
+            logger.info("Unloading model %s...", self.model)
             await self._client.generate(model=self.model, prompt="", keep_alive=0)
             logger.info("Model unloaded successfully.")
         except Exception as e:
-            logger.error(f"Failed to unload model: {e}")
+            logger.error("Failed to unload model: %s", e)
 
     async def health_check(self) -> bool:
         """Check if Ollama is reachable."""
@@ -256,8 +256,8 @@ class OllamaClient:
                     if is_transient and attempt < max_retries:
                         wait = 2 ** (attempt + 1)  # 2s, 4s, 8s
                         logger.warning(
-                            f"Transient Ollama error in complete() (attempt "
-                            f"{attempt + 1}/{max_retries + 1}), retrying in {wait}s: {e}"
+                            "Transient Ollama error in complete() (attempt %d/%d), retrying in %ss: %s",
+                            attempt + 1, max_retries + 1, wait, e,
                         )
                         await asyncio.sleep(wait)
                         continue
@@ -315,13 +315,14 @@ class OllamaClient:
                     if attempt < max_retries:
                         wait = 2 ** (attempt + 1)  # 2s, 4s, 8s
                         logger.warning(
-                            f"Ollama ResponseError (attempt {attempt + 1}/{max_retries + 1}), "
-                            f"retrying in {wait}s: {e.error}"
+                            "Ollama ResponseError (attempt %d/%d), retrying in %ss: %s",
+                            attempt + 1, max_retries + 1, wait, e.error,
                         )
                         await asyncio.sleep(wait)
                         continue
                     logger.error(
-                        f"Ollama ResponseError after {max_retries + 1} attempts: {e.error}"
+                        "Ollama ResponseError after %d attempts: %s",
+                        max_retries + 1, e.error,
                     )
                     raise
 
@@ -343,10 +344,10 @@ class OllamaClient:
                     if is_transient and attempt < max_retries:
                         wait = 2 ** (attempt + 1)  # 2s, 4s, 8s
                         logger.warning(
-                            f"Transient Ollama error (attempt {attempt + 1}/{max_retries + 1}), "
-                            f"retrying in {wait}s: {e}"
+                            "Transient Ollama error (attempt %d/%d), retrying in %ss: %s",
+                            attempt + 1, max_retries + 1, wait, e,
                         )
                         await asyncio.sleep(wait)
                         continue
-                    logger.exception(f"Unexpected SDK error: {e}")
+                    logger.exception("Unexpected SDK error: %s", e)
                     raise
