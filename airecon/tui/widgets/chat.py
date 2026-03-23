@@ -137,8 +137,8 @@ class ChatMessage(Static):
         name = role_names.get(self.role, self.role.title())
         yield Static(f"{icon} {name}", classes=f"role-label {css_class}")
 
-        # Content as clean Static text (NOT Markdown)
-        yield Static(self.message_content, classes="msg-body")
+        # Content as clean Static text (NOT Markdown — must not parse markup)
+        yield Static(self.message_content, classes="msg-body", markup=False)
 
     def action_copy(self) -> None:
         """Copy message content to clipboard."""
@@ -302,7 +302,7 @@ class ToolMessage(Vertical):
                 preview += f"\n  ⋮ {len(lines) - 10} more lines"
             else:
                 preview = "\n".join(lines)
-            self.mount(Static(preview, classes="tool-output"))
+            self.mount(Static(preview, classes="tool-output", markup=False))
 
         # Error footer
         footer = Text()
