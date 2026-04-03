@@ -678,7 +678,7 @@
 <p><img alt="AIRecon Logo" src="assets/logo.png" /></p>
 <h1 id="airecon_1">AIRecon<a class="headerlink" href="#airecon_1" title="Permanent link">&para;</a></h1>
 <p><strong>AI-Assisted Penetration Testing Agent</strong></p>
-<p><a href="https://github.com/pikpikcu/airecon/releases"><img alt="version" src="https://img.shields.io/badge/version-v0.1.6--beta-red.svg" /></a>
+<p><a href="https://github.com/pikpikcu/airecon/releases"><img alt="version" src="https://img.shields.io/badge/version-v0.1.7--beta-red.svg" /></a>
 <a href="https://www.python.org/"><img alt="python" src="https://img.shields.io/badge/python-3.12%2B-blue.svg" /></a>
 <a href="https://ollama.com/"><img alt="llm" src="https://img.shields.io/badge/LLM-Ollama%20(local)-orange.svg" /></a>
 <a href="https://github.com/pikpikcu/airecon/blob/main/LICENSE"><img alt="license" src="https://img.shields.io/badge/LICENSE-MIT-green.svg" /></a></p>
@@ -687,47 +687,7 @@
 <p>AIRecon combines a self-hosted <strong>Ollama LLM</strong> with a <strong>Kali Linux Docker sandbox</strong>, native <strong>Caido proxy integration</strong>, a structured <strong>RECON → ANALYSIS → EXPLOIT → REPORT pipeline</strong>, and a real-time <strong>Textual TUI</strong>.</p>
 <h2 id="why-airecon">Why AIRecon?<a class="headerlink" href="#why-airecon" title="Permanent link">&para;</a></h2>
 <p>AIRecon is designed for local-first workflows where model execution and tool orchestration run in your own environment.</p>
-<table>
-<thead>
-<tr>
-<th>Feature</th>
-<th>AIRecon</th>
-<th>Cloud-based agents</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>API keys required</td>
-<td><strong>No</strong></td>
-<td>Yes</td>
-</tr>
-<tr>
-<td>Target data sent to cloud</td>
-<td><strong>No</strong></td>
-<td>Yes</td>
-</tr>
-<tr>
-<td>Works offline</td>
-<td><strong>Yes</strong></td>
-<td>No</td>
-</tr>
-<tr>
-<td>Caido integration</td>
-<td><strong>Native</strong></td>
-<td>None</td>
-</tr>
-<tr>
-<td>Session resume</td>
-<td><strong>Yes</strong></td>
-<td>Varies</td>
-</tr>
-<tr>
-<td>VRAM crash recovery</td>
-<td><strong>4-tier auto</strong></td>
-<td>N/A</td>
-</tr>
-</tbody>
-</table>
+<p>| Feature | AIRecon | Cloud-based agents |\n|---------|---------|-------------------|\n| API keys required | <strong>No</strong> | Yes |\n| Target data sent to cloud | <strong>No</strong> | Yes |\n| Works offline | <strong>Yes</strong> | No |\n| Caido integration | <strong>Native</strong> | None |\n| Session resume | <strong>Yes</strong> | Varies |\n| VRAM crash recovery | <strong>4-tier auto</strong> | N/A |\n| MCP support | <strong>Built-in</strong> | None |</p>
 <hr />
 <h2 id="core-features">Core Features<a class="headerlink" href="#core-features" title="Permanent link">&para;</a></h2>
 <div class="feature-grid">
@@ -773,27 +733,23 @@
 </div>
 </div>
 <hr />
-<h2 id="recent-improvements-v016-beta">Recent Improvements (v0.1.6-beta)<a class="headerlink" href="#recent-improvements-v016-beta" title="Permanent link">&para;</a></h2>
-<h3 id="security-and-reliability-updates">Security and Reliability Updates<a class="headerlink" href="#security-and-reliability-updates" title="Permanent link">&para;</a></h3>
+<h2 id="recent-improvements-v017-beta">Recent Improvements (v0.1.7-beta)<a class="headerlink" href="#recent-improvements-v017-beta" title="Permanent link">&para;</a></h2>
+<h3 id="mcp-improvements">MCP Improvements<a class="headerlink" href="#mcp-improvements" title="Permanent link">&para;</a></h3>
 <ul>
-<li>✅ Session save locking (<code>asyncio.Lock</code>) to reduce concurrent write issues</li>
-<li>✅ Symlink/TOCTOU protections in file operations</li>
-<li>✅ Command validation hardening and safety checks</li>
+<li>✅ MCP server list now surfaces total tool counts (<code>total_tools</code>) when available</li>
+<li>✅ <code>/mcp list &lt;name&gt;</code> keeps output lightweight by showing only the first 10 tools</li>
+<li>✅ Better MCP display consistency for large toolsets (for example 150+ tools)</li>
 </ul>
-<h3 id="stability-improvements">Stability Improvements<a class="headerlink" href="#stability-improvements" title="Permanent link">&para;</a></h3>
+<h3 id="tui-ux">TUI &amp; UX<a class="headerlink" href="#tui-ux" title="Permanent link">&para;</a></h3>
 <ul>
-<li>✅ Session save on TUI exit paths</li>
-<li>✅ Per-request timeouts in fuzzing paths</li>
-<li>✅ Browser cleanup fallbacks for failed shutdowns</li>
-<li>✅ Config-based context management</li>
-<li>✅ Tool output truncation limits</li>
-<li>✅ Command history pruning improvements</li>
+<li>✅ Confirm-delete modal styling centralized in <code>styles.tcss</code></li>
+<li>✅ Status bar rendering restored using widget-local CSS to avoid global style conflicts</li>
 </ul>
-<h3 id="code-quality">Code Quality<a class="headerlink" href="#code-quality" title="Permanent link">&para;</a></h3>
+<h3 id="stability-tests">Stability &amp; Tests<a class="headerlink" href="#stability-tests" title="Permanent link">&para;</a></h3>
 <ul>
-<li>✅ Removed 51 lines of verbose comments</li>
-<li>✅ Simplified docstrings</li>
-<li>⚠️ Test suite is under active stabilization. See <a href="stability/">Stability &amp; Quality Status</a>.</li>
+<li>✅ <code>/api/status</code> degraded-state logic fixed for explicit Ollama-down results</li>
+<li>✅ Full test suite green after fixes: <code>1608 passed</code></li>
+<li>⚠️ Interactive CAPTCHA/TOTP verification remains user-led before production promotion.</li>
 </ul>
 <hr />
 <h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>

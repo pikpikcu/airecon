@@ -660,6 +660,48 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#v017-beta-2026-04-02" class="md-nav__link">
+    <span class="md-ellipsis">
+      [v0.1.7-beta] - 2026-04-02
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[v0.1.7-beta] - 2026-04-02">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      Fixed
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#improved" class="md-nav__link">
+    <span class="md-ellipsis">
+      Improved
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Validation
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#v016-beta-2026-03-17" class="md-nav__link">
     <span class="md-ellipsis">
       [v0.1.6-beta] - 2026-03-17
@@ -886,7 +928,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#fixed" class="md-nav__link">
+  <a href="#fixed_1" class="md-nav__link">
     <span class="md-ellipsis">
       Fixed
     </span>
@@ -919,7 +961,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#fixed_1" class="md-nav__link">
+  <a href="#fixed_2" class="md-nav__link">
     <span class="md-ellipsis">
       Fixed
     </span>
@@ -985,6 +1027,48 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#v017-beta-2026-04-02" class="md-nav__link">
+    <span class="md-ellipsis">
+      [v0.1.7-beta] - 2026-04-02
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[v0.1.7-beta] - 2026-04-02">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      Fixed
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#improved" class="md-nav__link">
+    <span class="md-ellipsis">
+      Improved
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Validation
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#v016-beta-2026-03-17" class="md-nav__link">
     <span class="md-ellipsis">
       [v0.1.6-beta] - 2026-03-17
@@ -1211,7 +1295,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#fixed" class="md-nav__link">
+  <a href="#fixed_1" class="md-nav__link">
     <span class="md-ellipsis">
       Fixed
     </span>
@@ -1244,7 +1328,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#fixed_1" class="md-nav__link">
+  <a href="#fixed_2" class="md-nav__link">
     <span class="md-ellipsis">
       Fixed
     </span>
@@ -1295,6 +1379,25 @@
 
 
 <h1 id="changelog">Changelog<a class="headerlink" href="#changelog" title="Permanent link">&para;</a></h1>
+<h2 id="v017-beta-2026-04-02">[v0.1.7-beta] - 2026-04-02<a class="headerlink" href="#v017-beta-2026-04-02" title="Permanent link">&para;</a></h2>
+<h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">&para;</a></h3>
+<ul>
+<li>fix(server): <code>/api/status</code> now reports <code>degraded</code> when Ollama health check explicitly returns false (sticky online fallback only for transient probe failures)</li>
+<li>fix(tui): restored status bar visibility by keeping status bar CSS in widget-local <code>StatusBar.DEFAULT_CSS</code></li>
+<li>fix(version): align package export by re-exporting version from <code>airecon._version</code> in <code>airecon/__init__.py</code></li>
+<li>fix(quality): resolve Ruff F401 for package <code>__version__</code> re-export</li>
+</ul>
+<h3 id="improved">Improved<a class="headerlink" href="#improved" title="Permanent link">&para;</a></h3>
+<ul>
+<li>feat(mcp): expose and display <code>total_tools</code> for MCP servers to avoid misleading truncated counts</li>
+<li>feat(tui): <code>/mcp list &lt;name&gt;</code> now shows first 10 tools only to keep UI/context lightweight</li>
+<li>feat(tui): moved ConfirmDelete modal CSS to global <code>styles.tcss</code> with scoped selectors</li>
+</ul>
+<h3 id="validation">Validation<a class="headerlink" href="#validation" title="Permanent link">&para;</a></h3>
+<ul>
+<li>tests: full suite passing after fixes (<code>1608 passed</code>)</li>
+</ul>
+<hr />
 <h2 id="v016-beta-2026-03-17">[v0.1.6-beta] - 2026-03-17<a class="headerlink" href="#v016-beta-2026-03-17" title="Permanent link">&para;</a></h2>
 <h3 id="critical-security-fixes">Critical Security Fixes<a class="headerlink" href="#critical-security-fixes" title="Permanent link">&para;</a></h3>
 <h4 id="session-save-race-condition">Session Save Race Condition<a class="headerlink" href="#session-save-race-condition" title="Permanent link">&para;</a></h4>
@@ -1455,7 +1558,7 @@
 <li>feat(skills): add 22 new skills (frameworks, protocols, technologies, LLM coverage)</li>
 <li>feat(skills): aggressive exploration mode + headless reverse/pwn skill loading</li>
 </ul>
-<h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">&para;</a></h3>
+<h3 id="fixed_1">Fixed<a class="headerlink" href="#fixed_1" title="Permanent link">&para;</a></h3>
 <ul>
 <li>fix(agent): <code>[CONTEXT MONITOR]</code> messages removed from TUI output (logged to file only)</li>
 <li>fix(security): block <code>$()</code> and backtick command substitution in watchdog (<code>has_dangerous_patterns()</code>)</li>
@@ -1494,7 +1597,7 @@
 </ul>
 <hr />
 <h2 id="v015-beta-2026-03-05">[v0.1.5-beta] - 2026-03-05<a class="headerlink" href="#v015-beta-2026-03-05" title="Permanent link">&para;</a></h2>
-<h3 id="fixed_1">Fixed<a class="headerlink" href="#fixed_1" title="Permanent link">&para;</a></h3>
+<h3 id="fixed_2">Fixed<a class="headerlink" href="#fixed_2" title="Permanent link">&para;</a></h3>
 <ul>
 <li>fix(core): unpack tuple return value from auto_load_skills_for_message to resolve unhashable list crash</li>
 <li>fix(core): resolve correlation logger, fuzzer graceful degradation, and browser timeout bugs</li>
