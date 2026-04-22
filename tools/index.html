@@ -900,6 +900,75 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#8-utility-knowledge-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      8. Utility &amp; Knowledge Tools
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. Utility &amp; Knowledge Tools">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#81-think" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.1 think
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#82-python_session" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.2 python_session
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#83-edit_file" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.3 edit_file
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#84-load_skill" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.4 load_skill
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#85-notes-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.5 Notes Tools
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#86-dataset_search" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.6 dataset_search
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#tool-summary" class="md-nav__link">
     <span class="md-ellipsis">
       Tool Summary
@@ -1376,6 +1445,75 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#8-utility-knowledge-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      8. Utility &amp; Knowledge Tools
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. Utility &amp; Knowledge Tools">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#81-think" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.1 think
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#82-python_session" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.2 python_session
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#83-edit_file" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.3 edit_file
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#84-load_skill" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.4 load_skill
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#85-notes-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.5 Notes Tools
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#86-dataset_search" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.6 dataset_search
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#tool-summary" class="md-nav__link">
     <span class="md-ellipsis">
       Tool Summary
@@ -1439,6 +1577,13 @@
 <li><a href="#61-http_observe">http_observe</a></li>
 <li><a href="#62-record_hypothesis">record_hypothesis</a></li>
 <li><a href="#7-docker-sandbox-tools">Docker Sandbox Tools</a></li>
+<li><a href="#8-utility--knowledge-tools">Utility &amp; Knowledge Tools</a></li>
+<li><a href="#81-think">think</a></li>
+<li><a href="#82-python_session">python_session</a></li>
+<li><a href="#83-edit_file">edit_file</a></li>
+<li><a href="#84-load_skill">load_skill</a></li>
+<li><a href="#85-notes-tools">create_note / list_notes / search_notes / read_note / export_notes_wiki</a></li>
+<li><a href="#86-dataset_search">dataset_search</a></li>
 </ol>
 <hr />
 <h2 id="1-tool-architecture-overview">1. Tool Architecture Overview<a class="headerlink" href="#1-tool-architecture-overview" title="Permanent link">&para;</a></h2>
@@ -2301,6 +2446,142 @@ For large files, use <code>offset</code> and <code>limit</code> to read in chunk
 </tbody>
 </table>
 <hr />
+<h2 id="8-utility-knowledge-tools">8. Utility &amp; Knowledge Tools<a class="headerlink" href="#8-utility-knowledge-tools" title="Permanent link">&para;</a></h2>
+<p>These tools are always available alongside specialized tools and require no external services.</p>
+<hr />
+<h3 id="81-think">8.1 <code>think</code><a class="headerlink" href="#81-think" title="Permanent link">&para;</a></h3>
+<p>Externalize the agent's reasoning before acting. Outputs a structured thought to the session without executing any tool.</p>
+<p><strong>Schema:</strong></p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-33-1"><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="p">{</span>
+</span><span id="__span-33-2"><a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;think&quot;</span><span class="p">,</span>
+</span><span id="__span-33-3"><a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="w">  </span><span class="nt">&quot;parameters&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-33-4"><a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="w">    </span><span class="nt">&quot;thought&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string — The reasoning, hypothesis, or decision to record&quot;</span><span class="p">,</span>
+</span><span id="__span-33-5"><a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a><span class="w">    </span><span class="nt">&quot;category&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string — observation | hypothesis | decision | question | plan&quot;</span><span class="p">,</span>
+</span><span id="__span-33-6"><a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a><span class="w">    </span><span class="nt">&quot;confidence&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;number — 0.0–1.0 confidence level&quot;</span>
+</span><span id="__span-33-7"><a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a><span class="w">  </span><span class="p">},</span>
+</span><span id="__span-33-8"><a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a><span class="w">  </span><span class="nt">&quot;required&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;thought&quot;</span><span class="p">]</span>
+</span><span id="__span-33-9"><a id="__codelineno-33-9" name="__codelineno-33-9" href="#__codelineno-33-9"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>Use before acting on ambiguous situations, when evaluating conflicting signals, or when planning a multi-step attack chain.</p>
+<hr />
+<h3 id="82-python_session">8.2 <code>python_session</code><a class="headerlink" href="#82-python_session" title="Permanent link">&para;</a></h3>
+<p>Persistent Python interpreter. State is maintained across calls within the same <code>session_id</code>. Pre-imports: <code>os</code>, <code>json</code>, <code>re</code>, <code>base64</code>, <code>urllib.parse</code>, <code>requests</code> (if available).</p>
+<p><strong>Schema:</strong></p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-34-1"><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="p">{</span>
+</span><span id="__span-34-2"><a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;python_session&quot;</span><span class="p">,</span>
+</span><span id="__span-34-3"><a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="w">  </span><span class="nt">&quot;parameters&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-34-4"><a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="w">    </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string — Python code to execute&quot;</span><span class="p">,</span>
+</span><span id="__span-34-5"><a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a><span class="w">    </span><span class="nt">&quot;session_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string — Session namespace (default: &#39;default&#39;)&quot;</span>
+</span><span id="__span-34-6"><a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a><span class="w">  </span><span class="p">},</span>
+</span><span id="__span-34-7"><a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a><span class="w">  </span><span class="nt">&quot;required&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;code&quot;</span><span class="p">]</span>
+</span><span id="__span-34-8"><a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>Use cases: complex payload encoding/decoding, statistical analysis of tool output, hash computation, automated pattern matching across large result sets, generating wordlists programmatically.</p>
+<hr />
+<h3 id="83-edit_file">8.3 <code>edit_file</code><a class="headerlink" href="#83-edit_file" title="Permanent link">&para;</a></h3>
+<p>Atomic in-place string replacement in workspace files. Specify the exact old string to replace and the new string. Fails if <code>old_str</code> is not found — prevents silent overwrites.</p>
+<p><strong>Schema:</strong></p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-35-1"><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="p">{</span>
+</span><span id="__span-35-2"><a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;edit_file&quot;</span><span class="p">,</span>
+</span><span id="__span-35-3"><a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a><span class="w">  </span><span class="nt">&quot;parameters&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-35-4"><a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a><span class="w">    </span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string — File path (relative to workspace root)&quot;</span><span class="p">,</span>
+</span><span id="__span-35-5"><a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a><span class="w">    </span><span class="nt">&quot;old_str&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string — Exact text to find and replace&quot;</span><span class="p">,</span>
+</span><span id="__span-35-6"><a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a><span class="w">    </span><span class="nt">&quot;new_str&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string — Replacement text&quot;</span>
+</span><span id="__span-35-7"><a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a><span class="w">  </span><span class="p">},</span>
+</span><span id="__span-35-8"><a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a><span class="w">  </span><span class="nt">&quot;required&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;path&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;old_str&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;new_str&quot;</span><span class="p">]</span>
+</span><span id="__span-35-9"><a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>Use for patching exploit scripts, updating config files, or modifying template content without rewriting the entire file.</p>
+<hr />
+<h3 id="84-load_skill">8.4 <code>load_skill</code><a class="headerlink" href="#84-load_skill" title="Permanent link">&para;</a></h3>
+<p>Explicitly load a skill file into the agent's context. Normally skills are auto-loaded based on keyword detection, but this tool forces a specific skill to load immediately.</p>
+<p><strong>Schema:</strong></p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-36-1"><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="p">{</span>
+</span><span id="__span-36-2"><a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;load_skill&quot;</span><span class="p">,</span>
+</span><span id="__span-36-3"><a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a><span class="w">  </span><span class="nt">&quot;parameters&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-36-4"><a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a><span class="w">    </span><span class="nt">&quot;skill_path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string — Relative path to skill file from skills root&quot;</span>
+</span><span id="__span-36-5"><a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a><span class="w">  </span><span class="p">},</span>
+</span><span id="__span-36-6"><a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a><span class="w">  </span><span class="nt">&quot;required&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;skill_path&quot;</span><span class="p">]</span>
+</span><span id="__span-36-7"><a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a><span class="p">}</span>
+</span></code></pre></div>
+<hr />
+<h3 id="85-notes-tools">8.5 Notes Tools<a class="headerlink" href="#85-notes-tools" title="Permanent link">&para;</a></h3>
+<p>Five tools for structured session notes. Notes persist across the session and can be exported to a Markdown wiki.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>create_note</code></td>
+<td>Create a categorized note with tags</td>
+</tr>
+<tr>
+<td><code>list_notes</code></td>
+<td>List all notes, optionally filtered by category</td>
+</tr>
+<tr>
+<td><code>search_notes</code></td>
+<td>Full-text search across note content</td>
+</tr>
+<tr>
+<td><code>read_note</code></td>
+<td>Read a specific note by ID</td>
+</tr>
+<tr>
+<td><code>export_notes_wiki</code></td>
+<td>Export all notes to a single Markdown wiki file</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>create_note</code> schema:</strong></p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-37-1"><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="p">{</span>
+</span><span id="__span-37-2"><a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;create_note&quot;</span><span class="p">,</span>
+</span><span id="__span-37-3"><a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a><span class="w">  </span><span class="nt">&quot;parameters&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-37-4"><a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a><span class="w">    </span><span class="nt">&quot;title&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string — Note title&quot;</span><span class="p">,</span>
+</span><span id="__span-37-5"><a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a><span class="w">    </span><span class="nt">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string — Note body&quot;</span><span class="p">,</span>
+</span><span id="__span-37-6"><a id="__codelineno-37-6" name="__codelineno-37-6" href="#__codelineno-37-6"></a><span class="w">    </span><span class="nt">&quot;category&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string — vulnerability | methodology | finding | question | plan | observation | todo&quot;</span><span class="p">,</span>
+</span><span id="__span-37-7"><a id="__codelineno-37-7" name="__codelineno-37-7" href="#__codelineno-37-7"></a><span class="w">    </span><span class="nt">&quot;tags&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;array of strings — optional tags&quot;</span>
+</span><span id="__span-37-8"><a id="__codelineno-37-8" name="__codelineno-37-8" href="#__codelineno-37-8"></a><span class="w">  </span><span class="p">},</span>
+</span><span id="__span-37-9"><a id="__codelineno-37-9" name="__codelineno-37-9" href="#__codelineno-37-9"></a><span class="w">  </span><span class="nt">&quot;required&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;title&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;content&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;category&quot;</span><span class="p">]</span>
+</span><span id="__span-37-10"><a id="__codelineno-37-10" name="__codelineno-37-10" href="#__codelineno-37-10"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>Notes are stored at <code>workspace/&lt;target&gt;/notes/</code>. They are working documentation only — use <code>create_vulnerability_report</code> for final vulnerability reports.</p>
+<hr />
+<h3 id="86-dataset_search">8.6 <code>dataset_search</code><a class="headerlink" href="#86-dataset_search" title="Permanent link">&para;</a></h3>
+<p>Query the local security knowledge base built from <a href="https://github.com/pikpikcu/airecon-dataset">airecon-dataset</a>. Searches across all installed SQLite FTS5 databases at <code>~/.airecon/datasets/</code> and returns ranked knowledge entries.</p>
+<p><strong>Schema:</strong></p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-38-1"><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a><span class="p">{</span>
+</span><span id="__span-38-2"><a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;dataset_search&quot;</span><span class="p">,</span>
+</span><span id="__span-38-3"><a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a><span class="w">  </span><span class="nt">&quot;parameters&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-38-4"><a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a><span class="w">    </span><span class="nt">&quot;query&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string — Search terms (technical terms work best)&quot;</span><span class="p">,</span>
+</span><span id="__span-38-5"><a id="__codelineno-38-5" name="__codelineno-38-5" href="#__codelineno-38-5"></a><span class="w">    </span><span class="nt">&quot;category&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string — vulnerability | bug-bounty | ctf | pentest | general&quot;</span><span class="p">,</span>
+</span><span id="__span-38-6"><a id="__codelineno-38-6" name="__codelineno-38-6" href="#__codelineno-38-6"></a><span class="w">    </span><span class="nt">&quot;limit&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;integer — Max results (default 5, max 20)&quot;</span>
+</span><span id="__span-38-7"><a id="__codelineno-38-7" name="__codelineno-38-7" href="#__codelineno-38-7"></a><span class="w">  </span><span class="p">},</span>
+</span><span id="__span-38-8"><a id="__codelineno-38-8" name="__codelineno-38-8" href="#__codelineno-38-8"></a><span class="w">  </span><span class="nt">&quot;required&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;query&quot;</span><span class="p">]</span>
+</span><span id="__span-38-9"><a id="__codelineno-38-9" name="__codelineno-38-9" href="#__codelineno-38-9"></a><span class="p">}</span>
+</span></code></pre></div>
+<p><strong>Examples:</strong></p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-39-1"><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="p">{</span><span class="nt">&quot;query&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;log4j RCE exploitation chain&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;limit&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">}</span>
+</span><span id="__span-39-2"><a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a><span class="p">{</span><span class="nt">&quot;query&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;SSRF bypass cloud metadata&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;category&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;bug-bounty&quot;</span><span class="p">}</span>
+</span><span id="__span-39-3"><a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a><span class="p">{</span><span class="nt">&quot;query&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;nuclei template XSS detection&quot;</span><span class="p">}</span>
+</span><span id="__span-39-4"><a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a><span class="p">{</span><span class="nt">&quot;query&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CVE 2021 44228&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;category&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;vulnerability&quot;</span><span class="p">}</span>
+</span><span id="__span-39-5"><a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a><span class="p">{</span><span class="nt">&quot;query&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;lateral movement pass the hash&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;category&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pentest&quot;</span><span class="p">}</span>
+</span></code></pre></div>
+<p><strong>FTS5 query notes:</strong>
+- Dashes in CVE IDs (<code>CVE-2021-44228</code>) are automatically stripped → <code>CVE 2021 44228</code>
+- Special characters (<code>&lt;</code>, <code>&gt;</code>, <code>(</code>, <code>)</code>) are stripped automatically
+- Multi-word queries are matched as individual tokens (OR semantics)</p>
+<p><strong>When to use:</strong>
+- Before attempting an unfamiliar technique — check if it's in the KB first
+- Looking up CVE exploitation steps
+- Finding payload examples for specific vulnerability classes
+- Generating nuclei template YAML structure</p>
+<p><strong>Setup:</strong> requires <a href="https://github.com/pikpikcu/airecon-dataset">airecon-dataset</a> to be installed. Returns an error if no databases are found at <code>~/.airecon/datasets/</code>.</p>
+<hr />
 <h2 id="tool-summary">Tool Summary<a class="headerlink" href="#tool-summary" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2406,9 +2687,59 @@ For large files, use <code>offset</code> and <code>limit</code> to read in chunk
 <td>Observer</td>
 <td>Custom</td>
 </tr>
+<tr>
+<td><code>think</code></td>
+<td>Utility</td>
+<td><code>executors_utils.py</code></td>
+</tr>
+<tr>
+<td><code>python_session</code></td>
+<td>Utility</td>
+<td><code>executors_utils.py</code></td>
+</tr>
+<tr>
+<td><code>edit_file</code></td>
+<td>Utility</td>
+<td><code>executors_utils.py</code></td>
+</tr>
+<tr>
+<td><code>load_skill</code></td>
+<td>Utility</td>
+<td><code>system.py</code></td>
+</tr>
+<tr>
+<td><code>create_note</code></td>
+<td>Notes</td>
+<td><code>executors_utils.py</code></td>
+</tr>
+<tr>
+<td><code>list_notes</code></td>
+<td>Notes</td>
+<td><code>executors_utils.py</code></td>
+</tr>
+<tr>
+<td><code>search_notes</code></td>
+<td>Notes</td>
+<td><code>executors_utils.py</code></td>
+</tr>
+<tr>
+<td><code>read_note</code></td>
+<td>Notes</td>
+<td><code>executors_utils.py</code></td>
+</tr>
+<tr>
+<td><code>export_notes_wiki</code></td>
+<td>Notes</td>
+<td><code>executors_utils.py</code></td>
+</tr>
+<tr>
+<td><code>dataset_search</code></td>
+<td>Knowledge</td>
+<td><code>executors_utils.py</code></td>
+</tr>
 </tbody>
 </table>
-<p><strong>Total: 24 native/specialist tools + 60+ Docker sandbox CLI tools</strong></p>
+<p><strong>Total: 35 agent tools + 60+ Docker sandbox CLI tools</strong></p>
 
 
 

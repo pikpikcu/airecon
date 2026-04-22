@@ -1050,6 +1050,66 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#local-knowledge-base" class="md-nav__link">
+    <span class="md-ellipsis">
+      Local Knowledge Base
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Local Knowledge Base">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#setup_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Setup
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#whats-indexed" class="md-nav__link">
+    <span class="md-ellipsis">
+      What's Indexed
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-the-agent-uses-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      How the Agent Uses It
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#category-filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Category Filters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#custom-knowledge" class="md-nav__link">
+    <span class="md-ellipsis">
+      Custom Knowledge
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#verified-vulnerability-reporting" class="md-nav__link">
     <span class="md-ellipsis">
       Verified Vulnerability Reporting
@@ -1171,7 +1231,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#setup_1" class="md-nav__link">
+  <a href="#setup_2" class="md-nav__link">
     <span class="md-ellipsis">
       Setup
     </span>
@@ -1880,6 +1940,66 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#local-knowledge-base" class="md-nav__link">
+    <span class="md-ellipsis">
+      Local Knowledge Base
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Local Knowledge Base">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#setup_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Setup
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#whats-indexed" class="md-nav__link">
+    <span class="md-ellipsis">
+      What's Indexed
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-the-agent-uses-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      How the Agent Uses It
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#category-filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Category Filters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#custom-knowledge" class="md-nav__link">
+    <span class="md-ellipsis">
+      Custom Knowledge
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#verified-vulnerability-reporting" class="md-nav__link">
     <span class="md-ellipsis">
       Verified Vulnerability Reporting
@@ -2001,7 +2121,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#setup_1" class="md-nav__link">
+  <a href="#setup_2" class="md-nav__link">
     <span class="md-ellipsis">
       Setup
     </span>
@@ -2091,6 +2211,7 @@
 <li><a href="#session-persistence--resume">Session Persistence &amp; Resume</a></li>
 <li><a href="#anti-context-loss">Anti Context-Loss</a></li>
 <li><a href="#skills-system">Skills System</a></li>
+<li><a href="#local-knowledge-base">Local Knowledge Base</a></li>
 <li><a href="#verified-vulnerability-reporting">Verified Vulnerability Reporting</a></li>
 <li><a href="#workspace-isolation">Workspace Isolation</a></li>
 <li><a href="#url-pattern-matching-gf">URL Pattern Matching (gf)</a></li>
@@ -2834,6 +2955,135 @@ REPORT
 <p><strong>Keyword mappings:</strong> skill suggestions are driven by pattern matches in the system prompt and session signals.</p>
 <p>To add your own skill, see <a href="../development/creating_skills/">Adding Custom Skills</a>.</p>
 <hr />
+<h2 id="local-knowledge-base">Local Knowledge Base<a class="headerlink" href="#local-knowledge-base" title="Permanent link">&para;</a></h2>
+<p>AIRecon can query a locally indexed security knowledge base via the <code>dataset_search</code> tool. The knowledge base is built from curated HuggingFace datasets and stored as SQLite FTS5 databases at <code>~/.airecon/datasets/</code>.</p>
+<h3 id="setup_1">Setup<a class="headerlink" href="#setup_1" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/pikpikcu/airecon-dataset.git
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="nb">cd</span><span class="w"> </span>airecon-dataset
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>python<span class="w"> </span>install.py
+</span></code></pre></div>
+<p>Restart AIRecon — the tool is available immediately with no config changes.</p>
+<h3 id="whats-indexed">What's Indexed<a class="headerlink" href="#whats-indexed" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th>Records</th>
+<th>Coverage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pentest Agent (CVE workflows)</td>
+<td>322,433</td>
+<td>Enumeration → exploitation chains, MITRE ATT&amp;CK, NVD</td>
+</tr>
+<tr>
+<td>CTF SaTML 2024</td>
+<td>190,657</td>
+<td>Real attack/defense interaction data</td>
+</tr>
+<tr>
+<td>CTF Instruct</td>
+<td>141,182</td>
+<td>Pwn, web, crypto, forensics, reverse engineering</td>
+</tr>
+<tr>
+<td>Cybersecurity CVE</td>
+<td>124,732</td>
+<td>CVE analysis, CVSS, exploitation context</td>
+</tr>
+<tr>
+<td>SQL Injection Q&amp;A</td>
+<td>50,632</td>
+<td>Conversational SQLi — detection, bypass, exploitation</td>
+</tr>
+<tr>
+<td>Red Team Offensive</td>
+<td>78,430</td>
+<td>Lateral movement, privilege escalation, evasion</td>
+</tr>
+<tr>
+<td>Cybersecurity Fenrir</td>
+<td>83,918</td>
+<td>Attack/defense instruction pairs</td>
+</tr>
+<tr>
+<td>Cybersecurity Q&amp;A</td>
+<td>53,199</td>
+<td>Broad security Q&amp;A</td>
+</tr>
+<tr>
+<td>StackExchange Reverse Engineering</td>
+<td>20,641</td>
+<td>Binary analysis, disassembly, debugging, malware, CTF RE</td>
+</tr>
+<tr>
+<td>Nuclei Templates</td>
+<td>23,180</td>
+<td>Nuclei YAML template generation</td>
+</tr>
+<tr>
+<td>NVD Security Instructions</td>
+<td>2,063</td>
+<td>Structured CVE analysis — severity, affected systems, remediation</td>
+</tr>
+<tr>
+<td>APT Privilege Escalation</td>
+<td>1,000</td>
+<td>Linux priv esc techniques with APT tactics and commands</td>
+</tr>
+<tr>
+<td>Bug Bounty &amp; Pentest</td>
+<td>146</td>
+<td>Rich technique entries with payloads and bypass methods</td>
+</tr>
+</tbody>
+</table>
+<p><strong>~1,092,213 total records across 13 datasets</strong></p>
+<h3 id="how-the-agent-uses-it">How the Agent Uses It<a class="headerlink" href="#how-the-agent-uses-it" title="Permanent link">&para;</a></h3>
+<p>The system prompt instructs the agent to query <code>dataset_search</code> <strong>before</strong> attempting unknown techniques. This reduces hallucination and surfaces concrete techniques, payloads, and exploitation steps grounded in real data.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a># Agent uses it automatically, e.g.:
+</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>dataset_search: {&quot;query&quot;: &quot;log4j RCE exploitation chain&quot;}
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>dataset_search: {&quot;query&quot;: &quot;nuclei template SSRF detection&quot;}
+</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>dataset_search: {&quot;query&quot;: &quot;WAF bypass SQL injection&quot;, &quot;category&quot;: &quot;bug-bounty&quot;}
+</span></code></pre></div>
+<p>Results are ranked by FTS5 relevance and capped at 500 chars each to preserve LLM context budget. Special characters (CVE dashes, angle brackets) are sanitized automatically.</p>
+<h3 id="category-filters">Category Filters<a class="headerlink" href="#category-filters" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vulnerability</code></td>
+<td>CVE-focused entries</td>
+</tr>
+<tr>
+<td><code>bug-bounty</code></td>
+<td>Bug bounty techniques and payloads</td>
+</tr>
+<tr>
+<td><code>ctf</code></td>
+<td>CTF challenges and writeups</td>
+</tr>
+<tr>
+<td><code>pentest</code></td>
+<td>Red team and offensive techniques</td>
+</tr>
+<tr>
+<td><code>general</code></td>
+<td>Broad cybersecurity knowledge</td>
+</tr>
+</tbody>
+</table>
+<h3 id="custom-knowledge">Custom Knowledge<a class="headerlink" href="#custom-knowledge" title="Permanent link">&para;</a></h3>
+<p>Add your own <code>.jsonl</code> files to <code>airecon-dataset/custom/</code> and re-run <code>install.py</code>. Useful for internal wiki content, proprietary technique notes, or target-specific intelligence.</p>
+<p>See <a href="https://github.com/pikpikcu/airecon-dataset">airecon-dataset</a> for the full dataset list, install options, and adding new datasets.</p>
+<hr />
 <h2 id="verified-vulnerability-reporting">Verified Vulnerability Reporting<a class="headerlink" href="#verified-vulnerability-reporting" title="Permanent link">&para;</a></h2>
 <p>The <code>create_vulnerability_report</code> tool generates professional penetration test reports.</p>
 <h3 id="validation-rules">Validation Rules<a class="headerlink" href="#validation-rules" title="Permanent link">&para;</a></h3>
@@ -2869,37 +3119,37 @@ REPORT
 </tbody>
 </table>
 <h3 id="report-structure">Report Structure<a class="headerlink" href="#report-structure" title="Permanent link">&para;</a></h3>
-<div class="language-markdown highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="gh"># &lt;Vulnerability Type&gt; in &lt;Endpoint&gt;</span>
-</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>
-</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="gs">**Severity:**</span> &lt;CRITICAL/HIGH/MED/LOW&gt; (CVSS &lt;score&gt;)
-</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="gs">**Endpoint:**</span> &lt;method&gt; &lt;path&gt;
-</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>
-</span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="gu">## Technical Analysis</span>
-</span><span id="__span-19-7"><a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="gu">## Proof of Concept</span>
-</span><span id="__span-19-8"><a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a><span class="gu">## Evidence (HTTP request/response)</span>
-</span><span id="__span-19-9"><a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a><span class="gu">## Impact</span>
-</span><span id="__span-19-10"><a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="gu">## Suggested Fix (optional code snippet)</span>
-</span><span id="__span-19-11"><a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="gu">## CVSS Vector</span>
-</span><span id="__span-19-12"><a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="gu">## Remediation</span>
+<div class="language-markdown highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="gh"># &lt;Vulnerability Type&gt; in &lt;Endpoint&gt;</span>
+</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>
+</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="gs">**Severity:**</span> &lt;CRITICAL/HIGH/MED/LOW&gt; (CVSS &lt;score&gt;)
+</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="gs">**Endpoint:**</span> &lt;method&gt; &lt;path&gt;
+</span><span id="__span-21-5"><a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>
+</span><span id="__span-21-6"><a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="gu">## Technical Analysis</span>
+</span><span id="__span-21-7"><a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="gu">## Proof of Concept</span>
+</span><span id="__span-21-8"><a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a><span class="gu">## Evidence (HTTP request/response)</span>
+</span><span id="__span-21-9"><a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a><span class="gu">## Impact</span>
+</span><span id="__span-21-10"><a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a><span class="gu">## Suggested Fix (optional code snippet)</span>
+</span><span id="__span-21-11"><a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a><span class="gu">## CVSS Vector</span>
+</span><span id="__span-21-12"><a id="__codelineno-21-12" name="__codelineno-21-12" href="#__codelineno-21-12"></a><span class="gu">## Remediation</span>
 </span></code></pre></div>
 <h3 id="suggested-fix">Suggested Fix<a class="headerlink" href="#suggested-fix" title="Permanent link">&para;</a></h3>
 <p>Reports can optionally include a <code>suggested_fix</code> field with a developer-ready code snippet:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>create_vulnerability_report(..., suggested_fix=&quot;cursor.execute(&#39;SELECT * FROM users WHERE id = %s&#39;, (user_id,))&quot;)
+<div class="language-text highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>create_vulnerability_report(..., suggested_fix=&quot;cursor.execute(&#39;SELECT * FROM users WHERE id = %s&#39;, (user_id,))&quot;)
 </span></code></pre></div>
 <hr />
 <h2 id="workspace-isolation">Workspace Isolation<a class="headerlink" href="#workspace-isolation" title="Permanent link">&para;</a></h2>
 <p>Each target gets a fully isolated directory:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>workspace/&lt;target&gt;/
-</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>├── output/          # Tool outputs (.txt, .json, .xml, .nmap, ...)
-</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>│   ├── subdomains.txt
-</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>│   ├── live_hosts.txt
-</span><span id="__span-21-5"><a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>│   ├── nmap_full.xml
-</span><span id="__span-21-6"><a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>│   └── nuclei_results.json
-</span><span id="__span-21-7"><a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a>├── command/         # Execution metadata and logs (.json)
-</span><span id="__span-21-8"><a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a>├── tools/           # AI-generated scripts (.py, .sh)
-</span><span id="__span-21-9"><a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a>└── vulnerabilities/ # Vulnerability reports (.md)
-</span><span id="__span-21-10"><a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a>    ├── sql_injection_api_login.md
-</span><span id="__span-21-11"><a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a>    └── idor_user_profile.md
+<div class="language-text highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>workspace/&lt;target&gt;/
+</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>├── output/          # Tool outputs (.txt, .json, .xml, .nmap, ...)
+</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>│   ├── subdomains.txt
+</span><span id="__span-23-4"><a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>│   ├── live_hosts.txt
+</span><span id="__span-23-5"><a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>│   ├── nmap_full.xml
+</span><span id="__span-23-6"><a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>│   └── nuclei_results.json
+</span><span id="__span-23-7"><a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>├── command/         # Execution metadata and logs (.json)
+</span><span id="__span-23-8"><a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>├── tools/           # AI-generated scripts (.py, .sh)
+</span><span id="__span-23-9"><a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a>└── vulnerabilities/ # Vulnerability reports (.md)
+</span><span id="__span-23-10"><a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a>    ├── sql_injection_api_login.md
+</span><span id="__span-23-11"><a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a>    └── idor_user_profile.md
 </span></code></pre></div>
 <p>The agent always operates from within this directory — relative paths prevent workspace corruption across targets.</p>
 <hr />
@@ -2952,15 +3202,15 @@ REPORT
 <p>AIRecon includes multiple mechanisms to prevent the LLM from hallucinating tool outputs or vulnerability findings.</p>
 <h3 id="hallucination-detection">Hallucination Detection<a class="headerlink" href="#hallucination-detection" title="Permanent link">&para;</a></h3>
 <p>The agent loop checks for common hallucination patterns in model output:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="n">hallucination_signals</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>    <span class="s2">&quot;i have found&quot;</span><span class="p">,</span>           <span class="c1"># Claims finding without tool output</span>
-</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>    <span class="s2">&quot;the scan shows&quot;</span><span class="p">,</span>         <span class="c1"># Claims scan result without running scan</span>
-</span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>    <span class="s2">&quot;the results indicate&quot;</span><span class="p">,</span>   <span class="c1"># Claims results without tool evidence</span>
-</span><span id="__span-22-5"><a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>    <span class="s2">&quot;my analysis shows&quot;</span><span class="p">,</span>      <span class="c1"># Claims analysis without code_analysis tool</span>
-</span><span id="__span-22-6"><a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>    <span class="s2">&quot;it appears that&quot;</span><span class="p">,</span>        <span class="c1"># Speculative claim without evidence</span>
-</span><span id="__span-22-7"><a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a>    <span class="s2">&quot;based on my knowledge&quot;</span><span class="p">,</span>  <span class="c1"># LLM knowledge, not live tool output</span>
-</span><span id="__span-22-8"><a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>    <span class="s2">&quot;without running&quot;</span><span class="p">,</span>        <span class="c1"># Explicitly admits no tool used</span>
-</span><span id="__span-22-9"><a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a><span class="p">]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="n">hallucination_signals</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>    <span class="s2">&quot;i have found&quot;</span><span class="p">,</span>           <span class="c1"># Claims finding without tool output</span>
+</span><span id="__span-24-3"><a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>    <span class="s2">&quot;the scan shows&quot;</span><span class="p">,</span>         <span class="c1"># Claims scan result without running scan</span>
+</span><span id="__span-24-4"><a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>    <span class="s2">&quot;the results indicate&quot;</span><span class="p">,</span>   <span class="c1"># Claims results without tool evidence</span>
+</span><span id="__span-24-5"><a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>    <span class="s2">&quot;my analysis shows&quot;</span><span class="p">,</span>      <span class="c1"># Claims analysis without code_analysis tool</span>
+</span><span id="__span-24-6"><a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>    <span class="s2">&quot;it appears that&quot;</span><span class="p">,</span>        <span class="c1"># Speculative claim without evidence</span>
+</span><span id="__span-24-7"><a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a>    <span class="s2">&quot;based on my knowledge&quot;</span><span class="p">,</span>  <span class="c1"># LLM knowledge, not live tool output</span>
+</span><span id="__span-24-8"><a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a>    <span class="s2">&quot;without running&quot;</span><span class="p">,</span>        <span class="c1"># Explicitly admits no tool used</span>
+</span><span id="__span-24-9"><a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a><span class="p">]</span>
 </span></code></pre></div>
 <h3 id="tool-call-validation">Tool Call Validation<a class="headerlink" href="#tool-call-validation" title="Permanent link">&para;</a></h3>
 <p>Before accepting a tool call, the agent validates:
@@ -2973,8 +3223,8 @@ REPORT
 - Screenshot or PoC script
 - CVSS vector string</p>
 <p>Reports without evidence are rejected with:
-<div class="language-text highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>[VALIDATION ERROR] Vulnerability report rejected: missing evidence. 
-</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>Include HTTP response, PoC script, or screenshot.
+<div class="language-text highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>[VALIDATION ERROR] Vulnerability report rejected: missing evidence. 
+</span><span id="__span-25-2"><a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>Include HTTP response, PoC script, or screenshot.
 </span></code></pre></div></p>
 <h3 id="confidence-scoring">Confidence Scoring<a class="headerlink" href="#confidence-scoring" title="Permanent link">&para;</a></h3>
 <p>All findings include a confidence score (0.0–1.0):
@@ -2985,47 +3235,47 @@ REPORT
 <hr />
 <h2 id="mcp-support">MCP Support<a class="headerlink" href="#mcp-support" title="Permanent link">&para;</a></h2>
 <p>AIRecon supports external <strong>Model Context Protocol (MCP) servers</strong> for extended tool capabilities. MCP servers expose tools via HTTP (SSE) or command-line transport.</p>
-<h3 id="setup_1">Setup<a class="headerlink" href="#setup_1" title="Permanent link">&para;</a></h3>
+<h3 id="setup_2">Setup<a class="headerlink" href="#setup_2" title="Permanent link">&para;</a></h3>
 <p>Add MCP servers via TUI slash command or config:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>/mcp add http://localhost:3001 auth:apikey:yourtoken example_name
+<div class="language-text highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>/mcp add http://localhost:3001 auth:apikey:yourtoken example_name
 </span></code></pre></div>
 <p>Or add to <code>~/.airecon/mcp.json</code>:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="p">{</span>
-</span><span id="__span-25-2"><a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-25-3"><a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="w">    </span><span class="nt">&quot;hexstrike&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-25-4"><a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;python3&quot;</span><span class="p">,</span>
-</span><span id="__span-25-5"><a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-</span><span id="__span-25-6"><a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="w">        </span><span class="s2">&quot;/path/hexstrike-ai/hexstrike_mcp.py&quot;</span><span class="p">,</span>
-</span><span id="__span-25-7"><a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="w">        </span><span class="s2">&quot;--server&quot;</span><span class="p">,</span>
-</span><span id="__span-25-8"><a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="w">        </span><span class="s2">&quot;http://127.0.0.1:8888&quot;</span>
-</span><span id="__span-25-9"><a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a><span class="w">      </span><span class="p">],</span>
-</span><span id="__span-25-10"><a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a><span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-25-11"><a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a><span class="w">        </span><span class="nt">&quot;PYTHONUNBUFFERED&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1&quot;</span>
-</span><span id="__span-25-12"><a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a><span class="w">      </span><span class="p">},</span>
-</span><span id="__span-25-13"><a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a><span class="w">      </span><span class="nt">&quot;enabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
-</span><span id="__span-25-14"><a id="__codelineno-25-14" name="__codelineno-25-14" href="#__codelineno-25-14"></a><span class="w">    </span><span class="p">},</span>
-</span><span id="__span-25-15"><a id="__codelineno-25-15" name="__codelineno-25-15" href="#__codelineno-25-15"></a><span class="w">    </span><span class="nt">&quot;xssgen&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-25-16"><a id="__codelineno-25-16" name="__codelineno-25-16" href="#__codelineno-25-16"></a><span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;python3&quot;</span><span class="p">,</span>
-</span><span id="__span-25-17"><a id="__codelineno-25-17" name="__codelineno-25-17" href="#__codelineno-25-17"></a><span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-</span><span id="__span-25-18"><a id="__codelineno-25-18" name="__codelineno-25-18" href="#__codelineno-25-18"></a><span class="w">        </span><span class="s2">&quot;/path/xssgen/xss_client.py&quot;</span><span class="p">,</span>
-</span><span id="__span-25-19"><a id="__codelineno-25-19" name="__codelineno-25-19" href="#__codelineno-25-19"></a><span class="w">        </span><span class="s2">&quot;--server&quot;</span><span class="p">,</span>
-</span><span id="__span-25-20"><a id="__codelineno-25-20" name="__codelineno-25-20" href="#__codelineno-25-20"></a><span class="w">        </span><span class="s2">&quot;http://127.0.0.1:8000&quot;</span>
-</span><span id="__span-25-21"><a id="__codelineno-25-21" name="__codelineno-25-21" href="#__codelineno-25-21"></a><span class="w">      </span><span class="p">],</span>
-</span><span id="__span-25-22"><a id="__codelineno-25-22" name="__codelineno-25-22" href="#__codelineno-25-22"></a><span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-25-23"><a id="__codelineno-25-23" name="__codelineno-25-23" href="#__codelineno-25-23"></a><span class="w">        </span><span class="nt">&quot;PYTHONUNBUFFERED&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1&quot;</span>
-</span><span id="__span-25-24"><a id="__codelineno-25-24" name="__codelineno-25-24" href="#__codelineno-25-24"></a><span class="w">      </span><span class="p">},</span>
-</span><span id="__span-25-25"><a id="__codelineno-25-25" name="__codelineno-25-25" href="#__codelineno-25-25"></a><span class="w">      </span><span class="nt">&quot;enabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
-</span><span id="__span-25-26"><a id="__codelineno-25-26" name="__codelineno-25-26" href="#__codelineno-25-26"></a><span class="w">    </span><span class="p">},</span>
-</span><span id="__span-25-27"><a id="__codelineno-25-27" name="__codelineno-25-27" href="#__codelineno-25-27"></a><span class="w">    </span><span class="nt">&quot;context7&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-25-28"><a id="__codelineno-25-28" name="__codelineno-25-28" href="#__codelineno-25-28"></a><span class="w">      </span><span class="nt">&quot;transport&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sse&quot;</span><span class="p">,</span>
-</span><span id="__span-25-29"><a id="__codelineno-25-29" name="__codelineno-25-29" href="#__codelineno-25-29"></a><span class="w">      </span><span class="nt">&quot;url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://example.com/mcp&quot;</span><span class="p">,</span>
-</span><span id="__span-25-30"><a id="__codelineno-25-30" name="__codelineno-25-30" href="#__codelineno-25-30"></a><span class="w">      </span><span class="nt">&quot;enabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-</span><span id="__span-25-31"><a id="__codelineno-25-31" name="__codelineno-25-31" href="#__codelineno-25-31"></a><span class="w">      </span><span class="nt">&quot;headers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-25-32"><a id="__codelineno-25-32" name="__codelineno-25-32" href="#__codelineno-25-32"></a><span class="w">        </span><span class="nt">&quot;Authorization&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Bearer xxxxx&quot;</span>
-</span><span id="__span-25-33"><a id="__codelineno-25-33" name="__codelineno-25-33" href="#__codelineno-25-33"></a><span class="w">      </span><span class="p">}</span>
-</span><span id="__span-25-34"><a id="__codelineno-25-34" name="__codelineno-25-34" href="#__codelineno-25-34"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-25-35"><a id="__codelineno-25-35" name="__codelineno-25-35" href="#__codelineno-25-35"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-25-36"><a id="__codelineno-25-36" name="__codelineno-25-36" href="#__codelineno-25-36"></a><span class="p">}</span><span class="w">     </span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="p">{</span>
+</span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="w">    </span><span class="nt">&quot;hexstrike&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-27-4"><a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;python3&quot;</span><span class="p">,</span>
+</span><span id="__span-27-5"><a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+</span><span id="__span-27-6"><a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="w">        </span><span class="s2">&quot;/path/hexstrike-ai/hexstrike_mcp.py&quot;</span><span class="p">,</span>
+</span><span id="__span-27-7"><a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a><span class="w">        </span><span class="s2">&quot;--server&quot;</span><span class="p">,</span>
+</span><span id="__span-27-8"><a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a><span class="w">        </span><span class="s2">&quot;http://127.0.0.1:8888&quot;</span>
+</span><span id="__span-27-9"><a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a><span class="w">      </span><span class="p">],</span>
+</span><span id="__span-27-10"><a id="__codelineno-27-10" name="__codelineno-27-10" href="#__codelineno-27-10"></a><span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-27-11"><a id="__codelineno-27-11" name="__codelineno-27-11" href="#__codelineno-27-11"></a><span class="w">        </span><span class="nt">&quot;PYTHONUNBUFFERED&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1&quot;</span>
+</span><span id="__span-27-12"><a id="__codelineno-27-12" name="__codelineno-27-12" href="#__codelineno-27-12"></a><span class="w">      </span><span class="p">},</span>
+</span><span id="__span-27-13"><a id="__codelineno-27-13" name="__codelineno-27-13" href="#__codelineno-27-13"></a><span class="w">      </span><span class="nt">&quot;enabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+</span><span id="__span-27-14"><a id="__codelineno-27-14" name="__codelineno-27-14" href="#__codelineno-27-14"></a><span class="w">    </span><span class="p">},</span>
+</span><span id="__span-27-15"><a id="__codelineno-27-15" name="__codelineno-27-15" href="#__codelineno-27-15"></a><span class="w">    </span><span class="nt">&quot;xssgen&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-27-16"><a id="__codelineno-27-16" name="__codelineno-27-16" href="#__codelineno-27-16"></a><span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;python3&quot;</span><span class="p">,</span>
+</span><span id="__span-27-17"><a id="__codelineno-27-17" name="__codelineno-27-17" href="#__codelineno-27-17"></a><span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+</span><span id="__span-27-18"><a id="__codelineno-27-18" name="__codelineno-27-18" href="#__codelineno-27-18"></a><span class="w">        </span><span class="s2">&quot;/path/xssgen/xss_client.py&quot;</span><span class="p">,</span>
+</span><span id="__span-27-19"><a id="__codelineno-27-19" name="__codelineno-27-19" href="#__codelineno-27-19"></a><span class="w">        </span><span class="s2">&quot;--server&quot;</span><span class="p">,</span>
+</span><span id="__span-27-20"><a id="__codelineno-27-20" name="__codelineno-27-20" href="#__codelineno-27-20"></a><span class="w">        </span><span class="s2">&quot;http://127.0.0.1:8000&quot;</span>
+</span><span id="__span-27-21"><a id="__codelineno-27-21" name="__codelineno-27-21" href="#__codelineno-27-21"></a><span class="w">      </span><span class="p">],</span>
+</span><span id="__span-27-22"><a id="__codelineno-27-22" name="__codelineno-27-22" href="#__codelineno-27-22"></a><span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-27-23"><a id="__codelineno-27-23" name="__codelineno-27-23" href="#__codelineno-27-23"></a><span class="w">        </span><span class="nt">&quot;PYTHONUNBUFFERED&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1&quot;</span>
+</span><span id="__span-27-24"><a id="__codelineno-27-24" name="__codelineno-27-24" href="#__codelineno-27-24"></a><span class="w">      </span><span class="p">},</span>
+</span><span id="__span-27-25"><a id="__codelineno-27-25" name="__codelineno-27-25" href="#__codelineno-27-25"></a><span class="w">      </span><span class="nt">&quot;enabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+</span><span id="__span-27-26"><a id="__codelineno-27-26" name="__codelineno-27-26" href="#__codelineno-27-26"></a><span class="w">    </span><span class="p">},</span>
+</span><span id="__span-27-27"><a id="__codelineno-27-27" name="__codelineno-27-27" href="#__codelineno-27-27"></a><span class="w">    </span><span class="nt">&quot;context7&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-27-28"><a id="__codelineno-27-28" name="__codelineno-27-28" href="#__codelineno-27-28"></a><span class="w">      </span><span class="nt">&quot;transport&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sse&quot;</span><span class="p">,</span>
+</span><span id="__span-27-29"><a id="__codelineno-27-29" name="__codelineno-27-29" href="#__codelineno-27-29"></a><span class="w">      </span><span class="nt">&quot;url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://example.com/mcp&quot;</span><span class="p">,</span>
+</span><span id="__span-27-30"><a id="__codelineno-27-30" name="__codelineno-27-30" href="#__codelineno-27-30"></a><span class="w">      </span><span class="nt">&quot;enabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-27-31"><a id="__codelineno-27-31" name="__codelineno-27-31" href="#__codelineno-27-31"></a><span class="w">      </span><span class="nt">&quot;headers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-27-32"><a id="__codelineno-27-32" name="__codelineno-27-32" href="#__codelineno-27-32"></a><span class="w">        </span><span class="nt">&quot;Authorization&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Bearer xxxxx&quot;</span>
+</span><span id="__span-27-33"><a id="__codelineno-27-33" name="__codelineno-27-33" href="#__codelineno-27-33"></a><span class="w">      </span><span class="p">}</span>
+</span><span id="__span-27-34"><a id="__codelineno-27-34" name="__codelineno-27-34" href="#__codelineno-27-34"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-27-35"><a id="__codelineno-27-35" name="__codelineno-27-35" href="#__codelineno-27-35"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-27-36"><a id="__codelineno-27-36" name="__codelineno-27-36" href="#__codelineno-27-36"></a><span class="p">}</span><span class="w">     </span>
 </span></code></pre></div>
 <h3 id="available-commands">Available Commands<a class="headerlink" href="#available-commands" title="Permanent link">&para;</a></h3>
 <table>
@@ -3070,14 +3320,14 @@ REPORT
 <li><code>action=call_tool tool=&lt;name&gt; arguments={...}</code>: Execute a tool</li>
 </ul>
 <h3 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h3>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>agent → mcp_example(action=list_tools)
-</span><span id="__span-26-2"><a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>→ {&quot;tools&quot;: [{&quot;name&quot;: &quot;nmap_scan&quot;}, ...]}
-</span><span id="__span-26-3"><a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>
-</span><span id="__span-26-4"><a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>agent → mcp_example(action=search_tools query=&quot;nmap&quot;)
-</span><span id="__span-26-5"><a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>→ {&quot;tools&quot;: [{&quot;name&quot;: &quot;nmap_scan&quot;}], &quot;count&quot;: 1}
-</span><span id="__span-26-6"><a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>
-</span><span id="__span-26-7"><a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a>agent → mcp_example(action=call_tool tool=&quot;nmap_scan&quot; arguments={&quot;target&quot;: &quot;192.168.1.1&quot;})
-</span><span id="__span-26-8"><a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>→ {&quot;result&quot;: {&quot;output&quot;: &quot;PORT     STATE SERVICE&quot;, ...}}
+<div class="language-text highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>agent → mcp_example(action=list_tools)
+</span><span id="__span-28-2"><a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>→ {&quot;tools&quot;: [{&quot;name&quot;: &quot;nmap_scan&quot;}, ...]}
+</span><span id="__span-28-3"><a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>
+</span><span id="__span-28-4"><a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>agent → mcp_example(action=search_tools query=&quot;nmap&quot;)
+</span><span id="__span-28-5"><a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>→ {&quot;tools&quot;: [{&quot;name&quot;: &quot;nmap_scan&quot;}], &quot;count&quot;: 1}
+</span><span id="__span-28-6"><a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>
+</span><span id="__span-28-7"><a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a>agent → mcp_example(action=call_tool tool=&quot;nmap_scan&quot; arguments={&quot;target&quot;: &quot;192.168.1.1&quot;})
+</span><span id="__span-28-8"><a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a>→ {&quot;result&quot;: {&quot;output&quot;: &quot;PORT     STATE SERVICE&quot;, ...}}
 </span></code></pre></div>
 <h3 id="display">Display<a class="headerlink" href="#display" title="Permanent link">&para;</a></h3>
 <table>

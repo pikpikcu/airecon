@@ -629,13 +629,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#11-troubleshooting" class="md-nav__link">
+  <a href="#11-optional-install-datasets" class="md-nav__link">
     <span class="md-ellipsis">
-      11. Troubleshooting
+      11. Optional: Install Datasets
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="11. Troubleshooting">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      12. Troubleshooting
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="12. Troubleshooting">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1069,13 +1078,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#11-troubleshooting" class="md-nav__link">
+  <a href="#11-optional-install-datasets" class="md-nav__link">
     <span class="md-ellipsis">
-      11. Troubleshooting
+      11. Optional: Install Datasets
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="11. Troubleshooting">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      12. Troubleshooting
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="12. Troubleshooting">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1205,7 +1223,8 @@
 <li><a href="#8-first-run">First Run</a></li>
 <li><a href="#9-updating-airecon">Updating AIRecon</a></li>
 <li><a href="#10-remote-ollama-setup">Remote Ollama Setup</a></li>
-<li><a href="#11-troubleshooting">Troubleshooting</a></li>
+<li><a href="#11-optional-install-datasets">Optional: Install Datasets</a></li>
+<li><a href="#12-troubleshooting">Troubleshooting</a></li>
 </ol>
 <hr />
 <h2 id="1-system-requirements">1. System Requirements<a class="headerlink" href="#1-system-requirements" title="Permanent link">&para;</a></h2>
@@ -1406,7 +1425,104 @@
 </span></code></pre></div></p>
 <p>Make sure port 11434 is open in the server's firewall.</p>
 <hr />
-<h2 id="11-troubleshooting">11. Troubleshooting<a class="headerlink" href="#11-troubleshooting" title="Permanent link">&para;</a></h2>
+<h2 id="11-optional-install-datasets">11. Optional: Install Datasets<a class="headerlink" href="#11-optional-install-datasets" title="Permanent link">&para;</a></h2>
+<p>The <a href="https://github.com/pikpikcu/airecon-dataset">airecon-dataset</a> package gives the agent access to a local security knowledge base (~1.09M indexed records, 13 datasets) via the <code>dataset_search</code> tool. This is optional — AIRecon works without it.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/pikpikcu/airecon-dataset.git
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="nb">cd</span><span class="w"> </span>airecon-dataset
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c1"># Install Python dependencies for the installer</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>pip<span class="w"> </span>install<span class="w"> </span>huggingface_hub<span class="w"> </span>tqdm<span class="w"> </span>pyarrow
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="c1"># Install all datasets (~2.4 GB download, ~2 GB installed)</span>
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>python<span class="w"> </span>install.py
+</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>
+</span><span id="__span-14-10"><a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="c1"># Or install only specific datasets</span>
+</span><span id="__span-14-11"><a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>python<span class="w"> </span>install.py<span class="w"> </span>--include<span class="w"> </span>nuclei-templates<span class="w"> </span>red-team-offensive<span class="w"> </span>apt-privesc
+</span><span id="__span-14-12"><a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>
+</span><span id="__span-14-13"><a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a><span class="c1"># Verify</span>
+</span><span id="__span-14-14"><a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>python<span class="w"> </span>install.py<span class="w"> </span>installed
+</span></code></pre></div>
+<p>Restart AIRecon after installing — the <code>dataset_search</code> tool picks up new databases automatically.</p>
+<p><strong>What gets installed:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th>Records</th>
+<th>Use case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pentest Agent (ChatML)</td>
+<td>322,433</td>
+<td>CVE-based exploitation workflows</td>
+</tr>
+<tr>
+<td>CTF SaTML 2024</td>
+<td>190,657</td>
+<td>Real attack/defense CTF data</td>
+</tr>
+<tr>
+<td>CTF Instruct</td>
+<td>141,182</td>
+<td>Pwn, web, crypto, forensics</td>
+</tr>
+<tr>
+<td>Cybersecurity CVE</td>
+<td>124,732</td>
+<td>CVE analysis and exploitation</td>
+</tr>
+<tr>
+<td>SQL Injection Q&amp;A</td>
+<td>50,632</td>
+<td>Conversational SQLi techniques</td>
+</tr>
+<tr>
+<td>Red Team Offensive</td>
+<td>78,430</td>
+<td>Lateral movement, privilege escalation</td>
+</tr>
+<tr>
+<td>Cybersecurity Fenrir</td>
+<td>83,918</td>
+<td>Attack/defense instruction pairs</td>
+</tr>
+<tr>
+<td>Cybersecurity Q&amp;A</td>
+<td>53,199</td>
+<td>General security knowledge</td>
+</tr>
+<tr>
+<td>StackExchange RE</td>
+<td>20,641</td>
+<td>Binary analysis, reverse engineering</td>
+</tr>
+<tr>
+<td>Nuclei Templates</td>
+<td>23,180</td>
+<td>Nuclei YAML template generation</td>
+</tr>
+<tr>
+<td>NVD Security Instructions</td>
+<td>2,063</td>
+<td>Structured CVE analysis</td>
+</tr>
+<tr>
+<td>APT Privilege Escalation</td>
+<td>1,000</td>
+<td>Linux priv esc with APT tactics</td>
+</tr>
+<tr>
+<td>Bug Bounty &amp; Pentest</td>
+<td>146</td>
+<td>Payloads, bypass methods, methodology</td>
+</tr>
+</tbody>
+</table>
+<p>See <a href="../features/#local-knowledge-base">Features: Local Knowledge Base</a> for how the agent uses this.</p>
+<hr />
+<h2 id="12-troubleshooting">12. Troubleshooting<a class="headerlink" href="#12-troubleshooting" title="Permanent link">&para;</a></h2>
 <h3 id="airecon-command-not-found"><code>airecon: command not found</code><a class="headerlink" href="#airecon-command-not-found" title="Permanent link">&para;</a></h3>
 <p><code>~/.local/bin</code> is not in PATH. Follow <a href="#5-configure-path">Step 5</a>.</p>
 <h3 id="ollama-connection-refused"><code>ollama: connection refused</code><a class="headerlink" href="#ollama-connection-refused" title="Permanent link">&para;</a></h3>
@@ -1426,51 +1542,51 @@
 - Spawning parallel agents (<code>run_parallel_agents</code>) doubles or triples VRAM usage simultaneously</p>
 <p><strong>Fix in order of preference:</strong></p>
 <p><strong>1. Restart Ollama immediately (quick fix):</strong>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>ollama
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="c1"># or if running manually:</span>
-</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>pkill<span class="w"> </span>ollama<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>ollama<span class="w"> </span>serve<span class="w"> </span><span class="p">&amp;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>ollama
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="c1"># or if running manually:</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>pkill<span class="w"> </span>ollama<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>ollama<span class="w"> </span>serve<span class="w"> </span><span class="p">&amp;</span>
 </span></code></pre></div></p>
 <p><strong>2. Reduce context window (permanent fix):</strong>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="p">{</span>
-</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">    </span><span class="nt">&quot;ollama_num_ctx&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">32768</span><span class="p">,</span>
-</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">    </span><span class="nt">&quot;ollama_num_ctx_small&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">16384</span>
-</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="p">{</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">    </span><span class="nt">&quot;ollama_num_ctx&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">32768</span><span class="p">,</span>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">    </span><span class="nt">&quot;ollama_num_ctx_small&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">16384</span>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="p">}</span>
 </span></code></pre></div></p>
 <p><strong>3. Reduce max output tokens:</strong>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nt">ollama_num_predict</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8192</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nt">ollama_num_predict</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8192</span>
 </span></code></pre></div></p>
 <p><strong>4. Shorten model keep-alive to free VRAM between sessions:</strong>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nt">ollama_keep_alive</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;5m&quot;</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nt">ollama_keep_alive</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;5m&quot;</span>
 </span></code></pre></div></p>
 <p><strong>5. Limit parallel agent concurrency</strong> — avoid <code>run_parallel_agents</code> if VRAM is near the limit. Use <code>spawn_agent</code> (single specialist) instead.</p>
 <p><strong>Recommended safe config for 16–20 GB VRAM:</strong>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nt">ollama_model</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;qwen3.5:35b&quot;</span>
-</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="nt">ollama_num_ctx</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32768</span>
-</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="nt">ollama_num_ctx_small</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16384</span>
-</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="nt">ollama_num_predict</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8192</span>
-</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="nt">ollama_keep_alive</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;10m&quot;</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nt">ollama_model</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;qwen3.5:35b&quot;</span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="nt">ollama_num_ctx</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32768</span>
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="nt">ollama_num_ctx_small</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16384</span>
+</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="nt">ollama_num_predict</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8192</span>
+</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="nt">ollama_keep_alive</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;10m&quot;</span>
 </span></code></pre></div></p>
 <blockquote>
 <p>The agent uses periodic context compression, so reducing <code>ollama_num_ctx</code> usually has limited impact on long session quality.</p>
 </blockquote>
 <h3 id="context-length-error-out-of-memory-vram">Context length error / out of memory (VRAM)<a class="headerlink" href="#context-length-error-out-of-memory-vram" title="Permanent link">&para;</a></h3>
 <p>Lower <code>ollama_num_ctx</code> in config:
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nt">ollama_num_ctx</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32768</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="nt">ollama_num_ctx</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32768</span>
 </span></code></pre></div>
 Or use a smaller model. See the <code>Ollama returned HTML error page</code> section above for a complete diagnosis.</p>
 <h3 id="playwright-error-executable-doesnt-exist">Playwright error: <code>executable doesn't exist</code><a class="headerlink" href="#playwright-error-executable-doesnt-exist" title="Permanent link">&para;</a></h3>
 <p>Reinstall Playwright browsers:
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="nb">cd</span><span class="w"> </span>airecon
-</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>playwright<span class="w"> </span>install<span class="w"> </span>chromium
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="nb">cd</span><span class="w"> </span>airecon
+</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>playwright<span class="w"> </span>install<span class="w"> </span>chromium
 </span></code></pre></div></p>
 <h3 id="connection-timeout-to-ollama-during-long-scans"><code>Connection timeout</code> to Ollama during long scans<a class="headerlink" href="#connection-timeout-to-ollama-during-long-scans" title="Permanent link">&para;</a></h3>
 <p>Increase <code>ollama_timeout</code> in config (default 1900s should be sufficient for most models):
-<div class="language-json highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="nt">&quot;ollama_timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">3600.0</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="nt">&quot;ollama_timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">3600.0</span>
 </span></code></pre></div></p>
 <h3 id="poetry-install-fails-with-dependency-conflicts">Poetry install fails with dependency conflicts<a class="headerlink" href="#poetry-install-fails-with-dependency-conflicts" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="c1"># Clean Poetry environment and retry</span>
-</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>poetry<span class="w"> </span>env<span class="w"> </span>remove<span class="w"> </span>python3
-</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>poetry<span class="w"> </span>install
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="c1"># Clean Poetry environment and retry</span>
+</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>poetry<span class="w"> </span>env<span class="w"> </span>remove<span class="w"> </span>python3
+</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>poetry<span class="w"> </span>install
 </span></code></pre></div>
 
 
