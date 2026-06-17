@@ -35,6 +35,16 @@ except Exception as _e:  # data file optional — refusal labelling just disable
     logger.debug("refusal markers unavailable (%s); refusal labelling disabled", _e)
     _REFUSAL_MARKERS = ()
 
+try:
+    from ..data_loader import load_awaiting_input_markers
+
+    _AWAITING_INPUT_MARKERS: tuple[str, ...] = tuple(load_awaiting_input_markers())
+except Exception as _e:  # data file optional — graceful-stop labelling disabled
+    logger.debug(
+        "awaiting-input markers unavailable (%s); graceful-stop disabled", _e
+    )
+    _AWAITING_INPUT_MARKERS = ()
+
 _tools_meta_path = Path(__file__).parent.parent / "data" / "tools_meta.json"
 try:
     with open(_tools_meta_path, "r") as f:
@@ -94,6 +104,20 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
             return False
         low = text.lower()
         return any(marker in low for marker in _REFUSAL_MARKERS)
+
+    @staticmethod
+    def _looks_like_awaiting_input(text: str) -> bool:
+        """True if the model is asking for a new target/objective.
+
+        Markers are loaded from data/awaiting_input_markers.json. Used only in
+        the text-only watchdog abort path to end gracefully (the model considers
+        the step finished and is awaiting operator input) rather than emitting an
+        alarming 'stuck/recovery failed' error.
+        """
+        if not _AWAITING_INPUT_MARKERS or not text:
+            return False
+        low = text.lower()
+        return any(marker in low for marker in _AWAITING_INPUT_MARKERS)
 
     def _ensure_timing_tracker(self) -> None:
         if not hasattr(self, "_tool_response_times"):
@@ -1408,6 +1432,38 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                             phase=current_phase,
                         )
                         if self._watchdog_forced_calls >= 3:
+                            # If the model is simply asking for a new target/
+                            # objective (it considers the current step finished),
+                            # end gracefully instead of emitting an alarming
+                            # "stuck/recovery failed" error — mirrors the
+                            # empty-response natural-completion handling.
+                            if self._looks_like_awaiting_input(content_acc):
+                                logger.info(
+                                    "Text-only stop: model is awaiting a new "
+                                    "objective (target=%r, scan_work=%s) — ending "
+                                    "gracefully.",
+                                    self.state.active_target,
+                                    self._has_scan_work(),
+                                )
+                                if self._has_scan_work():
+                                    save_session(self._session)
+                                yield AgentEvent(
+                                    type="text",
+                                    data={
+                                        "content": (
+                                            "\n[AIRecon] The model stopped taking "
+                                            "actions and is asking for a new "
+                                            "target/objective — it considers the "
+                                            "current step complete. Your work is "
+                                            "saved. Give it the next objective, or "
+                                            "type `resume` to push it to continue, "
+                                            "or `report` to write up findings.\n"
+                                        )
+                                    },
+                                )
+                                yield AgentEvent(type="done", data={})
+                                return
+
                             msg = (
                                 "Model is stuck in text-only mode and watchdog recovery failed. "
                                 "Stopping to avoid infinite loop. "

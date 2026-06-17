@@ -136,6 +136,17 @@ def load_refusal_markers() -> list[str]:
     return [str(m).lower() for m in markers if str(m).strip()]
 
 
+def load_awaiting_input_markers() -> list[str]:
+    """Load lowercase substrings that flag the model asking for a new objective.
+
+    Used only to end a text-only watchdog abort gracefully (model considers the
+    step finished and is awaiting operator input) instead of erroring out.
+    """
+    data = _load_json("awaiting_input_markers.json")
+    markers = data.get("markers", []) if isinstance(data, dict) else []
+    return [str(m).lower() for m in markers if str(m).strip()]
+
+
 # ── File extensions ──────────────────────────────────────────────────────────
 
 
