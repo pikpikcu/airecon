@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import threading
 import time
 import uuid
@@ -129,6 +130,34 @@ def _to_openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         new_msg = {k: v for k, v in new_msg.items() if k in _ALLOWED_MESSAGE_KEYS}
         converted.append(new_msg)
     return converted
+
+
+# Hints like "reset after 6s", "retry after 10 seconds", "try again in 3s".
+_RETRY_AFTER_RE = re.compile(
+    r"(?:reset|retry|again|available)[^0-9]{0,20}?(\d+(?:\.\d+)?)\s*(s|sec|second)",
+    re.IGNORECASE,
+)
+
+
+def _is_retryable_status(status_code: int) -> bool:
+    """Transient HTTP statuses worth retrying: 5xx server errors and 429 rate
+    limits (and 408 request timeout). 4xx client errors are not retried."""
+    return status_code == 429 or status_code == 408 or 500 <= status_code < 600
+
+
+def _retry_wait_seconds(status_code: int, message: str, attempt: int) -> float:
+    """Backoff for a retryable status. Honors a "reset/retry after Ns" hint in
+    the body (common on 429) when present, else exponential, capped at 30s."""
+    base = 5.0 * (attempt + 1)
+    if status_code == 429:
+        m = _RETRY_AFTER_RE.search(message or "")
+        if m:
+            try:
+                # +1s cushion so we retry just AFTER the quota resets.
+                return min(30.0, max(base, float(m.group(1)) + 1.0))
+            except (TypeError, ValueError):
+                pass
+    return min(30.0, base)
 
 
 class LLMBackendHTTPError(RuntimeError):
@@ -527,8 +556,17 @@ class LLMClient:
                     return content or ""
 
                 except LLMBackendHTTPError as e:
-                    if 500 <= e.status_code < 600 and attempt < max_retries:
-                        await asyncio.sleep(5 * (attempt + 1))
+                    if _is_retryable_status(e.status_code) and attempt < max_retries:
+                        _wait = _retry_wait_seconds(e.status_code, str(e), attempt)
+                        logger.warning(
+                            "LLM HTTP %d (retryable) — backing off %.1fs "
+                            "(attempt %d/%d)",
+                            e.status_code,
+                            _wait,
+                            attempt + 1,
+                            max_retries + 1,
+                        )
+                        await asyncio.sleep(_wait)
                         continue
                     raise
                 except RuntimeError:
@@ -801,10 +839,21 @@ class LLMClient:
                 return
 
             except LLMBackendHTTPError as e:
-                # Retry transient 5xx server errors; 4xx is a client problem
-                # (bad model, rejected params, auth) that won't resolve on retry.
-                if 500 <= e.status_code < 600 and attempt < max_retries:
-                    await asyncio.sleep(5 * (attempt + 1))
+                # Retry transient errors: 5xx server errors and 429 rate limits
+                # (which often reset within seconds — honor the body's reset
+                # hint). 4xx client errors (bad model, rejected params, auth)
+                # won't resolve on retry, so fail fast.
+                if _is_retryable_status(e.status_code) and attempt < max_retries:
+                    _wait = _retry_wait_seconds(e.status_code, str(e), attempt)
+                    logger.warning(
+                        "LLM stream HTTP %d (retryable) — backing off %.1fs "
+                        "(attempt %d/%d)",
+                        e.status_code,
+                        _wait,
+                        attempt + 1,
+                        max_retries + 1,
+                    )
+                    await asyncio.sleep(_wait)
                     continue
                 self._record_model_performance(
                     operation=operation,
