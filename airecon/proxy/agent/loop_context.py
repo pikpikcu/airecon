@@ -230,7 +230,7 @@ class _ContextMixin:
                 last_assistant_idx = i
 
         if last_assistant_idx == -1:
-            return list(msgs)
+            return type(self.state)._repair_tool_pairs(list(msgs))
 
         result = []
         for i, msg in enumerate(msgs):
@@ -241,7 +241,11 @@ class _ContextMixin:
             ):
                 msg = {k: v for k, v in msg.items() if k != "thinking"}
             result.append(msg)
-        return result
+        # Guarantee the tool_call/tool_result pairing invariant on every request,
+        # not only after truncation. A stray tool result (its assistant turn was
+        # compacted away) otherwise reaches the gateway as an orphaned function
+        # call output and is rejected with HTTP 400.
+        return type(self.state)._repair_tool_pairs(result)
 
     def _get_tool_result_cap(self) -> int:
         if self._ctf_mode:

@@ -82,6 +82,12 @@ def _to_openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     converted: list[dict[str, Any]] = []
     pending_tool_ids: list[str] = []
+    # Every id that actually appears in a preceding assistant ``tool_calls``.
+    # A ``tool`` result is only valid if it references one of these — strict
+    # gateways (e.g. the OpenAI Responses backend) reject a function-call output
+    # whose call_id has no matching call with
+    # "No tool call found for function call output with call_id ...".
+    emitted_call_ids: set[str] = set()
     for msg in messages or []:
         if not isinstance(msg, dict):
             converted.append({"role": "user", "content": str(msg)})
@@ -98,13 +104,23 @@ def _to_openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
             oai_calls = _to_openai_tool_calls(msg["tool_calls"])
             new_msg["tool_calls"] = oai_calls
             pending_tool_ids = [c["id"] for c in oai_calls]
+            emitted_call_ids.update(pending_tool_ids)
 
         if role == "tool":
             tcid = msg.get("tool_call_id")
             if not tcid and pending_tool_ids:
                 tcid = pending_tool_ids.pop(0)
-            if not tcid:
-                tcid = f"call_{uuid.uuid4().hex[:24]}"
+            # A tool result MUST bind to a real tool_call that already appeared
+            # in THIS payload. Fabricating an id (previous behaviour) created an
+            # orphan the gateway rejects, so drop unbindable results instead —
+            # their originating assistant turn was compacted/trimmed away.
+            if not tcid or tcid not in emitted_call_ids:
+                logger.debug(
+                    "Dropping orphaned tool result (tool_call_id=%r) with no "
+                    "matching assistant tool_call in payload",
+                    tcid,
+                )
+                continue
             new_msg["tool_call_id"] = tcid
             name = msg.get("name")
             if name:
