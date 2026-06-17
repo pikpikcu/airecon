@@ -16,7 +16,7 @@ class TestPrepareMessageContext:
         class DummyAgent(_MessageEntryMixin):
             def __init__(self):
                 self.state = AgentState()
-                self._tools_ollama = None  # Not yet initialized
+                self._tools_llm = None  # Not yet initialized
                 self._ctf_mode = False
                 self._override_max_iterations = None
                 self._CTF_MAX_ITERATIONS = 50
@@ -45,7 +45,7 @@ class TestPrepareMessageContext:
                 return filtered
 
             async def initialize(self, target=None, user_message=None):
-                self._tools_ollama = [
+                self._tools_llm = [
                     {"function": {"name": "execute", "description": "run"}},
                 ]
 
@@ -64,7 +64,7 @@ class TestPrepareMessageContext:
             def _update_objectives_from_session(self, phase):
                 pass
 
-            def _check_ollama_context_pressure(self):
+            def _check_llm_context_pressure(self):
                 pass
 
             def _recompute_used_tokens_from_conversation(self):
@@ -93,7 +93,7 @@ class TestPrepareMessageContext:
         msg = "Scan target.com"
         await agent._prepare_message_context(msg)
 
-        assert agent._tools_ollama is not None
+        assert agent._tools_llm is not None
 
     @pytest.mark.asyncio
     async def test_ctf_mode_activation(self, agent):
@@ -119,7 +119,7 @@ class TestPrepareMessageContext:
 
     @pytest.mark.asyncio
     async def test_clears_ephemeral_messages(self, agent):
-        agent._tools_ollama = [{"function": {"name": "execute"}}]
+        agent._tools_llm = [{"function": {"name": "execute"}}]
         agent.state.conversation = [
             {"role": "system", "content": "[SYSTEM: WORKSPACE=old]"},
             {"role": "system", "content": "[SYSTEM: OBJECTIVE FOCUS=test]"},
@@ -148,7 +148,7 @@ class TestPrepareMessageContext:
 
     @pytest.mark.asyncio
     async def test_phase_reset_after_complete(self, agent):
-        agent._tools_ollama = [{"function": {"name": "execute"}}]
+        agent._tools_llm = [{"function": {"name": "execute"}}]
         agent._session = MagicMock()
         agent._session.current_phase = "COMPLETE"
         agent._session.target = "test.com"
@@ -179,7 +179,7 @@ class TestPrepareMessageContext:
         with patch("airecon.proxy.agent.loop_message_entry.get_config") as mock_cfg:
             cfg = MagicMock()
             cfg.agent_recon_mode = "standard"
-            cfg.ollama_num_ctx = 8192
+            cfg.llm_context_window = 8192
             cfg.agent_max_tool_iterations = 20
             mock_cfg.return_value = cfg
 
@@ -197,7 +197,7 @@ class TestContextPressureTruncation:
         class DummyAgent(_MessageEntryMixin):
             def __init__(self):
                 self.state = AgentState()
-                self._tools_ollama = [{"function": {"name": "execute"}}]
+                self._tools_llm = [{"function": {"name": "execute"}}]
                 self._ctf_mode = False
                 self._override_max_iterations = None
                 self._session = None
@@ -227,7 +227,7 @@ class TestContextPressureTruncation:
             def _update_objectives_from_session(self, phase):
                 pass
 
-            def _check_ollama_context_pressure(self):
+            def _check_llm_context_pressure(self):
                 pass
 
             def _recompute_used_tokens_from_conversation(self):

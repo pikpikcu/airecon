@@ -8,7 +8,7 @@ from airecon.proxy.config import Config, DEFAULT_CONFIG
 def test_config_default_initialization(tmp_path):
     # Using a fake path ensures it starts from defaults
     cfg = Config.load(tmp_path / "missing_config.yaml")
-    assert cfg.ollama_model == DEFAULT_CONFIG["ollama_model"]
+    assert cfg.openai_model == DEFAULT_CONFIG["openai_model"]
     assert cfg.proxy_port == DEFAULT_CONFIG["proxy_port"]
     assert cfg.agent_exploration_mode is True
     assert cfg.agent_stagnation_threshold >= 1
@@ -19,7 +19,7 @@ def test_config_default_initialization(tmp_path):
 def test_config_file_loading(tmp_path):
     config_file = tmp_path / "config.yaml"
     custom_settings = {
-        "ollama_model": "test-model:latest",
+        "openai_model": "test-model:latest",
         "proxy_port": 8080,
     }
     with open(config_file, "w") as f:
@@ -28,23 +28,23 @@ def test_config_file_loading(tmp_path):
     cfg = Config.load(config_file)
 
     # Custom values should be present
-    assert cfg.ollama_model == "test-model:latest"
+    assert cfg.openai_model == "test-model:latest"
     assert cfg.proxy_port == 8080
 
     # Missing values should fall back to default
     assert cfg.docker_image == DEFAULT_CONFIG["docker_image"]
-    assert cfg.ollama_timeout == DEFAULT_CONFIG["ollama_timeout"]
+    assert cfg.llm_timeout == DEFAULT_CONFIG["llm_timeout"]
 
 
 def test_config_env_overrides(tmp_path, monkeypatch):
     monkeypatch.setenv("AIRECON_PROXY_PORT", "9999")
-    monkeypatch.setenv("AIRECON_OLLAMA_ENABLE_THINKING", "false")
+    monkeypatch.setenv("AIRECON_LLM_ENABLE_THINKING", "false")
     monkeypatch.setenv("AIRECON_COMMAND_TIMEOUT", "120.5")
 
     cfg = Config.load(tmp_path / "missing_config.yaml")
 
     assert cfg.proxy_port == 9999
-    assert cfg.ollama_enable_thinking is False
+    assert cfg.llm_enable_thinking is False
     assert cfg.command_timeout == 120.5
 
 
@@ -71,7 +71,7 @@ class TestCorruptConfigRewrite:
 
         # Should fall back to defaults
         assert cfg.proxy_port == DEFAULT_CONFIG["proxy_port"]
-        assert cfg.ollama_model == DEFAULT_CONFIG["ollama_model"]
+        assert cfg.openai_model == DEFAULT_CONFIG["openai_model"]
 
         # The file must have been rewritten with valid YAML defaults
         with open(config_file) as f:
@@ -96,16 +96,16 @@ class TestCorruptConfigRewrite:
     def test_partial_corrupt_yaml_rewritten(self, tmp_path):
         """Truncated YAML must trigger rewrite."""
         config_file = tmp_path / "config.yaml"
-        config_file.write_text("proxy_port: 9000\nollama_model: [unclosed")
+        config_file.write_text("proxy_port: 9000\nopenai_model: [unclosed")
 
         cfg = Config.load(config_file)
 
         # Defaults used since file is corrupt
-        assert cfg.ollama_model == DEFAULT_CONFIG["ollama_model"]
+        assert cfg.openai_model == DEFAULT_CONFIG["openai_model"]
         # File is rewritten with clean defaults
         with open(config_file) as f:
             rewritten = yaml.safe_load(f)
-        assert rewritten["ollama_model"] == DEFAULT_CONFIG["ollama_model"]
+        assert rewritten["openai_model"] == DEFAULT_CONFIG["openai_model"]
 
 
 # ---------------------------------------------------------------------------
@@ -122,11 +122,11 @@ class TestLoadWithDefaultsTypeCoercion:
         assert isinstance(cfg.proxy_port, int)
 
     def test_string_float_coerced(self):
-        """ollama_timeout as string '600.0' must be coerced to float."""
-        raw = {**DEFAULT_CONFIG, "ollama_timeout": "600.0"}
+        """llm_timeout as string '600.0' must be coerced to float."""
+        raw = {**DEFAULT_CONFIG, "llm_timeout": "600.0"}
         cfg = Config.load_with_defaults(raw)
-        assert cfg.ollama_timeout == 600.0
-        assert isinstance(cfg.ollama_timeout, float)
+        assert cfg.llm_timeout == 600.0
+        assert isinstance(cfg.llm_timeout, float)
 
     def test_string_bool_true_coerced(self, tmp_path):
         """'true' string for bool field must become True."""
@@ -136,9 +136,9 @@ class TestLoadWithDefaultsTypeCoercion:
 
     def test_string_bool_false_coerced(self):
         """'false' string for bool field must become False."""
-        raw = {**DEFAULT_CONFIG, "ollama_enable_thinking": "false"}
+        raw = {**DEFAULT_CONFIG, "llm_enable_thinking": "false"}
         cfg = Config.load_with_defaults(raw)
-        assert cfg.ollama_enable_thinking is False
+        assert cfg.llm_enable_thinking is False
 
     def test_string_bool_yes_coerced(self):
         """'yes' string for bool field must become True."""
@@ -170,22 +170,22 @@ class TestLoadWithDefaultsTypeCoercion:
         raw = {"proxy_port": 4444}  # missing all other keys
         cfg = Config.load_with_defaults(raw)
         assert cfg.proxy_port == 4444
-        assert cfg.ollama_model == DEFAULT_CONFIG["ollama_model"]
+        assert cfg.openai_model == DEFAULT_CONFIG["openai_model"]
         assert cfg.docker_image == DEFAULT_CONFIG["docker_image"]
 
     def test_int_to_float_coerced(self):
         """Int value for float field (e.g. timeout=900 not 900.0) must coerce."""
-        raw = {**DEFAULT_CONFIG, "ollama_timeout": 900}
+        raw = {**DEFAULT_CONFIG, "llm_timeout": 900}
         cfg = Config.load_with_defaults(raw)
-        assert cfg.ollama_timeout == 900.0
-        assert isinstance(cfg.ollama_timeout, float)
+        assert cfg.llm_timeout == 900.0
+        assert isinstance(cfg.llm_timeout, float)
 
     def test_config_file_with_wrong_types_loads_correctly(self, tmp_path):
         """End-to-end: config.json with wrong types must coerce on load."""
         config_file = tmp_path / "config.json"
         bad_typed = {
             "proxy_port": "5000",  # string → int
-            "ollama_timeout": "300",  # string → float
+            "llm_timeout": "300",  # string → float
             "docker_auto_build": "false",  # string → bool
         }
         with open(config_file, "w") as f:
@@ -195,16 +195,16 @@ class TestLoadWithDefaultsTypeCoercion:
 
         assert cfg.proxy_port == 5000
         assert isinstance(cfg.proxy_port, int)
-        assert cfg.ollama_timeout == 300.0
-        assert isinstance(cfg.ollama_timeout, float)
+        assert cfg.llm_timeout == 300.0
+        assert isinstance(cfg.llm_timeout, float)
         assert cfg.docker_auto_build is False
 
-    def test_agent_max_conversation_auto_derives_from_ollama_ctx(self, tmp_path):
-        """When not explicitly configured, cap must follow ollama_num_ctx."""
+    def test_agent_max_conversation_auto_derives_from_llm_ctx(self, tmp_path):
+        """When not explicitly configured, cap must follow llm_context_window."""
         config_file = tmp_path / "config.json"
-        config_file.write_text(json.dumps({"ollama_num_ctx": 8192}), encoding="utf-8")
+        config_file.write_text(json.dumps({"llm_context_window": 8192}), encoding="utf-8")
         cfg = Config.load(config_file)
-        assert cfg.ollama_num_ctx == 8192
+        assert cfg.llm_context_window == 8192
         assert cfg.agent_max_conversation_messages == 100  # max(100, 8192//128)
 
     def test_agent_max_conversation_explicit_value_is_preserved(self, tmp_path):
@@ -213,14 +213,14 @@ class TestLoadWithDefaultsTypeCoercion:
         config_file.write_text(
             json.dumps(
                 {
-                    "ollama_num_ctx": 8192,
+                    "llm_context_window": 8192,
                     "agent_max_conversation_messages": 333,
                 }
             ),
             encoding="utf-8",
         )
         cfg = Config.load(config_file)
-        assert cfg.ollama_num_ctx == 8192
+        assert cfg.llm_context_window == 8192
         assert cfg.agent_max_conversation_messages == 333
 
     def test_agent_recon_mode_valid_values(self):

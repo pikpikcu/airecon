@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from ..mcp import mcp_ollama_tools
+from ..mcp import mcp_llm_tools
 
 _DATASETS_DIR = Path.home() / ".airecon" / "datasets"
 
@@ -29,5 +29,5 @@ def get_tool_definitions() -> list[dict]:
             if t.get("function", {}).get("name") != "dataset_search"
         ]
 
-    tools.extend(mcp_ollama_tools(max_servers=10))
+    tools.extend(mcp_llm_tools(max_servers=10))
     return tools

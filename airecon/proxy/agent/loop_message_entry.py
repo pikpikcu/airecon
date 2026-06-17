@@ -51,7 +51,7 @@ class _MessageEntryMixin:
                 t for t in all_targets if t != wildcard_scope_target
             ]
 
-        if not self._tools_ollama:
+        if not self._tools_llm:
             await self.initialize(
                 target=extracted_target,
                 user_message=user_message,
@@ -66,7 +66,7 @@ class _MessageEntryMixin:
                         self.pipeline.set_ctf_mode(True)
 
                     if self._adaptive_num_ctx == 0:
-                        self._adaptive_num_ctx = get_config().ollama_num_ctx_small
+                        self._adaptive_num_ctx = get_config().llm_context_window_small
                     logger.info(
                         "CTF mode activated mid-session for target=%r — ctx=%d",
                         extracted_target,
@@ -153,7 +153,7 @@ class _MessageEntryMixin:
         ]
 
         if self.state.iteration % 10 == 0:
-            self._check_ollama_context_pressure()
+            self._check_llm_context_pressure()
 
         if len(all_targets) > 1:
             extra = ", ".join(all_targets[1:])
@@ -336,7 +336,7 @@ class _MessageEntryMixin:
         _ctx_limit = (
             self._adaptive_num_ctx
             if self._adaptive_num_ctx > 0
-            else int(getattr(cfg, "ollama_num_ctx", 0) or 0)
+            else int(getattr(cfg, "llm_context_window", 0) or 0)
         )
         _ctx_used = int(self.state.token_usage.get("used", 0) or 0)
         if _ctx_used <= 0:

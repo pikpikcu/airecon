@@ -1254,6 +1254,13 @@ class SessionData:
         default_factory=lambda: BoundedList(maxlen=1000)
     )
 
+    # Rolling buffer of RAW chat turns (user/assistant/tool) preserved across
+    # compaction so a resumed session can replay real history even after the main
+    # conversation was compressed into summaries.
+    recent_turns: list[dict[str, Any]] = field(
+        default_factory=lambda: BoundedList(maxlen=400)
+    )
+
     injection_points: list[dict[str, Any]] = field(
         default_factory=lambda: BoundedList(maxlen=_MAX_INJECTION_POINTS)
     )
@@ -1492,6 +1499,9 @@ def load_session(session_id: str) -> SessionData | None:
             conversation=_coerce_sequence_field(
                 data.get("conversation", []), field_name="conversation", maxlen=1000
             ),
+            recent_turns=_coerce_sequence_field(
+                data.get("recent_turns", []), field_name="recent_turns", maxlen=400
+            ),
             injection_points=_coerce_sequence_field(
                 data.get("injection_points", []),
                 field_name="injection_points",
@@ -1598,6 +1608,7 @@ def save_session(session: SessionData) -> None:
             "tested_endpoints",
             "loaded_skills",
             "conversation",
+            "recent_turns",
         )
         for key in _bounded_fields:
             try:

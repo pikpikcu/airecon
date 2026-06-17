@@ -19,8 +19,8 @@ Welcome to the AIRecon documentation.
 | Task | Where to look |
 |------|--------------|
 | Install for the first time | [Installation Guide](installation.md) |
-| Change the LLM model | [configuration.md → ollama_model](configuration.md#ollama_model) |
-| Tune performance / VRAM | [configuration.md → Ollama Settings](configuration.md#3-ollama-settings) |
+| Change the LLM model | [configuration.md → openai_model](configuration.md#openai_model) |
+| Tune performance / VRAM | [configuration.md → LLM Backend Settings](configuration.md#3-llm-backend-settings) |
 | Understand the pipeline phases | [features.md → Pipeline Phases](features.md#pipeline-phases) |
 | Connect to Caido | [features.md → Caido Integration](features.md#caido-integration) |
 | Set up browser auth | [features.md → Browser Authentication](features.md#browser-authentication) |

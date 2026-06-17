@@ -97,12 +97,126 @@ async def test_handle_shell_command_without_args_shows_usage():
 
 
 @pytest.mark.asyncio
+async def test_handle_models_command_lists_models():
+    app = AIReconApp(show_startup_screen=False, auto_poll_services=False)
+    chat = MagicMock()
+    app.query_one = MagicMock(return_value=chat)  # type: ignore[method-assign]
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.content = b"x"
+    mock_resp.json.return_value = {
+        "current_model": "gpt-4o",
+        "source_url": "http://llm.test/v1/models",
+        "models": ["gpt-4o", "gpt-4o-mini"],
+    }
+    app._http = MagicMock()
+    app._http.get = AsyncMock(return_value=mock_resp)
+
+    await app._handle_slash_command("/models")
+
+    app._http.get.assert_awaited_once_with("/api/models", timeout=15.0)
+    rendered = chat.add_assistant_message.call_args.args[0]
+    assert "Current: gpt-4o" in rendered
+    assert "* gpt-4o" in rendered
+    assert "  gpt-4o-mini" in rendered
+
+
+def test_format_models_response_does_not_truncate_long_model_lists():
+    models = [f"model-{idx}" for idx in range(105)]
+
+    rendered = AIReconApp._format_models_response(
+        {
+            "current_model": "model-104",
+            "source_url": "http://llm.test/v1/models",
+            "models": models,
+        }
+    )
+
+    assert "Available models (105)" in rendered
+    assert "* model-104" in rendered
+    assert "... 25 more" not in rendered
+
+
+def test_format_models_response_notes_current_model_missing_from_list():
+    rendered = AIReconApp._format_models_response(
+        {
+            "current_model": "oc/big-pickle",
+            "source_url": "http://llm.test/v1/models",
+            "models": ["local", "gh/gpt-4o"],
+        }
+    )
+
+    assert "Available models (2)" in rendered
+    assert "Current: oc/big-pickle" in rendered
+    assert "Current model was not returned" in rendered
+
+
+@pytest.mark.asyncio
+async def test_handle_models_command_switches_model():
+    app = AIReconApp(show_startup_screen=False, auto_poll_services=False)
+    chat = MagicMock()
+    app.query_one = MagicMock(return_value=chat)  # type: ignore[method-assign]
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.content = b"x"
+    mock_resp.json.return_value = {
+        "current_model": "gpt-4o-mini",
+        "thinking": {"enabled": True},
+    }
+    app._http = MagicMock()
+    app._http.post = AsyncMock(return_value=mock_resp)
+
+    await app._handle_slash_command("/models gpt-4o-mini")
+
+    app._http.post.assert_awaited_once_with(
+        "/api/models",
+        json={"model": "gpt-4o-mini"},
+        timeout=30.0,
+    )
+    rendered = chat.add_assistant_message.call_args.args[0]
+    assert "Current: gpt-4o-mini" in rendered
+    assert "Thinking: true" in rendered
+
+
+@pytest.mark.asyncio
+async def test_handle_think_command_toggles_thinking():
+    app = AIReconApp(show_startup_screen=False, auto_poll_services=False)
+    chat = MagicMock()
+    app.query_one = MagicMock(return_value=chat)  # type: ignore[method-assign]
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.content = b"x"
+    mock_resp.json.return_value = {
+        "enabled": False,
+        "mode": "low",
+        "request_mode": "auto",
+        "supports_thinking": False,
+    }
+    app._http = MagicMock()
+    app._http.post = AsyncMock(return_value=mock_resp)
+
+    await app._handle_slash_command("/think false")
+
+    app._http.post.assert_awaited_once_with(
+        "/api/think",
+        json={"enabled": False},
+        timeout=30.0,
+    )
+    rendered = chat.add_assistant_message.call_args.args[0]
+    assert "Enabled: false" in rendered
+    assert "Request mode: auto" in rendered
+
+
+@pytest.mark.asyncio
 async def test_app_status_polling_connection():
     with patch("httpx.AsyncClient.get") as mock_get:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            "ollama": {"connected": True, "model": "test-model"},
+            "llm": {"connected": True, "model": "test-model"},
             "docker": {"connected": True},
             "agent": {"tool_counts": {"exec": 5, "subagents": 1}},
         }
@@ -150,38 +264,38 @@ def test_app_init_proxy_url_stripped():
     assert app.proxy_url == "http://localhost:3000"
 
 
-def test_ollama_recovery_marker_detection():
+def test_llm_recovery_marker_detection():
     assert (
-        AIReconApp._is_ollama_recovery_marker("[AUTO-RECOVERY #1] VRAM crash") is True
+        AIReconApp._is_llm_recovery_marker("[AUTO-RECOVERY #1] VRAM crash") is True
     )
     assert (
-        AIReconApp._is_ollama_recovery_marker("CUDA out of memory while generating")
+        AIReconApp._is_llm_recovery_marker("CUDA out of memory while generating")
         is True
     )
-    assert AIReconApp._is_ollama_recovery_marker("normal assistant response") is False
+    assert AIReconApp._is_llm_recovery_marker("normal assistant response") is False
 
 
-def test_mark_ollama_degraded_updates_status_bar():
+def test_mark_llm_degraded_updates_status_bar():
     app = AIReconApp(show_startup_screen=False, auto_poll_services=False)
     status = MagicMock()
     app.query_one = MagicMock(return_value=status)  # type: ignore[method-assign]
     app._processing = True
 
-    app._mark_ollama_degraded("[AUTO-RECOVERY #2] VRAM crash")
+    app._mark_llm_degraded("[AUTO-RECOVERY #2] VRAM crash")
 
-    assert app._is_ollama_degraded_active() is True
-    status.set_status.assert_called_with(ollama_degraded=True)
+    assert app._is_llm_degraded_active() is True
+    status.set_status.assert_called_with(llm_degraded=True)
 
 
-def test_mark_ollama_degraded_ignored_when_idle():
+def test_mark_llm_degraded_ignored_when_idle():
     app = AIReconApp(show_startup_screen=False, auto_poll_services=False)
     status = MagicMock()
     app.query_one = MagicMock(return_value=status)  # type: ignore[method-assign]
     app._processing = False
 
-    app._mark_ollama_degraded("[AUTO-RECOVERY #2] VRAM crash")
+    app._mark_llm_degraded("[AUTO-RECOVERY #2] VRAM crash")
 
-    assert app._is_ollama_degraded_active() is False
+    assert app._is_llm_degraded_active() is False
     status.set_status.assert_not_called()
 
 
@@ -372,7 +486,7 @@ async def test_startup_screen_renders_step_labels():
             "step-docker",
             "step-searxng",
             "step-proxy",
-            "step-ollama",
+            "step-llm",
             "step-engine",
         ):
             label = screen.query_one(f"#{sid}")
@@ -428,7 +542,7 @@ async def test_startup_screen_pending_state_on_mount():
             "step-docker",
             "step-searxng",
             "step-proxy",
-            "step-ollama",
+            "step-llm",
             "step-engine",
         ):
             state, _ = screen._step_states[sid]
@@ -495,7 +609,7 @@ def test_write_config_value_preserves_existing_keys(tmp_path):
 
     airecon_dir = tmp_path / ".airecon"
     airecon_dir.mkdir()
-    (airecon_dir / "config.yaml").write_text(yaml.dump({"ollama_model": "llama3"}))
+    (airecon_dir / "config.yaml").write_text(yaml.dump({"openai_model": "llama3"}))
 
     with (
         patch("pathlib.Path.home", return_value=tmp_path),
@@ -504,5 +618,5 @@ def test_write_config_value_preserves_existing_keys(tmp_path):
         _write_config_value("searxng_url", "http://localhost:4000")
 
     result = yaml.safe_load((airecon_dir / "config.yaml").read_text())
-    assert result["ollama_model"] == "llama3"
+    assert result["openai_model"] == "llama3"
     assert result["searxng_url"] == "http://localhost:4000"

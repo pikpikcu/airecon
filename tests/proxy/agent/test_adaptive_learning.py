@@ -191,7 +191,7 @@ class TestAdaptiveLearningEngine:
         )
 
         insights = engine.distill_insights(
-            ollama_url="http://ollama.local",
+            base_url="http://router.local/v1",
             model="qwen-test",
         )
 
@@ -255,7 +255,7 @@ class TestAdaptiveLearningEngine:
         )
 
         insights = engine.distill_insights(
-            ollama_url="http://ollama.local",
+            base_url="http://router.local/v1",
             model="qwen-test",
         )
 

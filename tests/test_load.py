@@ -124,10 +124,10 @@ class TestServerConcurrency:
         from pathlib import Path
 
         config_file = Path(tempfile.mkdtemp()) / "config.yaml"
-        config_file.write_text("ollama_model: llama3\n")
+        config_file.write_text("openai_model: llama3\n")
 
         async def read_config():
-            return Config.load(str(config_file)).ollama_model
+            return Config.load(str(config_file)).openai_model
 
         tasks = [read_config() for _ in range(20)]
         results = await asyncio.gather(*tasks)

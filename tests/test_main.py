@@ -266,13 +266,13 @@ class TestRunStatus:
             patch("subprocess.run") as mock_sp,
         ):
             mock_cfg.return_value = MagicMock(
-                proxy_host="127.0.0.1", proxy_port=8084, ollama_model="test"
+                proxy_host="127.0.0.1", proxy_port=8084, openai_model="test"
             )
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_response.json.return_value = {
                 "status": "ok",
-                "ollama": {"connected": True},
+                "llm": {"connected": True},
                 "docker": {"connected": True},
             }
             mock_get.return_value = mock_response
@@ -283,8 +283,8 @@ class TestRunStatus:
 
             _run_status(args)
 
-    def test_run_status_ollama_down(self) -> None:
-        """Test status check when Ollama is down."""
+    def test_run_status_llm_down(self) -> None:
+        """Test status check when LLM is down."""
         args = argparse.Namespace(config=None)
 
         with (
@@ -293,7 +293,7 @@ class TestRunStatus:
             patch("shutil.which", return_value=None),
         ):
             mock_cfg.return_value = MagicMock(
-                proxy_host="127.0.0.1", proxy_port=8084, ollama_model="test"
+                proxy_host="127.0.0.1", proxy_port=8084, openai_model="test"
             )
             import httpx
 
@@ -352,7 +352,7 @@ class TestUnloadModelSafely:
 
     def test_unload_model_safely_no_model(self) -> None:
         """Test unload when no model loaded."""
-        mock_cfg = MagicMock(ollama_model=None, proxy_host="127.0.0.1", proxy_port=8084)
+        mock_cfg = MagicMock(openai_model=None, proxy_host="127.0.0.1", proxy_port=8084)
         with (
             patch("airecon.proxy.config.get_config", return_value=mock_cfg),
             patch("urllib.request.urlopen", side_effect=Exception("no server")),
@@ -362,28 +362,21 @@ class TestUnloadModelSafely:
             _unload_model_safely()
 
     def test_unload_model_safely_with_model(self) -> None:
-        """Test unload when model is loaded."""
+        """Exit banner runs cleanly when a model is configured."""
         mock_cfg = MagicMock(
-            ollama_model="qwen3.5:122b",
+            openai_model="qwen3.5:122b",
             proxy_host="127.0.0.1",
             proxy_port=8084,
-            ollama_url="http://127.0.0.1:11434",
             searxng_url=None,
         )
         with (
             patch("airecon.proxy.config.get_config", return_value=mock_cfg),
             patch("urllib.request.urlopen", side_effect=Exception("no server")),
             patch("shutil.which", return_value="/usr/bin/docker"),
-            patch("subprocess.run") as mock_run,
+            patch("subprocess.run"),
         ):
+            # Remote backend: nothing to unload, banner must not raise.
             _unload_model_safely()
-            # Should call curl to unload model via API
-            calls = [str(c) for c in mock_run.call_args_list]
-            assert any("curl" in c for c in calls) or any(
-                "generate" in c for c in calls
-            )
-
-        # Should call ollama rm
 
 
 class TestRunListSessions:

@@ -222,7 +222,7 @@ class _ContextMixin:
                 chars_freed,
             )
 
-    def _messages_for_ollama(self) -> list[dict[str, Any]]:
+    def _messages_for_llm(self) -> list[dict[str, Any]]:
         msgs = self.state.conversation
         last_assistant_idx = -1
         for i, m in enumerate(msgs):
@@ -249,7 +249,7 @@ class _ContextMixin:
         ctx = (
             self._adaptive_num_ctx
             if self._adaptive_num_ctx > 0
-            else get_config().ollama_num_ctx
+            else get_config().llm_context_window
         )
 
         base_cap = max(3_000, min(self._MAX_TOOL_RESULT_CHARS, int(ctx * 0.08 * 3)))
@@ -310,7 +310,7 @@ class _ContextMixin:
             self.state.conversation = new_conversation
             logger.info(
                 "Dropped %d stale tool results (%d chars freed) — "
-                "prevents Ollama progressive slowdown",
+                "prevents progressive slowdown",
                 dropped,
                 chars_freed,
             )
@@ -322,13 +322,27 @@ class _ContextMixin:
     ) -> str:
         if not messages_to_compress:
             return ""
-        if not getattr(self, "ollama", None):
+        if not getattr(self, "llm", None):
             return ""
 
         if self._recovery_force_tool_calls > 0:
             return ""
 
-        _PER_MSG_CAP = 350
+        # Per-message cap is config-driven and scales with the context window:
+        # large-context models can afford to feed the compressor more detail, so
+        # less is lost in the handoff summary.
+        _cfg = get_config()
+        try:
+            _PER_MSG_CAP = int(
+                getattr(_cfg, "memory_compression_input_per_msg_chars", 350)
+            )
+        except (TypeError, ValueError):
+            _PER_MSG_CAP = 350
+        _eff_ctx = int(
+            getattr(self, "_adaptive_num_ctx", 0) or getattr(_cfg, "llm_context_window", 0) or 0
+        )
+        if _eff_ctx >= 100_000:
+            _PER_MSG_CAP *= 2
         chunks: list[str] = []
         for msg in messages_to_compress:
             role = msg.get("role", "?")
@@ -372,7 +386,7 @@ class _ContextMixin:
             )
 
         try:
-            summary = await self.ollama.complete(
+            summary = await self.llm.complete(
                 messages=[
                     {"role": "system", "content": system_content},
                     {"role": "user", "content": user_content},
@@ -395,11 +409,11 @@ class _ContextMixin:
             self._fit_num_predict_to_ctx(num_predict, num_ctx)
             if num_predict is not None
             else self._fit_num_predict_to_ctx(
-                getattr(cfg, "ollama_num_predict", 32768), num_ctx
+                getattr(cfg, "openai_max_tokens", 32768), num_ctx
             )
         )
 
-        _tools_count = len(self._tools_ollama) if self._tools_ollama is not None else 20
+        _tools_count = len(self._tools_llm) if self._tools_llm is not None else 20
         _tools_overhead = _tools_count * 500
         effective_input_ctx = max(1024, num_ctx - effective_predict - _tools_overhead)
         budget = int(effective_input_ctx * 0.35)
@@ -577,6 +591,11 @@ class _ContextMixin:
                     }
                 )
             kept.extend(recent_others)
+
+            # Recent-window slicing can sever an assistant tool_call from its
+            # tool result. Repair orphan/missing pairs so the OpenAI-compatible
+            # backend doesn't reject the conversation (mirrors truncate_conversation).
+            kept = type(self.state)._repair_tool_pairs(kept)
 
             self.state.conversation = kept
 
@@ -802,8 +821,22 @@ class _ContextMixin:
 
         compression_summary = str(getattr(self, "_compression_summary", "") or "").strip()
         if compression_summary:
+            _cfg = get_config()
+            try:
+                _summary_cap = int(
+                    getattr(_cfg, "memory_compression_summary_chars", 700)
+                )
+            except (TypeError, ValueError):
+                _summary_cap = 700
+            _eff_ctx = int(
+                getattr(self, "_adaptive_num_ctx", 0)
+                or getattr(_cfg, "llm_context_window", 0)
+                or 0
+            )
+            if _eff_ctx >= 100_000:
+                _summary_cap *= 2
             parts.append("ITERATIVE MEMORY HANDOFF:")
-            parts.append(f"  {compression_summary[:700]}")
+            parts.append(f"  {compression_summary[:_summary_cap]}")
             added_any = True
 
         recent_exec = self._build_recent_execution_memory(last_n=6)

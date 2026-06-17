@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 
@@ -70,74 +71,107 @@ _DOM_BYPASS_TEMPLATE = """(() => {{
 
 
 class CaptchaSolver:
-    """Universal Ollama vision-based CAPTCHA solver.
+    """Universal vision-based CAPTCHA solver.
 
     Requires config-driven params — no hardcoded defaults, no hardcoded types.
-    Ollama sees the screenshot, analyses the HTML, and decides the approach.
+    Vision is routed through the OpenAI-compatible gateway (LiteLLM/
+    vLLM/hosted): the model sees the screenshot, analyses the HTML, and decides
+    the approach. Requires a vision-capable model behind the gateway.
     """
 
     def __init__(
         self,
-        ollama_url: str,
+        base_url: str,
         captcha_model: str,
+        api_key: str = "",
         timeout: float = 60,
     ):
-        self.ollama_url = ollama_url.rstrip("/")
+        self.base_url = base_url.rstrip("/")
         self.captcha_model = captcha_model
+        self.api_key = api_key
         self.timeout = timeout
         self.solve_attempts: list[dict[str, Any]] = []
 
-    async def _call_ollama_vision(
+    def _vision_payload(self, screenshot_b64: str, prompt: str) -> dict[str, Any]:
+        return {
+            "model": self.captcha_model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{screenshot_b64}"
+                            },
+                        },
+                    ],
+                }
+            ],
+            "stream": False,
+            "temperature": 0.0,
+            "max_tokens": 512,
+        }
+
+    def _vision_headers(self) -> dict[str, str]:
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
+
+    @staticmethod
+    def _extract_answer(data: dict[str, Any]) -> str | None:
+        choices = data.get("choices") or []
+        if not choices:
+            return None
+        msg = choices[0].get("message") or {}
+        answer = (msg.get("content") or "").strip()
+        return answer or None
+
+    async def _call_llm_vision(
         self,
         screenshot_b64: str,
         prompt: str,
     ) -> str | None:
-        """Send screenshot to Ollama vision model and get response."""
-        payload = {
-            "model": self.captcha_model,
-            "prompt": prompt,
-            "stream": False,
-            "images": [screenshot_b64],
-            "options": {
-                "temperature": 0.0,
-                "num_predict": 512,
-            },
-        }
+        """Send screenshot to the gateway vision model and get a response."""
+        payload = self._vision_payload(screenshot_b64, prompt)
 
         try:
             import aiohttp
 
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    f"{self.ollama_url}/api/generate",
+                    f"{self.base_url}/chat/completions",
                     json=payload,
+                    headers=self._vision_headers(),
                     timeout=aiohttp.ClientTimeout(total=self.timeout),
                 ) as resp:
                     if resp.status != 200:
                         text = await resp.text()
                         logger.warning(
-                            "Ollama vision API returned %d: %s",
+                            "Vision API returned %d: %s",
                             resp.status,
                             text[:300],
                         )
                         return None
 
                     data = await resp.json()
-                    answer = data.get("response", "").strip()
+                    answer = self._extract_answer(data)
 
                     if not answer:
-                        logger.warning("Ollama vision returned empty response")
+                        logger.warning("Vision model returned empty response")
                         return None
 
                     return answer
 
         except ImportError:
-            return await self._call_ollama_vision_sync(screenshot_b64, prompt)
+            return await self._call_llm_vision_sync(screenshot_b64, prompt)
         except Exception as exc:
-            logger.debug("Ollama Vision call failed: %s", exc)
+            logger.debug("Vision call failed: %s", exc)
             return None
 
-    async def _call_ollama_vision_sync(
+    async def _call_llm_vision_sync(
         self,
         screenshot_b64: str,
         prompt: str,
@@ -145,26 +179,29 @@ class CaptchaSolver:
         """Synchronous fallback using urllib."""
         import urllib.request
 
-        payload = json.dumps({
-            "model": self.captcha_model,
-            "prompt": prompt,
-            "stream": False,
-            "images": [screenshot_b64],
-            "options": {"temperature": 0.0, "num_predict": 512},
-        }).encode("utf-8")
+        payload = json.dumps(
+            self._vision_payload(screenshot_b64, prompt)
+        ).encode("utf-8")
+        headers = self._vision_headers()
 
-        try:
+        def _blocking_call() -> str | None:
             req = urllib.request.Request(
-                f"{self.ollama_url}/api/generate",
+                f"{self.base_url}/chat/completions",
                 data=payload,
-                headers={"Content-Type": "application/json"},
+                headers=headers,
                 method="POST",
             )
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
                 data = json.loads(resp.read().decode("utf-8"))
-                return data.get("response", "").strip() or None
+                return CaptchaSolver._extract_answer(data)
+
+        try:
+            # Run the blocking urllib call in a worker thread so we never stall
+            # the asyncio event loop (this method is the fallback when aiohttp
+            # is unavailable, but it must still behave like a proper coroutine).
+            return await asyncio.to_thread(_blocking_call)
         except Exception as exc:
-            logger.debug("Ollama Vision (sync) call failed: %s", exc)
+            logger.debug("Vision (sync) call failed: %s", exc)
             return None
 
     # ── CAPTCHA Analysis (fully LLM-driven, no hardcoded types) ──────────────
@@ -174,22 +211,22 @@ class CaptchaSolver:
         screenshot_b64: str,
         page_html: str = "",
     ) -> dict[str, Any]:
-        """Ask Ollama to analyse the CAPTCHA and return a structured analysis.
+        """Ask the LLM to analyse the CAPTCHA and return a structured analysis.
 
-        This is the vision-first approach — Ollama sees the page, identifies
+        This is the vision-first approach — the LLM sees the page, identifies
         the CAPTCHA, determines its type, and selects the best solving strategy.
 
         Returns:
             dict with: captcha_present, provider, type_description, approach,
                        bypass_selectors, input_names, reasoning
         """
-        raw_answer = await self._call_ollama_vision(
+        raw_answer = await self._call_llm_vision(
             screenshot_b64,
             _CAPTCHA_ANALYSE_PROMPT,
         )
 
         if not raw_answer:
-            logger.warning("Ollama did not return a CAPTCHA analysis")
+            logger.warning("LLM did not return a CAPTCHA analysis")
             return {"captcha_present": False, "approach": "impossible"}
 
         # Parse JSON from the LLM response
@@ -243,10 +280,10 @@ class CaptchaSolver:
         """Universal CAPTCHA solver — adaptive, vision-driven.
 
         Strategy:
-        1. Let Ollama analyse the screenshot to identify and classify the CAPTCHA
+        1. Let the LLM analyse the screenshot to identify and classify the CAPTCHA
         2. Choose the appropriate solving approach based on the analysis:
            - dom_bypass: inject placeholder token into response fields
-           - text_extract: read CAPTCHA text using Ollama vision
+           - text_extract: read CAPTCHA text using LLM vision
            - interactive: return analysis for human guidance
            - impossible: report failure
         3. Execute the chosen approach
@@ -255,7 +292,7 @@ class CaptchaSolver:
             page_screenshot_b64: Base64-encoded screenshot of the page
             page_html: Full page HTML (used for context, bypass injection)
             captcha_type: Optional hint (e.g. from caller's knowledge).
-                          If not provided, Ollama auto-detects.
+                          If not provided, the LLM auto-detects.
 
         Returns:
             dict with: success, method, captcha_type, solution, bypass_js
@@ -310,13 +347,13 @@ class CaptchaSolver:
                 return result
 
         elif approach == "text_extract":
-            text_answer = await self._call_ollama_vision(
+            text_answer = await self._call_llm_vision(
                 page_screenshot_b64,
                 _CAPTCHA_TEXT_PROMPT,
             )
             if text_answer and text_answer != "NONE":
                 result["success"] = True
-                result["method"] = "ollama_vision"
+                result["method"] = "llm_vision"
                 result["solution"] = text_answer
                 logger.info(
                     "CAPTCHA solved: method=vision_extract, text=%r",

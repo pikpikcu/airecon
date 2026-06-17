@@ -42,8 +42,9 @@ class StatusBar(Horizontal):
     class SkillsClicked(Message):
         pass
 
-    ollama_status = reactive("offline")
-    ollama_degraded = reactive(False)
+    llm_status = reactive("offline")
+    llm_degraded = reactive(False)
+    backend_label = reactive("LLM")
     docker_status = reactive("offline")
     model_name = reactive("—")
     token_count = reactive(0)
@@ -94,14 +95,14 @@ class StatusBar(Horizontal):
 
     def _update_display(self) -> None:
         try:
-            _ollama_online = self.ollama_status == "online"
-            ollama_dot = "●" if _ollama_online else "○"
-            ollama_color = "#00d4aa" if _ollama_online else "#ef4444"
-            ollama_label = "Ollama"
-            if self.ollama_degraded and _ollama_online:
-                ollama_dot = "●"
-                ollama_color = "#ef4444"
-                ollama_label = "Ollama (degraded)"
+            _llm_online = self.llm_status == "online"
+            llm_dot = "●" if _llm_online else "○"
+            llm_color = "#00d4aa" if _llm_online else "#ef4444"
+            llm_label = self.backend_label or "LLM"
+            if self.llm_degraded and _llm_online:
+                llm_dot = "●"
+                llm_color = "#ef4444"
+                llm_label = f"{self.backend_label or 'LLM'} (degraded)"
 
             docker_dot = "●" if self.docker_status == "online" else "○"
             docker_color = "#00d4aa" if self.docker_status == "online" else "#ef4444"
@@ -112,7 +113,7 @@ class StatusBar(Horizontal):
             token_color = self._token_color_for_cumulative(token_count)
 
             metrics_text = (
-                f" [{ollama_color}]{ollama_dot}[/] {ollama_label}  "
+                f" [{llm_color}]{llm_dot}[/] {llm_label}  "
                 f"[{docker_color}]{docker_dot}[/] Docker  "
                 f"│ [#8b949e]Model:[/] [#00d4aa]{markup_escape(self.model_name)}[/]"
                 f"  │ [#8b949e]Tokens:[/] [{token_color}]{token_label}[/]"
@@ -154,10 +155,13 @@ class StatusBar(Horizontal):
         except Exception as e:
             logger.debug("Expected failure in _update_display: %s", e)
 
-    def watch_ollama_status(self, _) -> None:
+    def watch_llm_status(self, _) -> None:
         self._update_display()
 
-    def watch_ollama_degraded(self, _) -> None:
+    def watch_llm_degraded(self, _) -> None:
+        self._update_display()
+
+    def watch_backend_label(self, _) -> None:
         self._update_display()
 
     def watch_docker_status(self, _) -> None:
@@ -189,8 +193,9 @@ class StatusBar(Horizontal):
 
     def set_status(
         self,
-        ollama: str | None = None,
-        ollama_degraded: bool | None = None,
+        llm: str | None = None,
+        llm_degraded: bool | None = None,
+        backend_label: str | None = None,
         docker: str | None = None,
         model: str | None = None,
         tokens: int | str | None = None,
@@ -202,10 +207,12 @@ class StatusBar(Horizontal):
         caido_active: bool | None = None,
         caido_findings: int | str | None = None,
     ) -> None:
-        if ollama is not None:
-            self.ollama_status = ollama
-        if ollama_degraded is not None:
-            self.ollama_degraded = bool(ollama_degraded)
+        if llm is not None:
+            self.llm_status = llm
+        if llm_degraded is not None:
+            self.llm_degraded = bool(llm_degraded)
+        if backend_label is not None:
+            self.backend_label = backend_label
         if docker is not None:
             self.docker_status = docker
         if model is not None:

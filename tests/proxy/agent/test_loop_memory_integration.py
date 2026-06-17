@@ -13,19 +13,19 @@ from airecon.proxy.agent.session import SessionData
 
 @pytest.fixture
 def agent_loop():
-    ollama_mock = MagicMock()
-    ollama_mock.chat_stream = AsyncMock()
+    llm_mock = MagicMock()
+    llm_mock.chat_stream = AsyncMock()
 
     engine_mock = MagicMock()
     engine_mock.discover_tools = AsyncMock(return_value=[])
-    engine_mock.tools_to_ollama_format = MagicMock(return_value=[])
+    engine_mock.tools_to_llm_format = MagicMock(return_value=[])
 
     with patch("airecon.proxy.agent.loop.get_config") as mock_config:
         mock_config.return_value = SimpleNamespace(
             agent_max_tool_iterations=5,
             agent_max_browser_visits_per_domain=3,
         )
-        yield AgentLoop(ollama=ollama_mock, engine=engine_mock)
+        yield AgentLoop(llm=llm_mock, engine=engine_mock)
 
 
 def test_save_new_findings_to_memory_dedupes_per_session(agent_loop):
@@ -38,6 +38,9 @@ def test_save_new_findings_to_memory_dedupes_per_session(agent_loop):
             "parameter": "q",
             "description": "Reflected XSS in q",
             "evidence": ["payload reflected"],
+            # Verified so it passes the cross-session learning gate
+            # (intelligence_learn_only_verified); this test asserts dedup, not gating.
+            "verified": True,
         }
     )
     agent_loop._memory_manager = MagicMock()

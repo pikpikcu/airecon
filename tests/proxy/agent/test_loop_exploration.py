@@ -111,8 +111,9 @@ class TestExplorationMixin:
             lambda: SimpleNamespace(
                 intelligence_enabled=True,
                 intelligence_adaptive_learning_enabled=True,
-                ollama_url="http://127.0.0.1:11434",
-                ollama_model="qwen3.5:9b",
+                openai_base_url="http://127.0.0.1:20128/v1",
+                openai_api_key="",
+                openai_model="qwen3.5:9b",
             ),
         )
 

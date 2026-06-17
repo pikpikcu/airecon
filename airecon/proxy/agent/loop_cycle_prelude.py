@@ -21,6 +21,61 @@ from .session import save_session, session_to_context
 
 logger = logging.getLogger("airecon.agent")
 
+# A "roomy" context window (in tokens) at/above which the loop tolerates more
+# token pressure before compacting. Driven by the actual context window — NOT a
+# hardcoded model name — so it generalises across GPT/Claude/Qwen/Gemini/etc.
+# 100K sits above the 64K default and below typical long-context tiers (128K+).
+_ROOMY_CONTEXT_TOKENS = 100_000
+
+# Static tech→known-issues dataset, used as the cold-start "brain" when the
+# cross-session memory has not yet learned anything for the detected stack.
+_TECH_CORRELATIONS_FILE = Path(__file__).parent.parent / "data" / "tech_correlations.json"
+_tech_correlations_cache: dict[str, Any] | None = None
+
+
+def _load_tech_correlations() -> dict[str, Any]:
+    global _tech_correlations_cache
+    if _tech_correlations_cache is None:
+        try:
+            _tech_correlations_cache = json.loads(
+                _TECH_CORRELATIONS_FILE.read_text(encoding="utf-8")
+            )
+            if not isinstance(_tech_correlations_cache, dict):
+                _tech_correlations_cache = {}
+        except Exception as _tc_err:
+            logger.debug("tech_correlations.json unavailable: %s", _tc_err)
+            _tech_correlations_cache = {}
+    return _tech_correlations_cache
+
+
+def _build_cold_start_knowledge(tech_names: list[str]) -> str:
+    """Build a KNOWLEDGE BASE brief from the static tech_correlations dataset for
+    the detected technologies. Returns "" when nothing matches. Used as the
+    cold-start brain before cross-session memory has learned anything."""
+    if not tech_names:
+        return ""
+    tc = _load_tech_correlations()
+    lines = ["[SYSTEM: KNOWLEDGE BASE — known issues for detected tech]"]
+    added = False
+    for tn in tech_names:
+        entry = tc.get(str(tn).lower())
+        if not isinstance(entry, dict):
+            continue
+        vulns = [str(v) for v in (entry.get("vulns") or [])][:4]
+        paths = [str(p) for p in (entry.get("paths") or [])][:5]
+        tools = [str(t) for t in (entry.get("tools") or [])][:4]
+        if not (vulns or paths or tools):
+            continue
+        added = True
+        lines.append(f"- {tn}:")
+        if vulns:
+            lines.append(f"    known issues: {'; '.join(vulns)}")
+        if paths:
+            lines.append(f"    check paths: {', '.join(paths)}")
+        if tools:
+            lines.append(f"    tools: {', '.join(tools)}")
+    return "\n".join(lines) if added else ""
+
 try:
     from ..server import _trace_chat_event
 except (ImportError, ValueError):
@@ -319,7 +374,7 @@ class _CyclePreludeMixin:
                 logger.debug("File manifest injection failed: %s", _manifest_err)
 
         if self.state.iteration % 10 == 0:
-            self._check_ollama_context_pressure()
+            self._check_llm_context_pressure()
 
         self._enforce_scope_target_integrity()
 
@@ -390,7 +445,7 @@ class _CyclePreludeMixin:
         if (
             phase_name in ("ANALYSIS", "EXPLOIT")
             and self._session
-            and hasattr(self, "ollama")
+            and hasattr(self, "llm")
         ):
             last_validation = getattr(self._lifecycle, "last_context_validation", 0)
             if self.state.iteration - last_validation >= 6:
@@ -439,9 +494,9 @@ class _CyclePreludeMixin:
                         from ..config import get_config
 
                         cfg = get_config()
-                        num_ctx = max(2048, min(4096, int(cfg.ollama_num_ctx) // 8))
+                        num_ctx = max(2048, min(4096, int(cfg.llm_context_window) // 8))
                     except Exception as exc:
-                        logger.debug("Failed to resolve ollama_num_ctx: %s", exc)
+                        logger.debug("Failed to resolve llm_context_window: %s", exc)
                         num_ctx = 3072
 
                     options = {
@@ -474,7 +529,7 @@ class _CyclePreludeMixin:
                         return None
 
                     try:
-                        raw = await self.ollama.complete(
+                        raw = await self.llm.complete(
                             messages,
                             options=options,
                             operation="analysis",
@@ -638,8 +693,21 @@ class _CyclePreludeMixin:
             self._recent_tool_names.clear()
         self._prev_phase = current_phase
 
-        # Memory-based pattern learning: inject tech-matched patterns every 8 iterations
-        if self._session and self.state.iteration > 0 and self.state.iteration % 8 == 0:
+        # Memory-as-brain: inject learned patterns from past sessions; on cold
+        # start (no learned patterns yet for the detected stack) fall back to the
+        # static tech_correlations dataset so the agent ALWAYS reasons with real
+        # domain knowledge from iteration 1. Cadence is config-driven.
+        try:
+            _recall_interval = max(
+                1, int(getattr(cfg, "intelligence_memory_recall_interval", 4))
+            )
+        except (TypeError, ValueError):
+            _recall_interval = 4
+        if (
+            self._session
+            and self.state.iteration > 0
+            and self.state.iteration % _recall_interval == 0
+        ):
             try:
                 from ..memory import get_memory_manager
 
@@ -655,6 +723,26 @@ class _CyclePreludeMixin:
                 _similar_findings = _mem.get_similar_findings(
                     target=self._session.target, limit=5
                 )
+
+                # Cold-start fallback: no learned patterns → surface dataset
+                # knowledge for the detected technologies.
+                if not _learned_patterns and _tech_names:
+                    _kb = _build_cold_start_knowledge(_tech_names)
+                    if _kb:
+                        self.state.conversation = [
+                            m
+                            for m in self.state.conversation
+                            if not str(m.get("content", "")).startswith(
+                                "[SYSTEM: KNOWLEDGE BASE"
+                            )
+                        ]
+                        self.state.conversation.append(
+                            {"role": "system", "content": _kb}
+                        )
+                        logger.info(
+                            "Cold-start dataset knowledge injected for tech=%s",
+                            ", ".join(_tech_names),
+                        )
 
                 if _learned_patterns:
                     _p_lines = [
@@ -1095,7 +1183,13 @@ class _CyclePreludeMixin:
                     _max_itr,
                 )
 
-        if self.state.iteration > 1 and self.state.iteration % 10 == 0:
+        try:
+            _corr_interval = max(
+                1, int(getattr(cfg, "intelligence_correlation_interval", 6))
+            )
+        except (TypeError, ValueError):
+            _corr_interval = 6
+        if self.state.iteration > 1 and self.state.iteration % _corr_interval == 0:
             vuln_chaining_prompt = ""
             correlation_prompt = ""
             expert_testing_prompt = ""
@@ -1299,6 +1393,21 @@ class _CyclePreludeMixin:
 
                 if s.vulnerabilities:
                     try:
+                        # Populate the target-specific LLM vector cache every few
+                        # iterations so the (sync) prompt builder below can surface
+                        # genuinely novel, finding-grounded tactics instead of a
+                        # generic checklist. No-ops if the backend is unconfigured;
+                        # the prompt builder then falls back to evidence-derived
+                        # tactics selected from the observed signals.
+                        if len(s.vulnerabilities) >= 2 and self.state.iteration % 4 == 0:
+                            from .novel_discovery import generate_llm_novel_vectors
+
+                            await generate_llm_novel_vectors(s.vulnerabilities)
+                    except Exception as _llm_novel_err:
+                        logger.debug(
+                            "LLM novel-vector generation skipped: %s", _llm_novel_err
+                        )
+                    try:
                         novel_chain_prompt = _build_novel_discovery_prompt(
                             s.vulnerabilities,
                             self.state.iteration,
@@ -1306,50 +1415,53 @@ class _CyclePreludeMixin:
                     except Exception as _novel_err:
                         logger.debug("Novel discovery prompt failed: %s", _novel_err)
 
-                if s.urls and len(s.urls) > 5:
-                    url_str = " ".join(s.urls).lower()
-                    expert_patterns = []
-
-                    if "api" in url_str:
-                        expert_patterns.append(
-                            "API endpoints detected - FUZZ all parameters with ffuf"
+                # Inject the senior-pentester methodology scaffold when there is a
+                # REAL attack surface to test (discovered endpoints + concrete
+                # injection points / findings) — not on narrow URL-keyword guesses.
+                # The previous keyword→canned-hint matcher was removed: it spoon-fed
+                # generic advice ("api → fuzz with ffuf") on crude substring matches,
+                # which biased a capable model toward a fixed playbook and was, in
+                # fact, dead (its strings were discarded — testing.txt has no
+                # placeholder). The model now reasons over the real surface below.
+                _has_surface = bool(s.urls) and bool(
+                    getattr(s, "injection_points", None) or s.vulnerabilities
+                )
+                if _has_surface:
+                    try:
+                        prompt_path = (
+                            Path(__file__).parent.parent / "prompts" / "testing.txt"
                         )
-                    if any(x in url_str for x in ["user_id", "order_id", "id="]):
-                        expert_patterns.append(
-                            "ID parameters found - TEST IDOR: change IDs 1,2,3,999"
-                        )
-                    if any(x in url_str for x in ["search", "query", "q="]):
-                        expert_patterns.append(
-                            "Search params found - TEST XSS and SQL injection"
-                        )
-                    if any(x in url_str for x in ["price", "amount", "discount"]):
-                        expert_patterns.append(
-                            "Price params found - TEST business logic manipulation"
-                        )
-                    if any(x in url_str for x in ["upload", "file", "image"]):
-                        expert_patterns.append(
-                            "File upload found - TEST webshell upload, polyglots"
-                        )
-
-                    if expert_patterns:
-                        try:
-                            prompt_path = (
-                                Path(__file__).parent.parent / "prompts" / "testing.txt"
+                        with open(prompt_path, "r") as pf:
+                            expert_template = pf.read()
+                        # Ground the methodology in the ACTUAL discovered surface so
+                        # it is target-specific, not a generic checklist.
+                        _eps = [str(u) for u in (s.urls or [])][:12]
+                        _ips = [
+                            f"{ip.get('method','GET')} {ip.get('url','')} "
+                            f"param={ip.get('parameter','')}".strip()
+                            for ip in (getattr(s, "injection_points", None) or [])[:12]
+                        ]
+                        surface_lines = []
+                        if _eps:
+                            surface_lines.append(
+                                "Discovered endpoints:\n"
+                                + "\n".join(f"  - {e}" for e in _eps)
                             )
-                            with open(prompt_path, "r") as pf:
-                                expert_template = pf.read()
-                            patterns_str = "\n".join(f"- {p}" for p in expert_patterns)
-                            expert_testing_prompt = "\n\n" + expert_template.replace(
-                                "{expert_patterns}", patterns_str
+                        if _ips:
+                            surface_lines.append(
+                                "Concrete injection points:\n"
+                                + "\n".join(f"  - {p}" for p in _ips)
                             )
-                        except Exception as _tmpl_err:
-                            logger.debug(
-                                "Could not load testing.txt template: %s — using inline fallback",
-                                _tmpl_err,
-                            )
-                            expert_testing_prompt = "\n\n[EXPERT TESTING] " + ", ".join(
-                                expert_patterns
-                            )
+                        surface_str = "\n".join(surface_lines)
+                        expert_testing_prompt = (
+                            "\n\n"
+                            + expert_template
+                            + ("\n\nATTACK SURFACE FOR THIS TARGET:\n" + surface_str if surface_str else "")
+                        )
+                    except Exception as _tmpl_err:
+                        logger.debug(
+                            "Could not load testing.txt methodology: %s", _tmpl_err
+                        )
 
             if correlation_prompt or vuln_chaining_prompt or expert_testing_prompt or graph_chain_prompt or novel_chain_prompt:
                 self.state.conversation.append(
@@ -1370,16 +1482,17 @@ class _CyclePreludeMixin:
             save_session(self._session)
 
         _presummary_ratio = self.state.token_usage.get("used", 0) / max(
-            self._adaptive_num_ctx or cfg.ollama_num_ctx, 1
+            self._adaptive_num_ctx or cfg.llm_context_window, 1
         )
-        _model_name = str(getattr(getattr(self, "ollama", None), "model", "") or "").lower()
-        _is_large_qwen = "qwen" in _model_name and any(
-            marker in _model_name for marker in ("122b", "120b", "72b")
-        )
-        _pressure_threshold = 0.45 if _is_large_qwen else 0.35
-        _compress_threshold = 0.38 if _is_large_qwen else 0.30
-        _background_interval = 8 if _is_large_qwen else 5
-        _background_floor = 0.22 if _is_large_qwen else 0.0
+        # Roomy-context models can tolerate more token pressure before we
+        # compress. Decided by the effective context window (model-agnostic),
+        # not by matching a specific model family in the name.
+        _effective_ctx = int(self._adaptive_num_ctx or cfg.llm_context_window or 0)
+        _is_roomy_context = _effective_ctx >= _ROOMY_CONTEXT_TOKENS
+        _pressure_threshold = 0.45 if _is_roomy_context else 0.35
+        _compress_threshold = 0.38 if _is_roomy_context else 0.30
+        _background_interval = 8 if _is_roomy_context else 5
+        _background_floor = 0.22 if _is_roomy_context else 0.0
 
         _pressure_compress = (
             self.state.iteration > 0 and _presummary_ratio >= _pressure_threshold
@@ -1409,7 +1522,7 @@ class _CyclePreludeMixin:
                     }
                 )
 
-        _cur_ctx_limit = self._adaptive_num_ctx or cfg.ollama_num_ctx
+        _cur_ctx_limit = self._adaptive_num_ctx or cfg.llm_context_window
         _cur_num_predict = self._get_iteration_num_predict(
             cfg, current_phase, _cur_ctx_limit
         )
@@ -1437,10 +1550,10 @@ class _CyclePreludeMixin:
             )
 
             _compress_ctx = min(8192, _cur_ctx_limit // 4)
-            _keep_recent = 40 if _is_large_qwen else 30
+            _keep_recent = 40 if _is_roomy_context else 30
             try:
                 await self.state.compress_with_llm(
-                    self.ollama,
+                    self.llm,
                     keep_recent=_keep_recent,
                     num_ctx=_compress_ctx,
                     num_predict=1024,
@@ -1466,7 +1579,7 @@ class _CyclePreludeMixin:
             )
 
             _token_used = self.state.token_usage.get("used", 0)
-            _ctx_limit = self._adaptive_num_ctx or cfg.ollama_num_ctx
+            _ctx_limit = self._adaptive_num_ctx or cfg.llm_context_window
             if _token_used > _ctx_limit * 0.8:
                 logger.warning(
                     "Token limit exceeded (%d/%d) - forcing aggressive truncation",

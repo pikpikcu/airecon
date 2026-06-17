@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -200,11 +201,16 @@ def create_vulnerability_report(
     endpoint: str | None = None,
     method: str | None = None,
     cve: str | None = None,
+    cwe: str | None = None,
+    owasp: str | None = None,
     suggested_fix: str | None = None,
     flag: str | None = None,
 
     _workspace_root: str | None = None,
     _active_target: str | None = None,
+    _verification_status: str | None = None,
+    _verification_confidence: float | None = None,
+    _evidence_artifacts: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
 
     validation_errors = _validate_required_fields(
@@ -286,8 +292,22 @@ def create_vulnerability_report(
     filepath = os.path.join(vuln_dir, filename)
     report_id = slug
 
+    # Finding lifecycle label derived from runtime verification. Deterministic
+    # taxonomy (not a technique heuristic): reproduced/corroborated => VALIDATED,
+    # attempted-but-inconclusive or evidence-only => SUSPECTED, otherwise
+    # INFORMATIONAL.
+    _vstatus = str(_verification_status or "").strip()
+    _vs_up = _vstatus.upper()
+    if _vs_up in ("CERTIFIED", "VALIDATED", "CONFIRMED"):
+        _lifecycle = "VALIDATED"
+    elif _vs_up in ("RUNTIME-INCONCLUSIVE", "EVIDENCE-GROUNDED"):
+        _lifecycle = "SUSPECTED"
+    else:
+        _lifecycle = "INFORMATIONAL"
+
     md_content = f"# {title}\n\n"
     md_content += f"**ID**: {report_id}\n"
+    md_content += f"**Finding status**: {_lifecycle}\n"
 
     if has_cvss:
         md_content += f"**Severity**: {severity.upper()} (CVSS: {cvss_score})\n"
@@ -310,11 +330,63 @@ def create_vulnerability_report(
         md_content += f"- **Base Score**: {cvss_score} ({severity.upper()})\n"
         md_content += f"- **Vector**: `{cvss_vector}`\n"
 
+    _classification = []
+    if cwe and str(cwe).strip():
+        _classification.append(f"- **CWE**: {str(cwe).strip()}\n")
+    if owasp and str(owasp).strip():
+        _classification.append(f"- **OWASP**: {str(owasp).strip()}\n")
+    if _classification:
+        md_content += "\n## Classification\n" + "".join(_classification)
+
     if technical_analysis and technical_analysis.strip():
         md_content += f"\n## Technical Details\n{technical_analysis}\n"
 
     md_content += f"\n## Proof of Concept\n{poc_description}\n"
     md_content += f"\n```\n{poc_script_code}\n```\n"
+
+    if _vstatus:
+        _status_legend = {
+            "CERTIFIED": "Independently reproduced and cross-validated at runtime.",
+            "VALIDATED": "Corroborated by multiple independent signals.",
+            "CONFIRMED": "Reproduced by independent replay payloads at runtime.",
+            "RUNTIME-INCONCLUSIVE": (
+                "Active replay was attempted but did not deterministically reproduce; "
+                "finding rests on the evidence and PoC above (expected for stateful "
+                "or auth-dependent classes)."
+            ),
+            "EVIDENCE-GROUNDED": (
+                "No automated runtime replay applies to this class; finding is "
+                "grounded in the recorded session evidence and PoC above."
+            ),
+        }
+        md_content += "\n## Verification\n"
+        md_content += f"- **Status**: {_vstatus}\n"
+        if _verification_confidence is not None:
+            md_content += (
+                f"- **Runtime confidence**: {float(_verification_confidence):.2f}\n"
+            )
+        _legend = _status_legend.get(_vstatus.upper())
+        if _legend:
+            md_content += f"- **Note**: {_legend}\n"
+
+    # Persisted machine-captured proof: concrete request/response records from
+    # runtime replay, so the finding is reproducible/defensible beyond PoC text.
+    _evidence = [e for e in (_evidence_artifacts or []) if isinstance(e, dict)]
+    evidence_filename = f"{slug}.evidence.json"
+    if _evidence:
+        md_content += "\n## Evidence (captured request/response)\n"
+        md_content += (
+            f"- **Artifact**: `{evidence_filename}` "
+            f"({len(_evidence)} record{'s' if len(_evidence) != 1 else ''})\n\n"
+        )
+        md_content += "| # | Payload | Status | Len | Confirmed |\n"
+        md_content += "|---|---------|--------|-----|-----------|\n"
+        for _i, _e in enumerate(_evidence[:8], 1):
+            _pl = str(_e.get("payload", ""))[:60].replace("|", "\\|").replace("\n", " ")
+            _st = _e.get("status", _e.get("error", "—"))
+            _ln = _e.get("length", "—")
+            _cf = "yes" if _e.get("confirmed") else "no"
+            md_content += f"| {_i} | `{_pl}` | {_st} | {_ln} | {_cf} |\n"
 
     if impact and impact.strip():
         md_content += f"\n## Impact\n{impact}\n"
@@ -337,10 +409,39 @@ def create_vulnerability_report(
             "message": f"Vulnerability report saved to {filepath}",
             "report_id": report_id,
             "report_path": filepath,
+            "finding_status": _lifecycle,
         }
         if has_cvss:
             result["severity"] = severity
             result["cvss_score"] = cvss_score
+        if _vstatus:
+            result["verification_status"] = _vstatus
+            if _verification_confidence is not None:
+                result["verification_confidence"] = round(
+                    float(_verification_confidence), 2
+                )
+        if _evidence:
+            evidence_path = os.path.join(vuln_dir, evidence_filename)
+            try:
+                with open(evidence_path, "w", encoding="utf-8") as ef:
+                    json.dump(
+                        {
+                            "report_id": report_id,
+                            "target": target,
+                            "endpoint": endpoint,
+                            "method": method,
+                            "verification_status": _vstatus or None,
+                            "records": _evidence,
+                        },
+                        ef,
+                        indent=2,
+                        ensure_ascii=False,
+                        default=str,
+                    )
+                result["evidence_path"] = evidence_path
+                result["evidence_count"] = len(_evidence)
+            except Exception as _ee:
+                logger.debug("Failed to write evidence artifact: %s", _ee)
         if flag:
             result["flag"] = flag
         return result

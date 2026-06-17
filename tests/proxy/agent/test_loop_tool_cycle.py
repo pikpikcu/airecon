@@ -38,7 +38,7 @@ class TestRewriteShellBinaryToolCall:
 
         class DummyAgent(_ToolCycleMixin):
             def __init__(self):
-                self._tools_ollama = [
+                self._tools_llm = [
                     {"function": {"name": "execute", "description": "run cmd"}},
                     {"function": {"name": "read_file", "description": "read"}},
                 ]
@@ -101,11 +101,11 @@ class TestRunIterationLoop:
             def __init__(self):
                 self.state = AgentState()
                 self.state.max_iterations = 2
-                self._tools_ollama = [
+                self._tools_llm = [
                     {"function": {"name": "execute", "description": "run"}},
                 ]
                 self._stop_requested = False
-                self._fatal_ollama_error = ""
+                self._fatal_llm_error = ""
                 self._current_trace_id = None
                 self._ctf_mode = False
                 self._session = None
@@ -118,7 +118,7 @@ class TestRunIterationLoop:
                 self._consecutive_thinking_iterations = 0
                 self._stagnation_iterations = 0
                 self._empty_response_retry_count = 0
-                self.ollama = MagicMock()
+                self.llm = MagicMock()
                 self.pipeline = MagicMock()
                 self.pipeline.get_current_phase.return_value = PipelinePhase.RECON
 
@@ -152,7 +152,7 @@ class TestRunIterationLoop:
             async def _check_and_reset_context(self):
                 pass
 
-            def _messages_for_ollama(self):
+            def _messages_for_llm(self):
                 return [{"role": "user", "content": "test"}]
 
             def _recompute_used_tokens_from_conversation(self):
@@ -164,7 +164,7 @@ class TestRunIterationLoop:
             def _record_token_usage(self, prompt_tokens, completion_tokens):
                 pass
 
-            async def _reset_ollama_context(self):
+            async def _reset_llm_context(self):
                 return True
 
             def _build_critical_findings_context(self):
@@ -208,7 +208,7 @@ class TestRunIterationLoop:
     async def test_loop_yields_done_when_stop_requested(self, agent):
         agent._stop_requested = True
         cfg = MagicMock()
-        cfg.ollama_num_ctx = 8192
+        cfg.llm_context_window = 8192
 
         events = []
         async for event in agent._run_iteration_loop(cfg):
@@ -218,10 +218,10 @@ class TestRunIterationLoop:
         assert any(e.type == "done" for e in events)
 
     @pytest.mark.asyncio
-    async def test_loop_yields_error_on_fatal_ollama(self, agent):
-        agent._fatal_ollama_error = "runner died"
+    async def test_loop_yields_error_on_fatal_llm(self, agent):
+        agent._fatal_llm_error = "runner died"
         cfg = MagicMock()
-        cfg.ollama_num_ctx = 8192
+        cfg.llm_context_window = 8192
 
         events = []
         async for event in agent._run_iteration_loop(cfg):
@@ -234,7 +234,7 @@ class TestRunIterationLoop:
     async def test_loop_respects_max_iterations(self, agent):
         agent.state.max_iterations = 0
         cfg = MagicMock()
-        cfg.ollama_num_ctx = 8192
+        cfg.llm_context_window = 8192
 
         events = []
         async for event in agent._run_iteration_loop(cfg):
@@ -247,14 +247,14 @@ class TestRunIterationLoop:
     async def test_loop_sets_adaptive_num_ctx_from_config(self, agent):
         agent._adaptive_num_ctx = 0
         cfg = MagicMock()
-        cfg.ollama_num_ctx = 32768
+        cfg.llm_context_window = 32768
 
-        # Mock ollama to return empty stream immediately
+        # Mock llm to return empty stream immediately
         async def empty_stream(**kwargs):
             return
             yield
 
-        agent.ollama.chat_stream = empty_stream
+        agent.llm.chat_stream = empty_stream
 
         events = []
         async for event in agent._run_iteration_loop(cfg):
@@ -269,13 +269,13 @@ class TestRunIterationLoop:
     async def test_loop_clamps_num_ctx_below_minimum(self, agent):
         agent._adaptive_num_ctx = 0
         cfg = MagicMock()
-        cfg.ollama_num_ctx = 4096  # below 8192 minimum
+        cfg.llm_context_window = 4096  # below 8192 minimum
 
         async def empty_stream(**kwargs):
             return
             yield
 
-        agent.ollama.chat_stream = empty_stream
+        agent.llm.chat_stream = empty_stream
 
         events = []
         async for event in agent._run_iteration_loop(cfg):
@@ -290,13 +290,13 @@ class TestRunIterationLoop:
     async def test_loop_handles_unlimited_context(self, agent):
         agent._adaptive_num_ctx = -1
         cfg = MagicMock()
-        cfg.ollama_num_ctx = -1
+        cfg.llm_context_window = -1
 
         async def empty_stream(**kwargs):
             return
             yield
 
-        agent.ollama.chat_stream = empty_stream
+        agent.llm.chat_stream = empty_stream
 
         events = []
         async for event in agent._run_iteration_loop(cfg):

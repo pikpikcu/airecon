@@ -194,7 +194,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
 
         registered_tools = {
             str(t.get("function", {}).get("name", "")).strip().lower()
-            for t in (self._tools_ollama or [])
+            for t in (self._tools_llm or [])
             if isinstance(t, dict)
         }
         if normalized_name in registered_tools:
@@ -298,16 +298,16 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
 
     async def _run_iteration_loop(self, cfg: Any) -> AsyncIterator[AgentEvent]:
         while self.state.iteration < self.state.max_iterations:
-            fatal_ollama_error = str(
-                getattr(self, "_fatal_ollama_error", "") or ""
+            fatal_llm_error = str(
+                getattr(self, "_fatal_llm_error", "") or ""
             ).strip()
-            if fatal_ollama_error:
+            if fatal_llm_error:
                 yield AgentEvent(
                     type="error",
                     data={
-                        "message": "Ollama runner failure detected. Stop run to avoid freeze.",
-                        "reason": "ollama_runner_fatal",
-                        "details": fatal_ollama_error,
+                        "message": "LLM runner failure detected. Stop run to avoid freeze.",
+                        "reason": "llm_runner_fatal",
+                        "details": fatal_llm_error,
                     },
                 )
                 yield AgentEvent(type="done", data={})
@@ -360,13 +360,13 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
             adaptive_num_ctx = (
                 self._adaptive_num_ctx
                 if self._adaptive_num_ctx > 0
-                else cfg.ollama_num_ctx
+                else cfg.llm_context_window
             )
 
             if adaptive_num_ctx == -1:
                 self.state.token_usage["limit"] = -1
                 logger.debug(
-                    "Context window: unlimited (-1) — using Ollama server default"
+                    "Context window: unlimited (-1) — using LLM server default"
                 )
             else:
                 min_recommended_ctx = 8192
@@ -408,7 +408,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                         adaptive_num_ctx, minimum=35, maximum=55
                     )
                     await self.state.compress_with_llm(
-                        self.ollama,
+                        self.llm,
                         keep_recent=_keep_recent,
                         num_ctx=_compress_ctx,
                         num_predict=1024,
@@ -478,7 +478,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                 if _usage_ratio >= _hard_cap_ratio:
                     logger.error(
                         "EMERGENCY CONTEXT TRIM: %.0f%% used (%d/%d tokens) — "
-                        "Ollama overload imminent, forcing aggressive trim",
+                        "LLM overload imminent, forcing aggressive trim",
                         _usage_ratio * 100,
                         _ctx_used,
                         adaptive_num_ctx,
@@ -503,7 +503,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                             adaptive_num_ctx, minimum=32, maximum=50
                         )
                         await self.state.compress_with_llm(
-                            self.ollama,
+                            self.llm,
                             keep_recent=_keep_recent,
                             num_ctx=_compress_ctx,
                             num_predict=1024,
@@ -675,13 +675,13 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                 type="progress",
                 data={
                     "message": f"Waiting for model response (iteration {self.state.iteration})...",
-                    "stage": "ollama_inference",
+                    "stage": "llm_inference",
                 },
             )
 
             for _stream_attempt in range(6):
                 try:
-                    _requested_num_keep = self._cfg_int(cfg, "ollama_num_keep", 8192)
+                    _requested_num_keep = self._cfg_int(cfg, "llm_num_keep", 8192)
                     _safe_num_keep = self._fit_num_keep_to_ctx(
                         _requested_num_keep,
                         adaptive_num_ctx,
@@ -720,32 +720,32 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                         )
                         _trace_chat_event(
                             trace_id,
-                            "ollama_stream_start",
+                            "llm_stream_start",
                             iteration=self.state.iteration,
                         )
                     logger.info(
-                        "OLLAMA STREAM START iter=%d attempt=%d ctx=%d predict=%d conv_msgs=%d",
+                        "LLM STREAM START iter=%d attempt=%d ctx=%d predict=%d conv_msgs=%d",
                         self.state.iteration,
                         _stream_attempt + 1,
                         adaptive_num_ctx,
                         adaptive_num_predict,
                         len(self.state.conversation),
                     )
-                    _ollama_stream_start = time.monotonic()
+                    _llm_stream_start = time.monotonic()
                     _first_chunk_logged = False
                     _last_chunk_time = time.monotonic()
-                    _CHUNK_TIMEOUT = cfg.ollama_chunk_timeout
+                    _CHUNK_TIMEOUT = cfg.llm_chunk_timeout
 
-                    _stream_gen = self.ollama.chat_stream(
-                        messages=self._messages_for_ollama(),
-                        tools=self._tools_ollama,
+                    _stream_gen = self.llm.chat_stream(
+                        messages=self._messages_for_llm(),
+                        tools=self._tools_llm,
                         options={
                             "num_ctx": adaptive_num_ctx,
                             "temperature": adaptive_temperature,
                             "num_predict": adaptive_num_predict,
                             "num_keep": _safe_num_keep,
                             "repeat_penalty": self._cfg_float(
-                                cfg, "ollama_repeat_penalty", 1.05
+                                cfg, "llm_repeat_penalty", 1.05
                             ),
                         },
                         think=self._should_use_thinking(cfg, current_phase),
@@ -757,14 +757,14 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                         _now = time.monotonic()
                         if _now - _last_chunk_time > _CHUNK_TIMEOUT:
                             logger.error(
-                                "OLLAMA STREAM TIMEOUT: no chunk for %.0fs (iter=%d) — aborting",
+                                "LLM STREAM TIMEOUT: no chunk for %.0fs (iter=%d) — aborting",
                                 _CHUNK_TIMEOUT,
                                 self.state.iteration,
                             )
                             yield AgentEvent(
                                 type="text",
                                 data={
-                                    "content": f"[SYSTEM: Ollama stream timeout after {_CHUNK_TIMEOUT}s — retrying]"
+                                    "content": f"[SYSTEM: LLM stream timeout after {_CHUNK_TIMEOUT}s — retrying]"
                                 },
                             )
                             break
@@ -780,10 +780,10 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                         if not _first_chunk_logged:
                             _first_chunk_logged = True
                             logger.info(
-                                "OLLAMA FIRST CHUNK iter=%d attempt=%d after=%.2fs",
+                                "LLM FIRST CHUNK iter=%d attempt=%d after=%.2fs",
                                 self.state.iteration,
                                 _stream_attempt + 1,
-                                time.monotonic() - _ollama_stream_start,
+                                time.monotonic() - _llm_stream_start,
                             )
 
                         if self._stop_requested:
@@ -892,26 +892,52 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                         or "cuda out of memory" in err_lower
                         or "llm runner process no longer alive" in err_lower
                         or "signal: killed" in err_lower
-                        # Remote Ollama server OOM — HTTP 500 after exhausting retries
+                        # Remote LLM server OOM — HTTP 500 after exhausting retries
                         or "500 internal server error" in err_lower
                         or "server error '5" in err_str
                     )
                     _is_conn_refused = "connection refused" in err_lower
                     _is_timeout = "timeout" in err_lower or "timed out" in err_lower
+                    # Non-retryable client error from an OpenAI-compatible gateway
+                    # (bad model name, auth, rejected tools/stream_options, ...).
+                    # Retrying these 4× wastes ~110s and never succeeds.
+                    _is_client_error = (
+                        "returned http 4" in err_lower
+                        or "client error '4" in err_lower
+                    )
+
+                    if _is_client_error:
+                        logger.error(
+                            "LLM backend client error (non-retryable): %s", err_str
+                        )
+                        yield AgentEvent(
+                            type="error",
+                            data={
+                                "message": (
+                                    "LLM backend rejected the request "
+                                    f"(non-retryable):\n{err_str}\n\n"
+                                    "Common fixes: confirm `openai_model` exists on "
+                                    "the gateway, check `openai_api_key`, or verify "
+                                    "the gateway accepts `tools`/`stream_options`."
+                                )
+                            },
+                        )
+                        yield AgentEvent(type="done", data={})
+                        return
 
                     if _is_vram_crash and _vram_retries_this_iter < 4:
                         self._vram_crash_count += 1
                         _vram_retries_this_iter += 1
                         if self._vram_crash_count == 1:
-                            _new_ctx = cfg.ollama_num_ctx_small
+                            _new_ctx = cfg.llm_context_window_small
                             _max_msgs = 80
                             _wait_s = 0
                         elif self._vram_crash_count == 2:
-                            _new_ctx = max(4096, cfg.ollama_num_ctx_small // 2)
+                            _new_ctx = max(4096, cfg.llm_context_window_small // 2)
                             _max_msgs = 50
                             _wait_s = 5
                         elif self._vram_crash_count == 3:
-                            _new_ctx = max(4096, cfg.ollama_num_ctx_small // 4)
+                            _new_ctx = max(4096, cfg.llm_context_window_small // 4)
                             _max_msgs = 30
                             _wait_s = 10
                         else:
@@ -990,7 +1016,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                         _conn_waits = [10, 30, 60, 120]
                         wait_s = _conn_waits[min(_stream_attempt, len(_conn_waits) - 1)]
                         logger.warning(
-                            "Ollama connection refused (attempt %d/4) — "
+                            "LLM connection refused (attempt %d/4) — "
                             "retrying in %ds",
                             _stream_attempt + 1,
                             wait_s,
@@ -999,7 +1025,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                             type="text",
                             data={
                                 "content": (
-                                    f"\n[AUTO-RECOVERY] Ollama unreachable "
+                                    f"\n[AUTO-RECOVERY] LLM unreachable "
                                     f"(attempt {_stream_attempt + 1}/4). "
                                     f"Retrying in {wait_s}s...\n"
                                 )
@@ -1018,7 +1044,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
 
                     elif _is_timeout and _stream_attempt < 3:
                         logger.warning(
-                            "Ollama stream stalled/timed out — retrying (attempt %d/3, iteration=%d): %s",
+                            "LLM stream stalled/timed out — retrying (attempt %d/3, iteration=%d): %s",
                             _stream_attempt + 1,
                             self.state.iteration,
                             err_str[:120],
@@ -1027,7 +1053,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                             type="text",
                             data={
                                 "content": (
-                                    "\n[AUTO-RECOVERY] Ollama stream stalled "
+                                    "\n[AUTO-RECOVERY] LLM stream stalled "
                                     "(no tokens received). Retrying attempt %d/3...\n"
                                     % (_stream_attempt + 1)
                                 )
@@ -1050,7 +1076,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                         ]
                         self._consecutive_failures += 1
                         logger.warning(
-                            "Ollama connection failure (attempt %d/4) — "
+                            "LLM connection failure (attempt %d/4) — "
                             "retrying with progressive backoff in %ds: %s",
                             _stream_attempt + 1,
                             wait_s,
@@ -1060,7 +1086,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                             type="text",
                             data={
                                 "content": (
-                                    f"\n[AUTO-RECOVERY] Ollama error "
+                                    f"\n[AUTO-RECOVERY] LLM error "
                                     f"(attempt {_stream_attempt + 1}/4). "
                                     f"Retrying in {wait_s}s...\n"
                                 )
@@ -1079,35 +1105,37 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
 
                     if _is_vram_crash:
                         error_msg = (
-                            f"Ollama VRAM exhausted after "
+                            f"Backend resource/context error after "
                             f"{self._vram_crash_count} recovery attempts. "
-                            "Run `systemctl restart ollama` and set "
-                            "`ollama_num_ctx` ≤ 8192 in config."
+                            "Lower `llm_context_window` in config or check the "
+                            "gateway/model capacity."
                         )
                     elif _is_conn_refused:
                         error_msg = (
-                            "Cannot connect to Ollama after all retries "
+                            "Cannot connect to the LLM gateway after all retries "
                             "(connection refused).\n"
-                            "Fix: start Ollama with `ollama serve`."
+                            f"Fix: verify `openai_base_url` ({cfg.openai_base_url}) "
+                            "is reachable and the gateway is running."
                         )
                     elif "model not found" in err_lower or "pull" in err_lower:
                         error_msg = (
-                            f"Model not found: {cfg.ollama_model}\n"
-                            f"Fix: run `ollama pull {cfg.ollama_model}`."
+                            f"Model not found: {cfg.openai_model}\n"
+                            "Fix: check `openai_model` matches a model exposed by "
+                            "your gateway."
                         )
                     elif "context length" in err_lower or "out of memory" in err_lower:
-                        error_msg = "Model ran out of context or memory.\nFix: lower `ollama_num_ctx` in config (e.g. 32768)."
+                        error_msg = "Model ran out of context.\nFix: lower `llm_context_window` in config (e.g. 32768)."
                     elif _is_timeout:
                         error_msg = (
-                            "Ollama stream stalled twice — model stopped "
+                            "LLM stream stalled twice — the model stopped "
                             "generating tokens.\n"
-                            "Fix: check `ollama serve` logs; increase "
-                            "`ollama_chunk_timeout` in config if the model "
+                            "Fix: check the gateway logs; increase "
+                            "`llm_chunk_timeout` in config if the model "
                             "just needs more time between tokens."
                         )
                     else:
                         error_msg = f"Model connection error: {err_str}"
-                    logger.error("Ollama stream error: %s", stream_err)
+                    logger.error("LLM stream error: %s", stream_err)
                     yield AgentEvent(type="error", data={"message": error_msg})
                     yield AgentEvent(type="done", data={})
                     return
@@ -1119,7 +1147,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                 if self._empty_response_retry_count <= _MAX_EMPTY_RETRIES:
                     _wait = min(5 * self._empty_response_retry_count, 20)
                     logger.warning(
-                        "Empty response from Ollama (iteration=%d, attempt=%d/%d) — "
+                        "Empty response from model (iteration=%d, attempt=%d/%d) — "
                         "waiting %ds then retrying",
                         self.state.iteration,
                         self._empty_response_retry_count,
@@ -1169,18 +1197,56 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                 self._empty_response_retry_count = 0
                 if self._session:
                     save_session(self._session)
+
+                # Distinguish two very different situations that both look like
+                # "empty output":
+                #   1. The model already produced a substantive assistant turn
+                #      this run (e.g. a recon summary that ended by asking for the
+                #      next task), and now simply has nothing more to add. That is
+                #      a NATURAL STOP — the agent is awaiting instruction, not
+                #      broken. Surfacing a scary error here makes a working run
+                #      look corrupted.
+                #   2. The model never produced anything usable at all — that is a
+                #      genuine backend/config problem worth a diagnostic error.
+                _had_prior_assistant_text = any(
+                    m.get("role") == "assistant"
+                    and str(m.get("content") or "").strip()
+                    for m in self.state.conversation
+                )
+                if _had_prior_assistant_text:
+                    logger.info(
+                        "Model returned no further action after producing prior "
+                        "output — treating as natural completion (awaiting input)."
+                    )
+                    yield AgentEvent(
+                        type="text",
+                        data={
+                            "content": (
+                                "\n[AIRecon] The model returned no further action. "
+                                "The current step is complete and AIRecon is awaiting "
+                                "your next instruction. Give it a task, or type "
+                                "`resume` to continue.\n"
+                            )
+                        },
+                    )
+                    yield AgentEvent(type="done", data={})
+                    return
+
+                _empty_msg = (
+                    "Empty response from model after 4 retries. "
+                    f"Backend: OpenAI-compatible ({cfg.openai_base_url}, "
+                    f"model: {cfg.openai_model}). "
+                    "Possible causes: (1) provider-side safety/content filter "
+                    "blocked the request; (2) the model emits reasoning in a "
+                    "field the gateway strips — enable thinking pass-through "
+                    "(`llm_thinking_request_mode`) or use a reasoning-capable "
+                    "model; (3) wrong `openai_model` or the gateway rejected "
+                    "`tools`/`stream_options`. "
+                    "Session state has been saved — you can resume."
+                )
                 yield AgentEvent(
                     type="error",
-                    data={
-                        "message": (
-                            "Empty response from model after 4 retries. "
-                            "Possible causes: (1) Ollama OOM — try restarting Ollama or "
-                            "reducing ollama_num_ctx in config; "
-                            "(2) Model not loaded — run `ollama run <model>` first; "
-                            "(3) Context too large — reduce conversation history. "
-                            "Session state has been saved — you can resume."
-                        )
-                    },
+                    data={"message": _empty_msg},
                 )
                 yield AgentEvent(type="done", data={})
                 return
@@ -1501,7 +1567,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                     )
                     self.state.missing_tool_count = 0
                 elif any(
-                    tn == t["function"]["name"] for t in (self._tools_ollama or [])
+                    tn == t["function"]["name"] for t in (self._tools_llm or [])
                 ):
                     s, d, r, o = await self._execute_tool_with_timeout(
                         tn, args, cfg, "dispatch"
@@ -1675,7 +1741,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                     )
                     self.state.missing_tool_count = 0
                 elif any(
-                    tn == t["function"]["name"] for t in (self._tools_ollama or [])
+                    tn == t["function"]["name"] for t in (self._tools_llm or [])
                 ):
                     s, d, r, o = await self._execute_tool_with_timeout(
                         tn, args, cfg, "dispatch"
@@ -1738,7 +1804,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                         self._last_user_input_time = _time_mod.time()
                     self.state.missing_tool_count = 0
                 elif any(
-                    tn == t["function"]["name"] for t in (self._tools_ollama or [])
+                    tn == t["function"]["name"] for t in (self._tools_llm or [])
                 ):
                     out_queue: asyncio.Queue[str] = asyncio.Queue()
 
@@ -1771,7 +1837,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                 else:
                     self.state.missing_tool_count += 1
                     tool_list = ", ".join(
-                        t["function"]["name"] for t in (self._tools_ollama or [])
+                        t["function"]["name"] for t in (self._tools_llm or [])
                     )
                     error_msg = (
                         "CRITICAL ERROR: You just submitted an empty tool call (missing 'name'). "

