@@ -850,6 +850,23 @@ class LLMClient:
                 )
                 raise
 
+        # Reaching here means the loop exhausted every attempt without yielding a
+        # terminal chunk or raising — the only way in is a reasoning-degrade
+        # `continue` on the final attempt. Guarantee a terminal signal so the
+        # async generator never ends silently (which would look like an empty
+        # response to the caller).
+        self._record_model_performance(
+            operation=operation,
+            response_time_sec=time.monotonic() - request_started,
+            success=False,
+            messages=messages,
+            options=options,
+        )
+        raise RuntimeError(
+            f"{self._backend_name} stream ended without a response after "
+            f"{max_retries + 1} attempt(s)."
+        )
+
     # ── performance / timeout bookkeeping ────────────────────────────────────
     def _record_model_performance(
         self,
