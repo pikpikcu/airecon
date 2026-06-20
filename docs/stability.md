@@ -56,7 +56,7 @@ Short answer: **it depends on model size and context configuration**, not only A
 
 - Larger models generally provide more reliable planning and tool-use than smaller ones.
 - As model size shrinks, expect weaker planning, more hallucinations, and less reliable tool calls.
-- Context settings still matter: very small `ollama_num_ctx` values or aggressive truncation can reduce output quality even on larger models.
+- Context settings still matter: very small `llm_context_window` values or aggressive truncation can reduce output quality even on larger models.
 
 ## Stability Exit Criteria
 

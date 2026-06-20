@@ -15,17 +15,17 @@ class TestConfigHotReloadIntegration:
         from airecon.proxy.config import Config
 
         config_file = tmp_path / "config.yaml"
-        config_file.write_text("ollama_model: llama3\nollama_num_ctx: 8192\n")
+        config_file.write_text("openai_model: llama3\nllm_context_window: 8192\n")
 
         cfg1 = Config.load(str(config_file))
-        assert cfg1.ollama_model == "llama3"
+        assert cfg1.openai_model == "llama3"
 
         time.sleep(0.1)
-        config_file.write_text("ollama_model: mistral\nollama_num_ctx: 4096\n")
+        config_file.write_text("openai_model: mistral\nllm_context_window: 4096\n")
 
         cfg2 = Config.load(str(config_file))
-        assert cfg2.ollama_model == "mistral"
-        assert cfg2.ollama_num_ctx == 4096
+        assert cfg2.openai_model == "mistral"
+        assert cfg2.llm_context_window == 4096
 
     def test_config_handles_corrupt_yaml(self, tmp_path):
         """Verify config handles corrupt YAML gracefully."""
@@ -36,7 +36,7 @@ class TestConfigHotReloadIntegration:
 
         cfg = Config.load(str(config_file))
         assert cfg is not None
-        assert cfg.ollama_model is not None
+        assert cfg.openai_model is not None
 
     def test_config_handles_empty_file(self, tmp_path):
         """Verify config handles empty file gracefully."""

@@ -49,7 +49,7 @@ _IMPACT_SIGNATURES = [
     # Signature 2: Attacker gains unauthorized access or privilege
     {
         "category": "UNAUTHORIZED_ACCESS",
-        "effect_verbs": {"access", "login", "authenticate", "authenticate", "elevate",
+        "effect_verbs": {"access", "login", "authenticate", "bypass", "elevate",
                           "impersonate", "forge", "spoof", "hijack", "takeover",
                           "escalate", "promote", "assume"},
         "effect_targets": {"admin", "panel", "dashboard", "account", "user", "session",

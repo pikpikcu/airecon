@@ -3,17 +3,16 @@
 ## Table of Contents
 
 1. [System Requirements](#1-system-requirements)
-2. [Install Ollama](#2-install-ollama)
-3. [Pull a Model](#3-pull-a-model)
-4. [Install AIRecon](#4-install-airecon)
-5. [Configure PATH](#5-configure-path)
-6. [Build the Docker Sandbox](#6-build-the-docker-sandbox)
-7. [Verify the Installation](#7-verify-the-installation)
-8. [First Run](#8-first-run)
-9. [Updating AIRecon](#9-updating-airecon)
-10. [Remote Ollama Setup](#10-remote-ollama-setup)
-11. [Optional: Install Datasets](#11-optional-install-datasets)
-12. [Troubleshooting](#12-troubleshooting)
+2. [Set up an OpenAI-compatible LLM gateway](#2-set-up-an-openai-compatible-llm-gateway)
+3. [Install AIRecon](#4-install-airecon)
+4. [Configure PATH](#5-configure-path)
+5. [Build the Docker Sandbox](#6-build-the-docker-sandbox)
+6. [Verify the Installation](#7-verify-the-installation)
+7. [First Run](#8-first-run)
+8. [Updating AIRecon](#9-updating-airecon)
+9. [Remote / hosted backend](#10-remote-ollama-setup)
+10. [Optional: Install Datasets](#11-optional-install-datasets)
+11. [Troubleshooting](#12-troubleshooting)
 
 ---
 
@@ -27,8 +26,8 @@
 | OS | Linux, macOS, WSL2 on Windows |
 | Python | 3.12+ |
 | Docker | 20.10+ |
-| Ollama | Recent version with tool-calling support |
-| Storage | 40+ GB free (model + Docker image + tools) |
+| LLM backend | An OpenAI-compatible gateway reachable at `openai_base_url` (LiteLLM / vLLM / hosted; or a gateway → local Ollama). Model must support native tool calling. |
+| Storage | 40+ GB free (Docker image + tools; plus model weights if running locally) |
 
 ### Model guidance
 - Use the largest model you can run reliably within your VRAM budget.
@@ -37,56 +36,24 @@
 
 ---
 
-## 2. Install Ollama
+## 2. Set up an OpenAI-compatible LLM gateway
 
-```bash
-# Linux / macOS
-curl -fsSL https://ollama.com/install.sh | sh
+AIRecon talks to one **OpenAI-compatible** `/v1/chat/completions` endpoint. Pick whichever fits you — the rest of AIRecon is identical:
 
-# Verify version — use a recent Ollama build with tool calling support
-ollama --version
+- **Local / offline** — run a local OpenAI-compatible gateway, vLLM, or LiteLLM on your machine. a local gateway (e.g. via a proxy) can serve a local Ollama, so you keep a fully private setup. Default base URL: `http://localhost:20128/v1`.
+- **Hosted** — any OpenAI/Anthropic/Gemini-compatible gateway. You'll set `openai_api_key`.
+
+You'll point AIRecon at it with three config keys (see step 8 and the [Configuration reference](configuration.md)):
+
+```yaml
+openai_base_url: "http://localhost:20128/v1"   # must include /v1
+openai_api_key: ""                              # set if your gateway requires one
+openai_model: "qwen3:8b"                         # any model your gateway exposes
 ```
 
-Ensure Ollama is running as a service:
+> **Tool calling is required**; reasoning is auto-detected at runtime (no model-name list). For a local model, run it behind the gateway first and confirm `GET <base_url>/models` responds.
 
-```bash
-# Check status
-systemctl status ollama
-
-# Start if not running
-sudo systemctl start ollama
-# Or manually:
-ollama serve &
-```
-
----
-
-## 3. Pull a Model
-
-Pull the model you intend to use **before** starting AIRecon:
-
-```bash
-# Example picks — adjust to your VRAM and model availability
-ollama pull qwen3.5:9b
-ollama pull qwen3.5:35b
-ollama pull qwen3.5:122b
-```
-
-Verify the model is available:
-
-```bash
-ollama list
-# Should show the model(s) you pulled
-```
-
-> **Small model caution:** models below 8B are not recommended for full engagements. Expect more tool-call errors and hallucinations as size shrinks.
-
-> **Performance tip:** For NVIDIA GPUs, set `OLLAMA_GPU_LAYERS=99` to maximize GPU offloading:
-> ```
-> # Add to /etc/systemd/system/ollama.service [Service] section:
-> Environment="OLLAMA_GPU_LAYERS=99"
-> systemctl daemon-reload && systemctl restart ollama
-> ```
+> **Small model caution:** local models below ~8B are not recommended for full engagements — expect more tool-call errors and hallucinations.
 
 ---
 
@@ -166,8 +133,8 @@ Run this checklist after installing:
 # 1. Check AIRecon version
 airecon --version
 
-# 2. Check Ollama is running and model is available
-ollama list
+# 2. Check the LLM gateway is reachable and lists your model
+curl -s "${OPENAI_BASE_URL:-http://localhost:20128/v1}/models" | head
 
 # 3. Check Docker image
 docker images | grep airecon-sandbox
@@ -196,16 +163,15 @@ On first run:
 - The `workspace/` directory is created in your current working directory
 - The Docker sandbox container is started
 
-**Set the correct model in config before starting:**
+**Set the backend in config before starting** (required — `openai_base_url` and `openai_model` must be set):
 
 ```bash
-# Edit config
 nano ~/.airecon/config.yaml
-
-# Change "ollama_model" to match what you pulled, e.g.:
-# "ollama_model": "qwen3.5:9b"
-# "ollama_model": "qwen3.5:35b"
-# "ollama_model": "qwen3.5:122b"
+```
+```yaml
+openai_base_url: "http://localhost:20128/v1"   # your gateway, must include /v1
+openai_api_key: ""                              # set if the gateway requires one
+openai_model: "qwen3:8b"                         # e.g. claude-sonnet-4 / gpt-4o / a local model
 ```
 
 See [Configuration Reference](configuration.md) for all options.
@@ -228,26 +194,23 @@ The installer automatically cleans the previous version before reinstalling.
 
 ---
 
-## 10. Remote Ollama Setup
+## 10. Remote / hosted backend
 
-If your Ollama instance runs on a separate machine (e.g., a GPU server):
+The gateway can live anywhere — a LAN GPU box, a tunnel, or a hosted provider. Just point `openai_base_url` at it:
 
-**On the Ollama server:**
-```bash
-# Bind Ollama to all interfaces
-OLLAMA_HOST=0.0.0.0 ollama serve
-
-# Or set permanently in the systemd service:
-# Environment="OLLAMA_HOST=0.0.0.0"
-```
-
-**In `~/.airecon/config.yaml` on your workstation:**
 ```yaml
-ollama_url: "http://<server-ip>:11434"
-ollama_model: "qwen3.5:35b"
+# LAN gateway (e.g. vLLM on a GPU server)
+openai_base_url: "http://<server-ip>:20128/v1"
+openai_model: "qwen3:8b"
+openai_api_key: ""
+
+# Hosted provider
+openai_base_url: "https://your-gateway.example/v1"
+openai_model: "claude-sonnet-4"
+openai_api_key: "sk-..."
 ```
 
-Make sure port 11434 is open in the server's firewall.
+Make sure the gateway's port is reachable (open in the firewall) and that `GET <base_url>/models` responds.
 
 ---
 
@@ -311,7 +274,7 @@ Docker daemon is not running: `sudo systemctl start docker`.
 Build manually: `docker build -t airecon-sandbox airecon/containers/`
 
 ### `Model not found` / model name mismatch
-Run `ollama list` and copy the exact model name (including tag) into `ollama_model` in config.
+Run `ollama list` and copy the exact model name (including tag) into `openai_model` in config.
 
 ### `Ollama returned HTML error page` / server crashed
 
@@ -321,7 +284,7 @@ This is the most common error on sessions with long context history or when runn
 
 **Why it happens:**
 - The KV cache (conversation history) grows with each iteration — a 500-iteration session can consume 2–4× more VRAM than the initial load
-- `ollama_num_ctx: 65536` with a 32B model requires ~6–8 GB VRAM just for the KV cache, on top of model weights
+- `llm_context_window: 65536` with a 32B model requires ~6–8 GB VRAM just for the KV cache, on top of model weights
 - Spawning parallel agents (`run_parallel_agents`) doubles or triples VRAM usage simultaneously
 
 **Fix in order of preference:**
@@ -336,38 +299,38 @@ pkill ollama && ollama serve &
 **2. Reduce context window (permanent fix):**
 ```json
 {
-    "ollama_num_ctx": 32768,
-    "ollama_num_ctx_small": 16384
+    "llm_context_window": 32768,
+    "llm_context_window_small": 16384
 }
 ```
 
 **3. Reduce max output tokens:**
 ```yaml
-ollama_num_predict: 8192
+openai_max_tokens: 8192
 ```
 
 **4. Shorten model keep-alive to free VRAM between sessions:**
 ```yaml
-ollama_keep_alive: "5m"
+llm_keep_alive: "5m"
 ```
 
 **5. Limit parallel agent concurrency** — avoid `run_parallel_agents` if VRAM is near the limit. Use `spawn_agent` (single specialist) instead.
 
 **Recommended safe config for 16–20 GB VRAM:**
 ```yaml
-ollama_model: "qwen3.5:35b"
-ollama_num_ctx: 32768
-ollama_num_ctx_small: 16384
-ollama_num_predict: 8192
-ollama_keep_alive: "10m"
+openai_model: "qwen3.5:35b"
+llm_context_window: 32768
+llm_context_window_small: 16384
+openai_max_tokens: 8192
+llm_keep_alive: "10m"
 ```
 
-> The agent uses periodic context compression, so reducing `ollama_num_ctx` usually has limited impact on long session quality.
+> The agent uses periodic context compression, so reducing `llm_context_window` usually has limited impact on long session quality.
 
 ### Context length error / out of memory (VRAM)
-Lower `ollama_num_ctx` in config:
+Lower `llm_context_window` in config:
 ```yaml
-ollama_num_ctx: 32768
+llm_context_window: 32768
 ```
 Or use a smaller model. See the `Ollama returned HTML error page` section above for a complete diagnosis.
 
@@ -379,9 +342,9 @@ poetry run playwright install chromium
 ```
 
 ### `Connection timeout` to Ollama during long scans
-Increase `ollama_timeout` in config (default 1900s should be sufficient for most models):
+Increase `llm_timeout` in config (default 1900s should be sufficient for most models):
 ```json
-"ollama_timeout": 3600.0
+"llm_timeout": 3600.0
 ```
 
 ### Poetry install fails with dependency conflicts

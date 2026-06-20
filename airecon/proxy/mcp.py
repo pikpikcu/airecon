@@ -131,7 +131,7 @@ def set_mcp_enabled(name: str, enabled: bool) -> bool:
     return True
 
 
-def mcp_ollama_tools(max_servers: int = 10) -> list[dict[str, Any]]:
+def mcp_llm_tools(max_servers: int = 10) -> list[dict[str, Any]]:
     servers = list_mcp_servers()
     enabled_servers = sorted(
         [

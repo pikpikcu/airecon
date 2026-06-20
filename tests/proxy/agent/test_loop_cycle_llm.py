@@ -55,7 +55,7 @@ class _DummyLoop(_CycleLlmMixin):
         self.state.conversation = []
         self.state.exploit_chains = []
         self.pipeline = _PipelineStub()
-        self._tools_ollama = [
+        self._tools_llm = [
             {"function": {"name": "ffuf", "description": "Fast content discovery"}},
             {"function": {"name": "httpx", "description": "HTTP probing"}},
         ]

@@ -37,7 +37,7 @@ def _make_agent():
                 },
             )()
             self._memory_manager = None
-            self.ollama = type("Ollama", (), {"model": "llama3"})()
+            self.llm = type("LLM", (), {"model": "llama3"})()
             self._adaptive_num_ctx = 0
             self._adaptive_num_predict_cap = 0
             self._vram_crash_count = 0

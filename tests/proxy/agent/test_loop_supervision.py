@@ -12,7 +12,7 @@ def _make_agent():
     class DummyAgent(_SupervisionMixin):
         def __init__(self):
             self.state = AgentState()
-            self._tools_ollama = []
+            self._tools_llm = []
             import re
 
             self._FAKE_CMD_BLOCK_RE = re.compile(
@@ -55,7 +55,7 @@ class TestReflectorInferToolHint:
 
         class A(_SupervisionMixin):
             def __init__(self):
-                self._tools_ollama = [
+                self._tools_llm = [
                     {"function": {"name": "execute", "description": "run"}},
                     {"function": {"name": "web_search", "description": "search"}},
                 ]
@@ -69,7 +69,7 @@ class TestReflectorInferToolHint:
 
         class A(_SupervisionMixin):
             def __init__(self):
-                self._tools_ollama = [
+                self._tools_llm = [
                     {"function": {"name": "execute", "description": "run"}},
                 ]
 

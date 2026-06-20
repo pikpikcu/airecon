@@ -1,4 +1,4 @@
-"""Tests for server.py FastAPI routes — with mocked Ollama/Docker/Agent globals."""
+"""Tests for server.py FastAPI routes — with mocked LLM/Docker/Agent globals."""
 
 from __future__ import annotations
 
@@ -66,20 +66,20 @@ def test_should_emit_stuck_warning_false_before_threshold():
 def _patch_server_globals(tmp_path):
     """Replace module-level globals so routes work without real services."""
     mock_agent = _make_mock_agent()
-    mock_ollama = _make_mock_ollama()
+    mock_llm = _make_mock_llm()
     mock_engine = _make_mock_engine()
 
     with (
         patch.dict("os.environ", {"AIRECON_TEST_MODE": "1"}, clear=False),
         patch.object(srv, "agent", mock_agent),
-        patch.object(srv, "ollama_client", mock_ollama),
+        patch.object(srv, "llm_client", mock_llm),
         patch.object(srv, "engine", mock_engine),
         # Reset busy flag before each test so tests don't interfere
         patch.object(srv, "_agent_busy", False),
     ):
         yield {
             "agent": mock_agent,
-            "ollama": mock_ollama,
+            "llm": mock_llm,
             "engine": mock_engine,
         }
 
@@ -92,7 +92,7 @@ def _make_mock_agent() -> MagicMock:
         "phase": "RECON",
         "iteration": 5,
     }
-    m._tools_ollama = [{"type": "function", "function": {"name": "execute"}}]
+    m._tools_llm = [{"type": "function", "function": {"name": "execute"}}]
     m.state = MagicMock()
     m.state.conversation = [
         {"role": "system", "content": "system prompt"},
@@ -120,7 +120,7 @@ def _make_mock_agent() -> MagicMock:
     return m
 
 
-def _make_mock_ollama() -> MagicMock:
+def _make_mock_llm() -> MagicMock:
     m = MagicMock()
     m.health_check = AsyncMock(return_value=True)
     m.unload_model = AsyncMock()
@@ -173,11 +173,11 @@ class TestGetStatus:
         r = _client().get("/api/status")
         data = r.json()
         assert data["status"] == "ok"
-        assert data["ollama"]["connected"] is True
+        assert data["llm"]["connected"] is True
         assert data["docker"]["connected"] is True
 
-    def test_status_degraded_when_ollama_down(self, _patch_server_globals):
-        _patch_server_globals["ollama"].health_check = AsyncMock(return_value=False)
+    def test_status_degraded_when_llm_down(self, _patch_server_globals):
+        _patch_server_globals["llm"].health_check = AsyncMock(return_value=False)
         r = _client().get("/api/status")
         assert r.json()["status"] == "degraded"
 
@@ -189,6 +189,17 @@ class TestGetStatus:
     def test_agent_stats_included(self):
         r = _client().get("/api/status")
         assert "agent" in r.json()
+
+    def test_tool_health_block_present(self):
+        data = _client().get("/api/status").json()
+        assert "tools" in data
+        for key in ("sandbox", "cli_tools", "browser", "mcp", "caido", "searxng"):
+            assert key in data["tools"]
+
+    def test_scope_and_profile_surfaced(self):
+        data = _client().get("/api/status").json()
+        assert "scope" in data and "mode" in data["scope"]
+        assert "scan_profile" in data
 
     def test_status_sets_caido_active_when_live_probe_succeeds(self, _patch_server_globals):
         _patch_server_globals["agent"].get_stats.return_value = {
@@ -206,6 +217,144 @@ class TestGetStatus:
         with patch.object(srv, "agent", None):
             r = _client().get("/api/status")
             assert r.json()["agent"] == {}
+
+
+class TestGetHealth:
+    def test_health_returns_liveness_without_llm_probe(self, _patch_server_globals):
+        _patch_server_globals["llm"].health_check = AsyncMock(
+            side_effect=AssertionError("health must not probe LLM")
+        )
+
+        r = _client().get("/api/health")
+        data = r.json()
+
+        assert r.status_code == 200
+        assert data["status"] == "ok"
+        assert data["proxy"]["connected"] is True
+        assert data["docker"]["connected"] is True
+        assert data["agent"]["initialized"] is True
+
+
+class TestModels:
+    def test_extract_model_ids_handles_openai_payload(self):
+        payload = {
+            "data": [
+                {"id": "gpt-4o"},
+                {"id": "gpt-4o-mini"},
+                {"id": "gpt-4o"},
+                {"name": "fallback-name"},
+                "string-model",
+            ]
+        }
+
+        assert srv._extract_model_ids(payload) == [
+            "gpt-4o",
+            "gpt-4o-mini",
+            "fallback-name",
+            "string-model",
+        ]
+
+    def test_models_endpoint_lists_available_models(self):
+        cfg = SimpleNamespace(
+            openai_base_url="http://llm.test/v1",
+            openai_model="gpt-4o",
+            llm_enable_thinking=True,
+            llm_thinking_mode="low",
+            llm_thinking_request_mode="auto",
+        )
+        with (
+            patch.object(srv, "get_config", return_value=cfg),
+            patch.object(
+                srv,
+                "_fetch_openai_models",
+                new=AsyncMock(return_value=["gpt-4o", "gpt-4o-mini"]),
+            ),
+        ):
+            r = _client().get("/api/models")
+
+        data = r.json()
+        assert r.status_code == 200
+        assert data["count"] == 2
+        assert data["models"] == ["gpt-4o", "gpt-4o-mini"]
+        assert data["source_url"] == "http://llm.test/v1/models"
+        # Capability hint per model (no network). In auto mode the optimistic
+        # strategy is reasoning_effort (runtime probe degrades unsupported ones).
+        assert set(data["capabilities"]) == {"gpt-4o", "gpt-4o-mini"}
+        assert data["capabilities"]["gpt-4o"] in ("reasoning_effort", "off")
+
+    def test_select_model_persists_and_reloads_runtime(self):
+        runtime_payload = {
+            "current_model": "gpt-4o-mini",
+            "openai_base_url": "http://llm.test/v1",
+            "thinking": {
+                "enabled": True,
+                "mode": "low",
+                "request_mode": "auto",
+                "supports_thinking": True,
+            },
+        }
+        with (
+            patch.object(srv, "_write_runtime_config_value") as write_config,
+            patch.object(srv, "_reload_llm_runtime", new=AsyncMock()) as reload_llm,
+            patch.object(srv, "_runtime_llm_payload", return_value=runtime_payload),
+        ):
+            r = _client().post("/api/models", json={"model": "gpt-4o-mini"})
+
+        assert r.status_code == 200
+        assert r.json()["model"] == "gpt-4o-mini"
+        write_config.assert_called_once_with("openai_model", "gpt-4o-mini")
+        reload_llm.assert_awaited_once_with(model="gpt-4o-mini")
+
+    def test_select_model_rejects_blank_model(self):
+        with patch.object(srv, "_write_runtime_config_value") as write_config:
+            r = _client().post("/api/models", json={"model": "   "})
+
+        assert r.status_code == 400
+        write_config.assert_not_called()
+
+
+class TestThinking:
+    def test_get_thinking_returns_runtime_state(self):
+        runtime_payload = {
+            "current_model": "gpt-4o",
+            "openai_base_url": "http://llm.test/v1",
+            "thinking": {
+                "enabled": True,
+                "mode": "low",
+                "request_mode": "auto",
+                "supports_thinking": None,
+            },
+        }
+        with patch.object(srv, "_runtime_llm_payload", return_value=runtime_payload):
+            r = _client().get("/api/think")
+
+        assert r.status_code == 200
+        assert r.json()["enabled"] is True
+        assert r.json()["request_mode"] == "auto"
+
+    def test_set_thinking_persists_and_reloads_runtime(self):
+        runtime_payload = {
+            "current_model": "gpt-4o",
+            "openai_base_url": "http://llm.test/v1",
+            "thinking": {
+                "enabled": False,
+                "mode": "low",
+                "request_mode": "auto",
+                "supports_thinking": False,
+            },
+        }
+        with (
+            patch.object(srv, "_write_runtime_config_value") as write_config,
+            patch.object(srv, "_reload_llm_runtime", new=AsyncMock()) as reload_llm,
+            patch.object(srv, "_runtime_llm_payload", return_value=runtime_payload),
+        ):
+            r = _client().post("/api/think", json={"enabled": False})
+
+        data = r.json()
+        assert r.status_code == 200
+        assert data["enabled"] is False
+        write_config.assert_called_once_with("llm_enable_thinking", False)
+        reload_llm.assert_awaited_once()
 
 
 # ── GET /api/progress ─────────────────────────────────────────────────────────
@@ -239,8 +388,8 @@ class TestListTools:
             assert r.status_code == 503
 
     def test_falls_back_to_engine_when_no_agent_tools(self, _patch_server_globals):
-        """When agent exists but _tools_ollama is empty, call engine.discover_tools."""
-        _patch_server_globals["agent"]._tools_ollama = []
+        """When agent exists but _tools_llm is empty, call engine.discover_tools."""
+        _patch_server_globals["agent"]._tools_llm = []
         r = _client().get("/api/tools")
         assert r.status_code == 200
 
@@ -361,6 +510,41 @@ class TestShell:
         with patch.object(srv, "engine", None):
             r = _client().post("/api/shell", json={"command": "echo hi"})
         assert r.status_code == 503
+
+    def test_shell_blocked_by_scope_guard_in_block_mode(self, _patch_server_globals, monkeypatch):
+        import airecon.proxy.scope as scope_mod
+        from types import SimpleNamespace
+
+        fake = SimpleNamespace(
+            scope_enforcement="block",
+            scope_allowlist="acme.test",
+            scope_denylist="",
+            audit_log_enabled=False,
+        )
+        monkeypatch.setattr(scope_mod, "get_config", lambda: fake)
+        r = _client().post("/api/shell", json={"command": "curl https://evil.test/x"})
+        assert r.status_code == 400
+        data = r.json()
+        assert data["blocked"] is True
+        assert "scope guard" in data["error"]
+
+    def test_shell_allows_in_scope_command_in_block_mode(self, _patch_server_globals, monkeypatch):
+        import airecon.proxy.scope as scope_mod
+        from types import SimpleNamespace
+
+        _patch_server_globals["engine"].execute_tool = AsyncMock(
+            return_value={"success": True, "stdout": "ok\n", "stderr": "", "exit_code": 0}
+        )
+        fake = SimpleNamespace(
+            scope_enforcement="block",
+            scope_allowlist="acme.test",
+            scope_denylist="",
+            audit_log_enabled=False,
+        )
+        monkeypatch.setattr(scope_mod, "get_config", lambda: fake)
+        r = _client().post("/api/shell", json={"command": "curl https://api.acme.test/x"})
+        assert r.status_code == 200
+        assert r.json()["success"] is True
 
 
 class TestListSkills:
@@ -659,6 +843,51 @@ class TestGetHistory:
             assert r.status_code == 200
             assert r.json()["messages"] == []
 
+    def test_session_file_surfaces_progress_and_tool_calls(self, monkeypatch):
+        # A heavily compacted conversation: mostly summaries + 1 user + 1 assistant
+        # tool-call. The endpoint must still surface a progress recap, keep the
+        # compression summary, and preserve chat + tool calls.
+        from types import SimpleNamespace
+        import airecon.proxy.agent.session as session_mod
+
+        fake_session = SimpleNamespace(
+            session_id="sess_resume",
+            target="ringkas.co.id",
+            completed_phases=["RECON", "ANALYSIS"],
+            tools_run=["nmap", "nuclei", "ffuf"],
+            vulnerabilities=[{"title": "SQLi in id", "severity": "HIGH", "url": "/login"}],
+            scan_count=41,
+            conversation=[
+                {"role": "system", "content": "[SYSTEM: COMPRESSION SUMMARY] goal/progress/findings"},
+                {"role": "system", "content": "[SYSTEM: ACTIVE_TARGET=ringkas.co.id]"},
+                {"role": "user", "content": "full recon on ringkas.co.id"},
+                {"role": "assistant", "content": "", "tool_calls": [
+                    {"function": {"name": "execute", "arguments": "{\"command\": \"nmap -sV ringkas.co.id\"}"}}
+                ]},
+            ],
+        )
+        monkeypatch.setattr(session_mod, "load_session", lambda sid: fake_session)
+        # agent._session must exist with a session_id
+        srv.agent._session = SimpleNamespace(session_id="sess_resume")
+
+        r = _client().get("/api/history")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["source"] == "session_file"
+        blob = "\n".join(
+            srv._build_session_recap(fake_session) if False else str(m.get("content", ""))
+            for m in data["messages"]
+        )
+        # progress recap present
+        assert "Previous progress" in blob
+        assert "ringkas.co.id" in blob
+        # compression summary kept; ephemeral ACTIVE_TARGET dropped
+        assert "COMPRESSION SUMMARY" in blob
+        assert "ACTIVE_TARGET" not in blob
+        # chat + tool call preserved
+        assert any(m.get("role") == "user" for m in data["messages"])
+        assert any(m.get("tool_calls") for m in data["messages"])
+
 
 # ── GET /api/sessions ─────────────────────────────────────────────────────────
 
@@ -734,13 +963,13 @@ class TestUnloadModel:
         assert r.json()["status"] == "ok"
 
     def test_unload_without_client_returns_503(self):
-        with patch.object(srv, "ollama_client", None):
+        with patch.object(srv, "llm_client", None):
             r = _client().post("/api/unload")
             assert r.status_code == 503
 
     def test_unload_calls_unload_model(self, _patch_server_globals):
         _client().post("/api/unload")
-        _patch_server_globals["ollama"].unload_model.assert_called_once()
+        _patch_server_globals["llm"].unload_model.assert_called_once()
 
 
 # ── _stream_file_agent_events cleanup ────────────────────────────────────────
@@ -776,7 +1005,7 @@ class TestFileAnalyzeStreamCleanup:
 
         with (
             patch.object(srv, "AgentLoop", _MiniAgent),
-            patch.object(srv, "ollama_client", object()),
+            patch.object(srv, "llm_client", object()),
             patch.object(srv, "engine", object()),
         ):
             events = [event async for event in srv._stream_file_agent_events(req)]
@@ -812,7 +1041,7 @@ class TestFileAnalyzeStreamCleanup:
 
         with (
             patch.object(srv, "AgentLoop", _MiniAgent),
-            patch.object(srv, "ollama_client", object()),
+            patch.object(srv, "llm_client", object()),
             patch.object(srv, "engine", object()),
         ):
             events = [event async for event in srv._stream_file_agent_events(req)]
@@ -854,7 +1083,7 @@ class TestFileAnalyzeStreamCleanup:
 
         with (
             patch.object(srv, "AgentLoop", _MiniAgent),
-            patch.object(srv, "ollama_client", object()),
+            patch.object(srv, "llm_client", object()),
             patch.object(srv, "engine", object()),
         ):
             gen = srv._stream_file_agent_events(req)

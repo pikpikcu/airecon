@@ -187,15 +187,14 @@ class _InteractiveExecutorMixin:
         try:
             from .loop import AgentLoop
 
-            parent_ollama = getattr(self, "ollama", None)
-            if parent_ollama is None:
-                from ..config import get_config
-                from ..ollama import OllamaClient
+            parent_llm = getattr(self, "llm", None)
+            if parent_llm is None:
+                from ..llm import create_llm_client
 
-                parent_ollama = OllamaClient(model=get_config().ollama_model)
-                await parent_ollama._async_init()
+                parent_llm = create_llm_client()
+                await parent_llm._async_init()
 
-            agent = AgentLoop(ollama=parent_ollama, engine=self.engine)
+            agent = AgentLoop(llm=parent_llm, engine=self.engine)
 
             agent._is_subagent = True
 

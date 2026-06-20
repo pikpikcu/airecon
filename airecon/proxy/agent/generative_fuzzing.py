@@ -219,7 +219,6 @@ class GenerativeFuzzingEngine:
 
         for genome in self.population[vuln_type]:
             if genome.payload in fitness_map:
-                _old_fitness = genome.fitness
                 genome.fitness = fitness_map[genome.payload]
                 genome.test_count += 1
                 if genome.fitness > 0.5:

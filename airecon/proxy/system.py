@@ -226,7 +226,7 @@ def auto_load_skills_for_message(
     try:
         cfg = get_config()
         _tools_limit, _other_limit = _message_skill_char_budget(
-            int(getattr(cfg, "ollama_num_ctx", 32768) or 32768)
+            int(getattr(cfg, "llm_context_window", 32768) or 32768)
         )
     except Exception:
         _tools_limit, _other_limit = 5000, 1800
@@ -441,7 +441,7 @@ def auto_load_skills_for_technologies(
     try:
         cfg = get_config()
         tech_limit, generic_limit, total_limit = _tech_skill_budget(
-            int(getattr(cfg, "ollama_num_ctx", 32768) or 32768)
+            int(getattr(cfg, "llm_context_window", 32768) or 32768)
         )
     except Exception:
         tech_limit, generic_limit, total_limit = _tech_skill_budget(32768)

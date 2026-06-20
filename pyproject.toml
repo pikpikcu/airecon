@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "airecon"
-description = "AI-powered security reconnaissance: Ollama + Kali Linux Docker sandbox + Textual TUI"
-version = "0.1.7-beta"
+description = "AI-powered security reconnaissance: OpenAI-compatible LLM backend + Kali Linux Docker sandbox + Textual TUI"
+version = "1.7.1-beta"
 homepage = "https://github.com/pikpikcu/airecon"
 license = "MIT"
 authors = ["pikpikcu"]
@@ -24,7 +24,10 @@ sse-starlette = "^3.2.0"
 rich = "^14.3.0"
 pydantic = "^2.12.5"
 playwright = "^1.58.0"
-ollama = "^0.6.1"
+# OpenAI-compatible LLM backend: AIRecon's LLMClient speaks the OpenAI
+# /v1/chat/completions wire format directly over httpx (declared above), so the
+# heavyweight `openai` SDK is intentionally NOT a dependency. Any OpenAI-compatible
+# gateway (LiteLLM / vLLM / hosted / a local gateway) works.
 cvss = "^3.6"
 duckduckgo-search = "^8.1.0"
 aiohttp = "^3.9.0"
@@ -53,7 +56,7 @@ asyncio_default_fixture_loop_scope = "function"
 
 [tool.coverage.run]
 source = ["airecon"]
-# Exclude integration-heavy files that require Docker/Ollama/Playwright at runtime
+# Exclude integration-heavy files that require Docker/LLM gateway/Playwright at runtime
 omit = [
     "airecon/proxy/searxng.py",  # Requires Docker container
 ]

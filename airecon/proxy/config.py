@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import dataclasses
 import logging
 import os
@@ -17,72 +18,103 @@ logger = logging.getLogger("airecon.proxy.config")
 APP_DIR_NAME = ".airecon"
 CONFIG_FILENAME = "config.yaml"
 
+_SCAN_PROFILES_FILE = Path(__file__).parent / "data" / "scan_profiles.json"
+_scan_profiles_cache: dict[str, Any] | None = None
+
+
+def _load_scan_profile(name: str) -> dict[str, Any]:
+    """Return the override dict for a named scan profile (data-driven, cached)."""
+    global _scan_profiles_cache
+    if _scan_profiles_cache is None:
+        try:
+            import json as _json
+
+            raw = _json.loads(_SCAN_PROFILES_FILE.read_text(encoding="utf-8"))
+            _scan_profiles_cache = {
+                str(k).lower(): v
+                for k, v in (raw or {}).items()
+                if isinstance(v, dict) and not str(k).startswith("_")
+            }
+        except Exception as e:
+            logger.debug("scan_profiles.json unavailable: %s", e)
+            _scan_profiles_cache = {}
+    return dict(_scan_profiles_cache.get((name or "").lower(), {}))
+
 _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
-    "ollama_url": (
-        "http://127.0.0.1:11434",
-        "Ollama API endpoint. REQUIRED — must be set. For local: http://127.0.0.1:11434. For remote: http://IP:11434",
+    "openai_base_url": (
+        "http://localhost:20128/v1",
+        "OpenAI-compatible API base URL (LiteLLM/vLLM/hosted). Default (local gateway): http://localhost:20128/v1. Must include the /v1 suffix.",
     ),
-    "ollama_model": (
-        "qwen3.5:122b",
-        "Model to use. 122B for best reasoning (requires 60GB+ VRAM). For 12GB VRAM: use qwen2.5:7b or smaller. For 8GB VRAM: use qwen2.5:1.8b.",
+    "openai_api_key": (
+        "",
+        "API key sent as 'Authorization: Bearer <key>'. Leave empty for local gateways that do not require auth.",
     ),
-    "ollama_timeout": (
-        180.0,
-        "Total request timeout (seconds). 180s = 3 min. Stable for most models. Increase to 300s for slow remote servers or 122B models.",
+    "openai_model": (
+        "",
+        "Model name for the backend, e.g. 'claude-sonnet-4', 'gpt-4o', 'gemini-2.0-flash', or an LLM model exposed via a local gateway like 'qwen2.5:7b'.",
     ),
-    "ollama_chunk_timeout": (
-        180.0,
-        "Per-chunk stream timeout (seconds). 180s stable for most models. Increase to 240s for 122B model prefill over network or slow connections.",
-    ),
-    "ollama_num_ctx": (
-        65536,
-        "Context window size. 65536 = 64K (stable for 12GB VRAM with 8B models). 131072 = 128K requires 30GB+ VRAM. Set -1 for server default.",
-    ),
-    "ollama_num_ctx_small": (
-        32768,
-        "Context for CTF/summary mode. 32768 = 32K (stable for 12GB VRAM). Reduced from 64K for stability with 8B+ models.",
-    ),
-    "ollama_temperature": (
-        0.15,
-        "LLM output randomness. 0.0=deterministic, 0.15=recommended (strict), 0.3=creative. Does NOT affect thinking mode — controls output diversity only.",
-    ),
-    "ollama_num_predict": (
+    "openai_max_tokens": (
         16384,
-        "Max tokens to generate. 16384 = 16K (stable for 12GB VRAM). 32K requires more VRAM.",
+        "Max tokens to generate (maps to OpenAI max_tokens).",
     ),
-    "ollama_enable_thinking": (
+    "openai_temperature": (
+        0.15,
+        "LLM output randomness. 0.0=deterministic, 0.15=recommended (strict), 0.3=creative.",
+    ),
+    "openai_supports_thinking": (
+        False,
+        "Whether the remote model emits <think> reasoning. Most hosted models (Claude/GPT/Gemini) do NOT use LLM-style <think> tags — keep False unless your model does.",
+    ),
+    "openai_supports_native_tools": (
         True,
-        "Enable extended thinking mode (for Qwen3.5+/Qwen2.5+). When enabled, model generates <think> reasoning blocks before answering.",
+        "Whether the remote model supports native function/tool calling. Claude/GPT/Gemini all support this — keep True.",
     ),
-    "ollama_thinking_mode": (
+    "llm_timeout": (
+        180.0,
+        "Total request timeout (seconds). 180s = 3 min. Increase to 300s for slow remote gateways or large models.",
+    ),
+    "llm_chunk_timeout": (
+        180.0,
+        "Per-chunk stream timeout (seconds). 180s stable for most models. Increase for slow networks.",
+    ),
+    "llm_context_window": (
+        65536,
+        "Assumed model context window (tokens). Used to size conversation compaction. 65536 = 64K. Raise for long-context hosted models (e.g. 131072+).",
+    ),
+    "llm_context_window_small": (
+        32768,
+        "Context window for CTF/summary mode (tokens). 32768 = 32K.",
+    ),
+    "llm_enable_thinking": (
+        True,
+        "Enable extended thinking mode. When enabled, reasoning models generate <think>/reasoning blocks before answering.",
+    ),
+    "llm_thinking_mode": (
         "low",
-        "Thinking intensity: low|medium|high|adaptive. For 12GB VRAM: use 'low' or 'medium'. 'high' may cause OOM with 8B models. Low=only deep tools, Medium=ANALYSIS+deep tools, High=most iterations (high VRAM only).",
+        "Thinking intensity: low|medium|high|adaptive. Low=only deep tools, Medium=ANALYSIS+deep tools, High=most iterations.",
     ),
-    "ollama_supports_thinking": (
-        True,
-        "Auto-detected: model supports <think> blocks. Set false for older models without thinking support.",
+    "llm_thinking_request_mode": (
+        "auto",
+        "How to ASK the gateway for reasoning when thinking is enabled: "
+        "auto|off|reasoning_effort|enable_thinking. "
+        "auto=use the OpenAI-standard reasoning_effort param and auto-detect "
+        "support at runtime: if the backend rejects it (HTTP 400 unsupported "
+        "parameter, as OpenAI returns for non-reasoning models), it is stripped, "
+        "remembered per-model, and the request retried — no model-name list. "
+        "off=never send thinking params. "
+        "reasoning_effort=force reasoning_effort. "
+        "enable_thinking=force the vLLM/SGLang chat-template flag (explicit "
+        "opt-in for local Qwen3/GLM-style deployments).",
     ),
-    "ollama_supports_native_tools": (
-        True,
-        "Auto-detected: model supports native tool calling. Set false for models without tool-calling capability.",
-    ),
-    "ollama_max_concurrent_requests": (
+    "llm_max_concurrent_requests": (
         1,
-        "Max concurrent Ollama requests. Keep 1 for 8B+ models to prevent OOM. For 122B: MUST be 1.",
-    ),
-    "ollama_num_keep": (
-        4096,
-        "Protect first N tokens from KV eviction. 4096 = 4K (reduced for 12GB VRAM stability). 8K for larger VRAM.",
-    ),
-    "ollama_repeat_penalty": (
-        1.05,
-        "Prevent repetition loops. 1.05 = mild. Range: 1.0–1.2.",
+        "Max concurrent LLM requests. Keep 1 unless your gateway/model handles parallelism well.",
     ),
     "proxy_host": (
         "127.0.0.1",
         "Host to bind proxy server. 127.0.0.1 = localhost only.",
     ),
-    "proxy_port": (3000, "Port for proxy server. Default 3000."),
+    "proxy_port": (32445, "Port for proxy server. Default 32445."),
     "command_timeout": (
         900.0,
         "Docker command timeout (seconds). 900s = 15 min for long scans (nmap, nuclei).",
@@ -101,6 +133,13 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
     "agent_recon_mode": (
         "standard",
         "Recon execution mode: standard|full. standard=respect user scope, full=auto-expand simple target prompts into comprehensive recon.",
+    ),
+    "scan_profile": (
+        "standard",
+        "Named scan profile (data-driven, data/scan_profiles.json): "
+        "quick|standard|deep|stealth|ctf|bugbounty. A profile is a baseline bundle "
+        "of settings applied between defaults and your config.yaml — your explicit "
+        "config keys always override the profile. 'standard' = defaults unchanged.",
     ),
     "agent_max_tool_iterations": (
         600,
@@ -150,6 +189,27 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         False,
         "Allow destructive tests (e.g., DELETE requests). Default: False for safety.",
     ),
+    "scope_allowlist": (
+        "",
+        "Comma-separated host patterns the agent MAY target. Empty = no allowlist "
+        "restriction. A pattern matches the host and its subdomains; '*.example.com' "
+        "matches subdomains only.",
+    ),
+    "scope_denylist": (
+        "",
+        "Comma-separated host patterns the agent must NEVER target (takes precedence "
+        "over the allowlist).",
+    ),
+    "scope_enforcement": (
+        "warn",
+        "Scope guard mode: off|warn|block. off=no checks; warn=log out-of-scope but "
+        "allow (default); block=refuse out-of-scope commands.",
+    ),
+    "audit_log_enabled": (
+        True,
+        "Write every checked command/request to ~/.airecon/audit/audit.jsonl for "
+        "accountability.",
+    ),
     "browser_page_load_delay": (
         1.0,
         "Delay after page load (seconds). 1.0s for JS-heavy sites.",
@@ -158,10 +218,6 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         120,
         "Browser action timeout (seconds). 120s for modern heavy pages.",
     ),
-    "ollama_keep_alive": (
-        -1,
-        "How long to keep model in VRAM. -1 = forever, '60m' = 60 min, 0 = unload immediately.",
-    ),
     "searxng_url": (
         "http://localhost:8080",
         "SearXNG instance URL. Leave default for local auto-managed instance.",
@@ -169,6 +225,25 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
     "searxng_engines": (
         "google,bing,duckduckgo,brave,google_news,github,stackoverflow",
         "Comma-separated search engines.",
+    ),
+    "tool_health_probe_binaries": (
+        "nuclei,nmap,ffuf,httpx,katana,subfinder,sqlmap",
+        "Comma-separated CLI tools probed (via `which` in the sandbox) for the "
+        "/api/status tool-health dashboard. Result is cached.",
+    ),
+    "tool_health_probe_ttl": (
+        300.0,
+        "Seconds to cache the sandbox tool-availability probe.",
+    ),
+    "notify_webhook_url": (
+        "",
+        "Optional webhook URL POSTed a JSON summary when a scan completes. Empty "
+        "= disabled. Works with Slack/Discord/generic JSON endpoints.",
+    ),
+    "notify_completion_flag": (
+        True,
+        "Write a COMPLETE.json summary file in the target's workspace folder when a "
+        "scan completes.",
     ),
     "vuln_similarity_threshold": (
         0.7,
@@ -192,7 +267,7 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
     ),
     "agent_max_conversation_messages": (
         None,
-        "Max messages in conversation. Auto-calculated from ollama_num_ctx // 256 for 12GB VRAM stability (was //128).",
+        "Max messages in conversation. Auto-calculated from llm_context_window // 256.",
     ),
     "agent_compression_trigger_ratio": (
         0.7,
@@ -212,7 +287,7 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
     ),
     "agent_context_reset_cooldown_seconds": (
         45,
-        "Minimum seconds between forced Ollama context resets. 45s for 12GB VRAM (faster than 60s). 300s for regular recon on large VRAM.",
+        "Minimum seconds between forced context compaction resets. 45s default; raise for long sessions on large-context gateways.",
     ),
     "caido_graphql_url": (
         "http://127.0.0.1:48080/graphql",
@@ -310,13 +385,13 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         15,
         "HTTP request timeout for observe/intercept tools in seconds.",
     ),
-    "ollama_status_timeout": (
+    "llm_status_timeout": (
         3.5,
-        "Timeout for Ollama health check in seconds.",
+        "Timeout for LLM backend health check in seconds.",
     ),
-    "ollama_status_sticky_ok_seconds": (
+    "llm_status_sticky_ok_seconds": (
         120.0,
-        "How long to consider Ollama 'healthy' after a successful check.",
+        "How long to consider the LLM backend 'healthy' after a successful check.",
     ),
     "mcp_probe_timeout": (
         45.0,
@@ -373,22 +448,6 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
     "pipeline_report_max_iterations": (
         100,
         "Max iterations for REPORT phase.",
-    ),
-    "pipeline_recon_budget": (
-        10,
-        "Tool budget for RECON phase.",
-    ),
-    "pipeline_analysis_budget": (
-        30,
-        "Tool budget for ANALYSIS phase.",
-    ),
-    "pipeline_exploit_budget": (
-        60,
-        "Tool budget for EXPLOIT phase.",
-    ),
-    "pipeline_report_budget": (
-        0,
-        "Tool budget for REPORT phase (0 = blocked).",
     ),
     # Phase dynamic settings (previously hardcoded in Python files)
     "pipeline_output_parser_max_items_recon": (
@@ -573,6 +632,22 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         50000,
         "MAX_TOOL_RESULT_CHARS (in thousands) for agent state model.",
     ),
+    "memory_protected_context_max": (
+        6,
+        "Max protected system messages kept during truncation. Kept by TYPE (the "
+        "freshest scope/pinned/recovery/summary each), so no critical context is "
+        "dropped just because several accumulated.",
+    ),
+    "memory_compression_summary_chars": (
+        700,
+        "Base char budget for the rolling memory-handoff summary re-injected into "
+        "the pinned context. Scaled up automatically for large-context models.",
+    ),
+    "memory_compression_input_per_msg_chars": (
+        350,
+        "Per-message char cap when feeding old messages to the LLM compressor. "
+        "Scaled up automatically for large-context models so less detail is lost.",
+    ),
     "model_min_confidence_for_preservation": (
         0.75,
         "MIN_CONFIDENCE_FOR_PRESERVATION threshold for agent state model.",
@@ -659,8 +734,29 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         "Enable adaptive learning engine for tool performance tracking and strategy reinforcement.",
     ),
     "intelligence_adaptive_min_observations": (
-        3,
-        "Minimum tool observations before making recommendations.",
+        2,
+        "Minimum tool observations before making recommendations. Lower = the "
+        "agent learns from within-session results faster.",
+    ),
+    "intelligence_memory_recall_interval": (
+        4,
+        "Inject learned memory patterns (or static dataset knowledge on cold "
+        "start) every N iterations. Lower = memory used more actively as the brain.",
+    ),
+    "intelligence_correlation_interval": (
+        6,
+        "Run dataset/finding correlation analysis every N iterations.",
+    ),
+    "intelligence_learn_only_verified": (
+        True,
+        "Only persist VERIFIED/high-confidence findings into the cross-session "
+        "memory brain. Prevents the agent from 'learning' false positives and "
+        "getting dumber over time. Disable to learn from all findings (noisier).",
+    ),
+    "intelligence_learn_min_confidence": (
+        0.65,
+        "When intelligence_learn_only_verified is on, an unverified finding is "
+        "still learned if its verified_confidence is at least this value.",
     ),
     "intelligence_generative_fuzzing_enabled": (
         True,
@@ -712,23 +808,28 @@ DEFAULT_CONFIG = {key: value for key, (value, _) in _CONFIG_SCHEMA.items()}
 
 _CONFIG_CATEGORIES = [
     (
-        "Ollama Connection",
-        ["ollama_url", "ollama_model", "ollama_timeout", "ollama_chunk_timeout"],
+        "LLM Backend (OpenAI-compatible / LiteLLM / vLLM / hosted)",
+        [
+            "openai_base_url",
+            "openai_api_key",
+            "openai_model",
+            "openai_max_tokens",
+            "openai_temperature",
+            "openai_supports_thinking",
+            "openai_supports_native_tools",
+        ],
     ),
     (
-        "Ollama Model Settings",
+        "LLM Tuning",
         [
-            "ollama_num_ctx",
-            "ollama_num_ctx_small",
-            "ollama_temperature",
-            "ollama_num_predict",
-            "ollama_enable_thinking",
-            "ollama_thinking_mode",
-            "ollama_supports_thinking",
-            "ollama_supports_native_tools",
-            "ollama_max_concurrent_requests",
-            "ollama_num_keep",
-            "ollama_repeat_penalty",
+            "llm_timeout",
+            "llm_chunk_timeout",
+            "llm_context_window",
+            "llm_context_window_small",
+            "llm_enable_thinking",
+            "llm_thinking_mode",
+            "llm_thinking_request_mode",
+            "llm_max_concurrent_requests",
         ],
     ),
     ("Proxy Server", ["proxy_host", "proxy_port"]),
@@ -753,8 +854,38 @@ _CONFIG_CATEGORIES = [
         ],
     ),
     ("Safety", ["allow_destructive_testing"]),
+    ("Scan Profile", ["scan_profile"]),
+    (
+        "Scope Guard & Audit",
+        [
+            "scope_allowlist",
+            "scope_denylist",
+            "scope_enforcement",
+            "audit_log_enabled",
+        ],
+    ),
+    (
+        "Notifications",
+        ["notify_webhook_url", "notify_completion_flag"],
+    ),
+    (
+        "Tool Health",
+        ["tool_health_probe_binaries", "tool_health_probe_ttl"],
+    ),
+    (
+        "Intelligence & Memory",
+        [
+            "intelligence_adaptive_min_observations",
+            "intelligence_memory_recall_interval",
+            "intelligence_correlation_interval",
+            "intelligence_learn_only_verified",
+            "intelligence_learn_min_confidence",
+            "memory_protected_context_max",
+            "memory_compression_summary_chars",
+            "memory_compression_input_per_msg_chars",
+        ],
+    ),
     ("Browser", ["browser_page_load_delay", "browser_action_timeout"]),
-    ("Ollama Keep-Alive", ["ollama_keep_alive"]),
     ("SearXNG", ["searxng_url", "searxng_engines"]),
     ("Deduplication", ["vuln_similarity_threshold", "evidence_similarity_threshold"]),
     (
@@ -851,8 +982,8 @@ _CONFIG_CATEGORIES = [
     (
         "Health Checks",
         [
-            "ollama_status_timeout",
-            "ollama_status_sticky_ok_seconds",
+            "llm_status_timeout",
+            "llm_status_sticky_ok_seconds",
         ],
     ),
     (
@@ -878,10 +1009,6 @@ _CONFIG_CATEGORIES = [
             "pipeline_analysis_max_iterations",
             "pipeline_exploit_max_iterations",
             "pipeline_report_max_iterations",
-            "pipeline_recon_budget",
-            "pipeline_analysis_budget",
-            "pipeline_exploit_budget",
-            "pipeline_report_budget",
         ],
     ),
     (
@@ -988,23 +1115,41 @@ def get_workspace_root() -> Path:
 # Only these are written to config.yaml. All other values stay as defaults
 # in config.py to keep the config file clean and minimal.
 _ESSENTIAL_CONFIG_KEYS: set[str] = {
+    "openai_base_url",
+    "openai_api_key",
+    "openai_model",
+    "openai_max_tokens",
+    "openai_temperature",
     "proxy_host",
     "proxy_port",
-    "ollama_url",
-    "ollama_model",
-    "ollama_timeout",
-    "ollama_num_ctx",
-    "ollama_num_ctx_small",
-    "ollama_num_predict",
-    "ollama_num_keep",
-    "ollama_temperature",
-    "ollama_enable_thinking",
-    "ollama_thinking_mode",
+    "llm_timeout",
+    "llm_context_window",
+    "llm_context_window_small",
+    "llm_enable_thinking",
+    "llm_thinking_mode",
+    "llm_thinking_request_mode",
     "command_timeout",
     "docker_memory_limit",
     "deep_recon_autostart",
     "agent_recon_mode",
     "allow_destructive_testing",
+    "notify_webhook_url",
+    "notify_completion_flag",
+    "scan_profile",
+    "scope_allowlist",
+    "scope_denylist",
+    "scope_enforcement",
+    "audit_log_enabled",
+    "tool_health_probe_binaries",
+    "tool_health_probe_ttl",
+    "intelligence_adaptive_min_observations",
+    "intelligence_memory_recall_interval",
+    "intelligence_correlation_interval",
+    "intelligence_learn_only_verified",
+    "intelligence_learn_min_confidence",
+    "memory_protected_context_max",
+    "memory_compression_summary_chars",
+    "memory_compression_input_per_msg_chars",
 }
 
 
@@ -1028,16 +1173,12 @@ def _write_yaml_with_comments(config: dict, filepath: Path) -> None:
     lines.append("#╚══════════════════════════════════════════════════════════╝")
     lines.append("")
     lines.append("# Quick Start:")
-    lines.append("#   1. Check your VRAM and set appropriate model:")
-    lines.append("#      - 12GB VRAM: qwen2.5:7b or qwen2.5:1.8b (stable)")
-    lines.append("#      - 16GB VRAM: qwen2.5:14b or qwen3.5:32b")
-    lines.append("#      - 24GB+ VRAM: qwen3.5:70b")
-    lines.append("#      - 60GB+ VRAM: qwen3.5:122b")
-    lines.append("#   2. Context sizes (VRAM requirements):")
-    lines.append("#      - 32K (32768): 8GB VRAM stable (CTF mode)")
-    lines.append("#      - 64K (65536): 12GB VRAM stable (standard mode)")
-    lines.append("#      - 128K (131072): 30GB+ VRAM required")
-    lines.append("#   3. Set ollama_url for remote Ollama servers")
+    lines.append("#   1. Set openai_base_url to your gateway (LiteLLM/vLLM/hosted).")
+    lines.append("#      default (local gateway): http://localhost:20128/v1 (must include /v1).")
+    lines.append("#   2. Set openai_api_key and openai_model for your backend.")
+    lines.append("#      e.g. claude-sonnet-4, gpt-4o, gemini-2.0-flash, or an")
+    lines.append("#      LLM model exposed via a local gateway like qwen2.5:7b.")
+    lines.append("#   3. Tune llm_context_window to your model's context window.")
     lines.append("#   4. Run: airecon start")
     lines.append("")
 
@@ -1085,33 +1226,46 @@ def _write_yaml_with_comments(config: dict, filepath: Path) -> None:
                 lines.append(f"{key}: {value_str}")
                 written_keys.add(key)
 
-    with open(filepath, "w") as f:
-        f.write("\n".join(lines) + "\n")
+    # Atomic write: render to a temp file in the same dir, then os.replace().
+    # A concurrent reader therefore never observes a half-written/truncated file
+    # (which would parse as empty/None and trigger a spurious reset-to-defaults).
+    payload = "\n".join(lines) + "\n"
+    fd, tmp_name = tempfile.mkstemp(
+        dir=str(filepath.parent), prefix=f".{filepath.name}.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(payload)
+        os.replace(tmp_name, filepath)
+    except Exception:
+        with contextlib.suppress(Exception):
+            os.unlink(tmp_name)
+        raise
 
 
 @dataclass(frozen=True)
 class Config:
-    ollama_url: str
-    ollama_model: str
+    openai_base_url: str
+    openai_api_key: str
+    openai_model: str
+    openai_max_tokens: int
+    openai_temperature: float
+    openai_supports_thinking: bool
+    openai_supports_native_tools: bool
 
     proxy_host: str
     proxy_port: int
 
-    ollama_timeout: float
-    ollama_chunk_timeout: float
+    llm_timeout: float
+    llm_chunk_timeout: float
     command_timeout: float
 
-    ollama_num_ctx: int
-    ollama_num_ctx_small: int
-    ollama_temperature: float
-    ollama_num_predict: int
-    ollama_enable_thinking: bool
-    ollama_thinking_mode: str
-    ollama_supports_thinking: bool
-    ollama_supports_native_tools: bool
-    ollama_max_concurrent_requests: int
-    ollama_num_keep: int
-    ollama_repeat_penalty: float
+    llm_context_window: int
+    llm_context_window_small: int
+    llm_enable_thinking: bool
+    llm_thinking_mode: str
+    llm_thinking_request_mode: str
+    llm_max_concurrent_requests: int
 
     docker_image: str
     docker_auto_build: bool
@@ -1134,16 +1288,23 @@ class Config:
     agent_max_same_tool_streak: int
     agent_phase_creative_temperature: float
 
+    scan_profile: str
     allow_destructive_testing: bool
+    scope_allowlist: str
+    scope_denylist: str
+    scope_enforcement: str
+    audit_log_enabled: bool
 
     browser_page_load_delay: float
 
     browser_action_timeout: int
 
-    ollama_keep_alive: int | str
-
     searxng_url: str
     searxng_engines: str
+    tool_health_probe_binaries: str
+    tool_health_probe_ttl: float
+    notify_webhook_url: str
+    notify_completion_flag: bool
 
     vuln_similarity_threshold: float
 
@@ -1185,7 +1346,7 @@ class Config:
     browser_oauth_callback_timeout_ms: int
     browser_totp_fill_timeout_ms: int
     browser_screenshot_timeout_ms: int
-    # CAPTCHA uses ollama_model for vision (qwen3.5 supports images)
+    # CAPTCHA vision is routed through the OpenAI-compatible gateway (openai_model)
     waf_bypass_timeout: int
     fuzzer_threads: int
     fuzzer_timeout: int
@@ -1200,8 +1361,8 @@ class Config:
     rate_limiter_http_timeout: int
     rate_limiter_abort_threshold: int
     observe_request_timeout: int
-    ollama_status_timeout: float
-    ollama_status_sticky_ok_seconds: float
+    llm_status_timeout: float
+    llm_status_sticky_ok_seconds: float
     mcp_probe_timeout: float
     mcp_tools_list_timeout: float
     caido_token_timeout: float
@@ -1216,10 +1377,6 @@ class Config:
     pipeline_analysis_max_iterations: int
     pipeline_exploit_max_iterations: int
     pipeline_report_max_iterations: int
-    pipeline_recon_budget: int
-    pipeline_analysis_budget: int
-    pipeline_exploit_budget: int
-    pipeline_report_budget: int
     pipeline_tool_budget_recon_quick_fuzz: int
     pipeline_tool_budget_recon_advanced_fuzz: int
     pipeline_tool_budget_recon_deep_fuzz: int
@@ -1250,6 +1407,9 @@ class Config:
     model_max_evidence: int
     model_max_causal_observations: int
     model_max_tool_result_chars: int
+    memory_protected_context_max: int
+    memory_compression_summary_chars: int
+    memory_compression_input_per_msg_chars: int
     model_min_confidence_for_preservation: float
     causal_confidence_technology_detected: float
     causal_confidence_endpoint_observed: float
@@ -1274,6 +1434,10 @@ class Config:
     intelligence_enabled: bool
     intelligence_adaptive_learning_enabled: bool
     intelligence_adaptive_min_observations: int
+    intelligence_memory_recall_interval: int
+    intelligence_correlation_interval: int
+    intelligence_learn_only_verified: bool
+    intelligence_learn_min_confidence: float
     intelligence_generative_fuzzing_enabled: bool
     intelligence_generative_population_size: int
     intelligence_generative_max_generations: int
@@ -1319,6 +1483,41 @@ class Config:
                         logger.info("Config file reset to defaults at %s", config_file)
                     elif isinstance(loaded, dict):
                         user_config = loaded
+                        missing_essentials = [
+                            k
+                            for k in _ESSENTIAL_CONFIG_KEYS
+                            if k not in user_config
+                        ]
+                        if missing_essentials:
+                            logger.info(
+                                "Config %s is missing newer keys (%s). "
+                                "Migrating file to latest format while preserving "
+                                "your settings.",
+                                config_file,
+                                ", ".join(sorted(missing_essentials)),
+                            )
+                            try:
+                                merged_for_write = {
+                                    **DEFAULT_CONFIG,
+                                    **{
+                                        k: v
+                                        for k, v in user_config.items()
+                                        if k in DEFAULT_CONFIG
+                                    },
+                                }
+                                _write_yaml_with_comments(
+                                    merged_for_write, config_file
+                                )
+                                logger.info(
+                                    "Config migrated to latest format at %s",
+                                    config_file,
+                                )
+                            except Exception as migrate_err:
+                                logger.warning(
+                                    "Could not migrate config file (will keep "
+                                    "using in-memory defaults for new keys): %s",
+                                    migrate_err,
+                                )
                     else:
                         logger.error(
                             "Config file %s is corrupt (expected YAML mapping, got %s). "
@@ -1403,6 +1602,16 @@ class Config:
     def load_with_defaults(cls, raw: dict) -> Config:
         known_fields = {f.name for f in dataclasses.fields(cls)}
         merged = {k: DEFAULT_CONFIG[k] for k in known_fields if k in DEFAULT_CONFIG}
+        # Scan-profile layer: a named bundle of overrides applied between defaults
+        # and the user's explicit config. The profile changes the baseline; the
+        # user's config.yaml still wins over it. Data-driven via scan_profiles.json.
+        _profile_name = str(
+            raw.get("scan_profile", merged.get("scan_profile", "standard"))
+            or "standard"
+        ).strip().lower()
+        for _pk, _pv in _load_scan_profile(_profile_name).items():
+            if _pk in known_fields:
+                merged[_pk] = _pv
         merged.update({k: v for k, v in raw.items() if k in known_fields})
         unknown = set(raw) - known_fields
         if unknown:
@@ -1446,16 +1655,14 @@ class Config:
 
         _BOUNDS_RULES: dict[str, tuple[float | None, float | None]] = {
             # LLM config
-            "ollama_temperature": (0.0, 1.2),
-            "ollama_num_predict": (64, 65536),
-            "ollama_num_ctx": (-1, 262144),
-            "ollama_num_ctx_small": (2048, 131072),
-            "ollama_repeat_penalty": (1.0, 1.5),
-            "ollama_num_keep": (0, 32768),
-            "ollama_max_concurrent_requests": (1, 8),
+            "openai_temperature": (0.0, 1.2),
+            "openai_max_tokens": (64, 200000),
+            "llm_context_window": (2048, 262144),
+            "llm_context_window_small": (2048, 131072),
+            "llm_max_concurrent_requests": (1, 8),
             # Timeouts
-            "ollama_timeout": (10.0, 1800.0),
-            "ollama_chunk_timeout": (30.0, 1200.0),
+            "llm_timeout": (10.0, 1800.0),
+            "llm_chunk_timeout": (30.0, 1200.0),
             "command_timeout": (30.0, 7200.0),
             "per_tool_timeout_seconds": (10.0, 3600.0),
             "response_timing_alert_threshold_ms": (1000, 300000),
@@ -1502,17 +1709,13 @@ class Config:
             "pipeline_recon_min_subdomains": (0, 50),
             "pipeline_recon_min_urls": (0, 20),
             "pipeline_recon_soft_timeout": (10, 500),
-            "pipeline_recon_budget": (0, 200),
-            "pipeline_analysis_budget": (0, 200),
-            "pipeline_exploit_budget": (0, 500),
-            "pipeline_report_budget": (0, 200),
             # Model constants
             "model_max_tool_iterations": (10, 500),
             "model_max_tool_history": (10, 500),
             "model_max_objectives": (10, 200),
             "model_max_evidence": (20, 1000),
             "model_max_causal_observations": (100, 10000),
-            "model_tool_result_chars": (5000, 200000),
+            "model_max_tool_result_chars": (5000, 200000),
             "model_min_confidence_for_preservation": (0.1, 0.99),
             # Fuzzer
             "fuzzer_threads": (1, 50),
@@ -1541,8 +1744,8 @@ class Config:
             # Misc
             "waf_bypass_timeout": (5, 300),
             "observe_request_timeout": (5, 120),
-            "ollama_status_timeout": (1.0, 30.0),
-            "ollama_status_sticky_ok_seconds": (10.0, 600.0),
+            "llm_status_timeout": (1.0, 30.0),
+            "llm_status_sticky_ok_seconds": (10.0, 600.0),
             "mcp_probe_timeout": (5.0, 300.0),
             "mcp_tools_list_timeout": (5.0, 300.0),
             "caido_token_timeout": (0.5, 30.0),
@@ -1550,7 +1753,6 @@ class Config:
             "agent_context_reset_cooldown_seconds": (10.0, 3600.0),
             "browser_page_load_delay": (0.1, 10.0),
             "browser_action_timeout": (10, 180),
-            "ollama_keep_alive": (-1, 86400),
             "agent_llm_compression_num_ctx": (1024, 65536),
             "agent_llm_compression_num_predict": (64, 4096),
         }
@@ -1558,12 +1760,6 @@ class Config:
         for bkey, (lo, hi) in _BOUNDS_RULES.items():
             bval = merged.get(bkey)
             if bval is None:
-                continue
-
-            if bkey == "ollama_num_ctx" and bval == -1:
-                logger.info(
-                    "Config: ollama_num_ctx=-1 (unlimited) — using Ollama server default"
-                )
                 continue
 
             out_of_range = (lo is not None and bval < lo) or (
@@ -1588,10 +1784,10 @@ class Config:
         if merged.get("agent_max_conversation_messages") is None:
             try:
                 ctx_val = int(
-                    merged.get("ollama_num_ctx", DEFAULT_CONFIG["ollama_num_ctx"])
+                    merged.get("llm_context_window", DEFAULT_CONFIG["llm_context_window"])
                 )
             except (TypeError, ValueError):
-                ctx_val = int(DEFAULT_CONFIG["ollama_num_ctx"])
+                ctx_val = int(DEFAULT_CONFIG["llm_context_window"])
             merged["agent_max_conversation_messages"] = max(
                 100, min(10000, ctx_val // 128)
             )
@@ -1607,11 +1803,17 @@ class Config:
         merged["agent_recon_mode"] = recon_mode
 
         # Validate required fields
-        if not merged.get("ollama_url"):
+        if not merged.get("openai_base_url"):
             logger.error(
-                "ollama_url is REQUIRED. Set it in ~/.airecon/config.yaml "
-                "or via AIRECON_OLLAMA_URL environment variable. "
-                "Example: http://127.0.0.1:11434 or http://your-server:11434"
+                "openai_base_url is REQUIRED. Set it in ~/.airecon/config.yaml "
+                "or via AIRECON_OPENAI_BASE_URL environment variable. "
+                "Example: http://localhost:20128/v1"
+            )
+        if not merged.get("openai_model"):
+            logger.error(
+                "openai_model is REQUIRED. Set it in ~/.airecon/config.yaml "
+                "or via AIRECON_OPENAI_MODEL environment variable. "
+                "Example: claude-sonnet-4, gpt-4o, or a local model like qwen2.5:7b"
             )
 
         return cls(**merged)
@@ -1706,8 +1908,34 @@ async def get_config_async(config_path: str | None = None) -> Config:
     return _config
 
 
-def reload_config() -> Config:
-    global _config, _config_mtime
+def reload_config(config_path: str | None = None) -> Config:
+    global _config, _config_mtime, _config_path
     _config = None
     _config_mtime = 0.0
-    return get_config()
+    # Allow a full reload to re-point at a different config file instead of
+    # staying stuck on the first sticky path for the lifetime of the process.
+    if config_path is not None:
+        _config_path = _get_config_path(config_path)
+    return get_config(config_path)
+
+
+def update_config_values(updates: dict[str, Any]) -> Config:
+    """Persist a set of config key updates to config.yaml and reload.
+
+    Reuses the commented YAML writer so the file keeps its sections/comments and
+    all essential keys. Unknown keys are ignored. Returns the reloaded Config.
+    """
+    cfg = get_config()
+    # Start from current effective values for every known key, then apply updates.
+    current: dict[str, Any] = {
+        k: getattr(cfg, k) for k in DEFAULT_CONFIG if hasattr(cfg, k)
+    }
+    for key, value in (updates or {}).items():
+        if key in DEFAULT_CONFIG:
+            current[key] = value
+    path = _get_config_path()
+    try:
+        _write_yaml_with_comments(current, Path(path))
+    except Exception as e:
+        logger.error("Failed to persist config updates: %s", e)
+    return reload_config()

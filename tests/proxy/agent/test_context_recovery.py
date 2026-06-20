@@ -14,9 +14,9 @@ from airecon.proxy.agent.loop import AgentLoop
 
 
 def _make_loop() -> AgentLoop:
-    ollama = MagicMock()
+    llm = MagicMock()
     engine = MagicMock()
-    return AgentLoop(ollama=ollama, engine=engine)
+    return AgentLoop(llm=llm, engine=engine)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -49,10 +49,10 @@ class TestInitialState:
 
 class TestAdaptiveNumCtxPersistence:
     def test_zero_means_use_config_default(self):
-        """_adaptive_num_ctx == 0 → use cfg.ollama_num_ctx."""
+        """_adaptive_num_ctx == 0 → use cfg.llm_context_window."""
         loop = _make_loop()
         assert loop._adaptive_num_ctx == 0
-        # When 0, caller should use cfg.ollama_num_ctx
+        # When 0, caller should use cfg.llm_context_window
         effective = loop._adaptive_num_ctx if loop._adaptive_num_ctx > 0 else 131072
         assert effective == 131072
 
@@ -279,24 +279,24 @@ class TestVramCrashDetection:
         assert not self._is_vram_crash("model not found: llama3")
 
 
-class TestOllamaResetFallback:
+class TestLLMResetFallback:
     @pytest.mark.asyncio
     async def test_reset_context_retries_and_succeeds(self):
         loop = _make_loop()
-        loop.ollama.reset_context = AsyncMock(side_effect=[False, False, True])
+        loop.llm.reset_context = AsyncMock(side_effect=[False, False, True])
 
-        ok = await loop._reset_ollama_context()
+        ok = await loop._reset_llm_context()
 
         assert ok is True
-        assert loop.ollama.reset_context.await_count == 3
+        assert loop.llm.reset_context.await_count == 3
 
     @pytest.mark.asyncio
     async def test_reset_context_failure_triggers_local_fallback(self):
         loop = _make_loop()
-        loop.ollama.reset_context = AsyncMock(return_value=False)
+        loop.llm.reset_context = AsyncMock(return_value=False)
         loop._apply_local_context_fallback = MagicMock()
 
-        ok = await loop._reset_ollama_context()
+        ok = await loop._reset_llm_context()
 
         assert ok is False
         loop._apply_local_context_fallback.assert_called_once()
@@ -335,51 +335,51 @@ class TestPsContextResetGuard:
     @pytest.mark.asyncio
     async def test_high_ps_context_does_not_reset_when_local_used_is_low(self, monkeypatch):
         loop = _make_loop()
-        loop.ollama.model = "qwen3"
-        loop.ollama._host = "http://ollama.local"
+        loop.llm.model = "qwen3"
+        loop.llm._host = "http://llm.local"
         loop.state.token_usage["used"] = 2048
-        loop._reset_ollama_context = AsyncMock(return_value=True)
+        loop._reset_llm_context = AsyncMock(return_value=True)
 
         payload = {"models": [{"name": "qwen3:latest", "context_length": 131072}]}
         monkeypatch.setattr("airecon.proxy.agent.loop.aiohttp.ClientSession", lambda *a, **k: _FakeSession(payload))
-        monkeypatch.setattr("airecon.proxy.ollama._CONTEXT_RESET_THRESHOLD", 100000, raising=False)
+        monkeypatch.setattr("airecon.proxy.llm._CONTEXT_RESET_THRESHOLD", 100000, raising=False)
 
         await loop._check_and_reset_context()
 
-        loop._reset_ollama_context.assert_not_awaited()
+        loop._reset_llm_context.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_reset_cooldown_blocks_repeat_resets(self, monkeypatch):
         loop = _make_loop()
-        loop.ollama.model = "qwen3"
-        loop.ollama._host = "http://ollama.local"
+        loop.llm.model = "qwen3"
+        loop.llm._host = "http://llm.local"
         loop.state.token_usage["used"] = 131072
-        loop._reset_ollama_context = AsyncMock(return_value=True)
+        loop._reset_llm_context = AsyncMock(return_value=True)
 
         payload = {"models": [{"name": "qwen3:latest", "context_length": 131072}]}
         monkeypatch.setattr("airecon.proxy.agent.loop.aiohttp.ClientSession", lambda *a, **k: _FakeSession(payload))
-        monkeypatch.setattr("airecon.proxy.ollama._CONTEXT_RESET_THRESHOLD", 100000, raising=False)
+        monkeypatch.setattr("airecon.proxy.llm._CONTEXT_RESET_THRESHOLD", 100000, raising=False)
 
         # First check should reset.
         await loop._check_and_reset_context()
-        assert loop._reset_ollama_context.await_count == 1
+        assert loop._reset_llm_context.await_count == 1
 
         # Force check window open but still inside reset cooldown.
         loop._last_context_check = 0.0
         await loop._check_and_reset_context()
-        assert loop._reset_ollama_context.await_count == 1
+        assert loop._reset_llm_context.await_count == 1
 
     @pytest.mark.asyncio
     async def test_reset_cooldown_honors_config_override_zero(self, monkeypatch):
         loop = _make_loop()
-        loop.ollama.model = "qwen3"
-        loop.ollama._host = "http://ollama.local"
+        loop.llm.model = "qwen3"
+        loop.llm._host = "http://llm.local"
         loop.state.token_usage["used"] = 131072
-        loop._reset_ollama_context = AsyncMock(return_value=True)
+        loop._reset_llm_context = AsyncMock(return_value=True)
 
         payload = {"models": [{"name": "qwen3:latest", "context_length": 131072}]}
         monkeypatch.setattr("airecon.proxy.agent.loop.aiohttp.ClientSession", lambda *a, **k: _FakeSession(payload))
-        monkeypatch.setattr("airecon.proxy.ollama._CONTEXT_RESET_THRESHOLD", 100000, raising=False)
+        monkeypatch.setattr("airecon.proxy.llm._CONTEXT_RESET_THRESHOLD", 100000, raising=False)
 
         class _Cfg:
             agent_context_reset_cooldown_seconds = 0
@@ -387,9 +387,9 @@ class TestPsContextResetGuard:
         monkeypatch.setattr("airecon.proxy.agent.loop.get_config", lambda: _Cfg())
 
         await loop._check_and_reset_context()
-        assert loop._reset_ollama_context.await_count == 1
+        assert loop._reset_llm_context.await_count == 1
 
         # Force check window open; with cooldown=0 second reset is allowed.
         loop._last_context_check = 0.0
         await loop._check_and_reset_context()
-        assert loop._reset_ollama_context.await_count == 2
+        assert loop._reset_llm_context.await_count == 2

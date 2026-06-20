@@ -20,17 +20,17 @@ def _make_agent_loop():
     """Create a minimal AgentLoop with mocked dependencies."""
     from airecon.proxy.agent.loop import AgentLoop
 
-    ollama_mock = MagicMock()
+    llm_mock = MagicMock()
     engine_mock = MagicMock()
     engine_mock.discover_tools = MagicMock(return_value=[])
-    engine_mock.tools_to_ollama_format = MagicMock(return_value=[])
+    engine_mock.tools_to_llm_format = MagicMock(return_value=[])
 
     with patch("airecon.proxy.agent.loop.get_config") as mock_cfg:
         cfg = MagicMock()
         cfg.agent_max_tool_iterations = 5
-        cfg.ollama_num_ctx = 4096
+        cfg.llm_context_window = 4096
         mock_cfg.return_value = cfg
-        return AgentLoop(ollama=ollama_mock, engine=engine_mock)
+        return AgentLoop(llm=llm_mock, engine=engine_mock)
 
 
 # ── 1. _enforce_char_budget: first user message protection ───────────
@@ -118,7 +118,7 @@ class TestEnforceCharBudget:
         """Budget = (num_ctx - num_predict) * 0.50, not num_ctx * 3.
 
         Regression test for the root-cause of hallucination at ~130K tokens:
-        if budget used full num_ctx, Ollama would silently truncate the system
+        if budget used full num_ctx, LLM would silently truncate the system
         prompt because input_tokens + output_reservation > KV cache size.
         """
         from unittest.mock import MagicMock, patch
@@ -143,7 +143,7 @@ class TestEnforceCharBudget:
         loop = self._build_loop_with_conversation(msgs)
 
         cfg_mock = MagicMock()
-        cfg_mock.ollama_num_predict = num_predict
+        cfg_mock.openai_max_tokens = num_predict
 
         with patch("airecon.proxy.agent.loop.get_config", return_value=cfg_mock):
             asyncio.run(loop._enforce_char_budget(num_ctx=num_ctx))
@@ -171,8 +171,8 @@ class TestEnforceCharBudget:
         )
         loop = self._build_loop_with_conversation(msgs)
 
-        # Set tools_ollama = [] so tools overhead = 0
-        loop._tools_ollama = []
+        # Set tools_llm = [] so tools overhead = 0
+        loop._tools_llm = []
         asyncio.run(loop._enforce_char_budget(num_ctx=num_ctx, num_predict=1_000))
 
         # Budget enforcement must reduce total chars (compression/truncation ran).

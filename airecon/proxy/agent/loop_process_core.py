@@ -39,3 +39,22 @@ class _ProcessMessageCoreMixin(_MessageEntryMixin, _ToolCycleMixin):
         else:
             if trace_id:
                 _trace_chat_event(trace_id, "agent_loop_finished")
+            # Best-effort completion notification (webhook + workspace flag).
+            try:
+                from ..notify import notify_completion
+
+                _s = getattr(self, "_session", None)
+                _summary = {
+                    "findings": len(getattr(_s, "vulnerabilities", []) or []) if _s else 0,
+                    "completed_phases": list(getattr(_s, "completed_phases", []) or []) if _s else [],
+                    "iterations": getattr(self.state, "iteration", 0),
+                    "scan_count": getattr(_s, "scan_count", None) if _s else None,
+                }
+                _target = (
+                    str(getattr(_s, "target", "") or "")
+                    or str(getattr(self.state, "active_target", "") or "")
+                )
+                if _target:
+                    await notify_completion(_target, _summary)
+            except Exception as _ne:
+                logger.debug("completion notification skipped: %s", _ne)

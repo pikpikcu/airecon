@@ -108,7 +108,7 @@ class TestTestedEndpointsDefault:
 
 
 def _make_loop_with_session() -> tuple[AgentLoop, SessionData]:
-    loop = AgentLoop(ollama=MagicMock(), engine=MagicMock())
+    loop = AgentLoop(llm=MagicMock(), engine=MagicMock())
     session = SessionData(target="https://target.com")
     loop._session = session
     return loop, session
@@ -175,7 +175,7 @@ class TestRecordTestedEndpointLoop:
         assert any("target.com/api/data" in ep for ep in session.tested_endpoints)
 
     def test_no_session_does_nothing(self):
-        loop = AgentLoop(ollama=MagicMock(), engine=MagicMock())
+        loop = AgentLoop(llm=MagicMock(), engine=MagicMock())
         loop._session = None
         # Should not raise
         loop._record_tested_endpoint(

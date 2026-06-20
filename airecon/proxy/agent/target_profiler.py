@@ -367,8 +367,6 @@ class TargetProfiler:
             "attack_vectors": [],
         }
 
-        _tech_names = [t.name.lower() for t in technologies]
-
         for tech in technologies:
             name = tech.name.lower()
             category = _TECH_CORRELATIONS.get(name, {}).get("category", "")

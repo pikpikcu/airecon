@@ -29,7 +29,7 @@ class TestFinalizeToolResults:
                 self._session.technologies = {}
                 self._caido_available = False
                 self._consecutive_failures = 0
-                self._tools_ollama = [
+                self._tools_llm = [
                     {"function": {"name": "execute", "description": "run"}},
                 ]
                 self._loaded_tech_skill_paths = set()

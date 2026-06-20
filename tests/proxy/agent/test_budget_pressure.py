@@ -12,17 +12,17 @@ from unittest.mock import MagicMock, patch
 def _make_loop(max_iterations: int = 100):
     from airecon.proxy.agent.loop import AgentLoop
 
-    ollama_mock = MagicMock()
+    llm_mock = MagicMock()
     engine_mock = MagicMock()
     engine_mock.discover_tools = MagicMock(return_value=[])
-    engine_mock.tools_to_ollama_format = MagicMock(return_value=[])
+    engine_mock.tools_to_llm_format = MagicMock(return_value=[])
 
     with patch("airecon.proxy.agent.loop.get_config") as mock_cfg:
         cfg = MagicMock()
         cfg.agent_max_tool_iterations = max_iterations
-        cfg.ollama_num_ctx = 4096
+        cfg.llm_context_window = 4096
         mock_cfg.return_value = cfg
-        loop = AgentLoop(ollama=ollama_mock, engine=engine_mock)
+        loop = AgentLoop(llm=llm_mock, engine=engine_mock)
 
     loop.state.max_iterations = max_iterations
     return loop

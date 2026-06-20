@@ -56,7 +56,7 @@ class TestAgentEdgeDataclass:
 
 class TestAgentGraphConstruction:
     def _make_graph(self):
-        return AgentGraph(target="test.com", ollama=None, engine=None)
+        return AgentGraph(target="test.com", llm=None, engine=None)
 
     def test_add_node(self):
         g = self._make_graph()
@@ -105,7 +105,7 @@ class TestAgentGraphConstruction:
 class TestExecutionOrder:
     def _linear_graph(self) -> AgentGraph:
         """a → b → c"""
-        g = AgentGraph(target="t", ollama=None, engine=None)
+        g = AgentGraph(target="t", llm=None, engine=None)
         for nid, role in [
             ("a", AgentRole.RECON),
             ("b", AgentRole.ANALYZER),
@@ -123,19 +123,19 @@ class TestExecutionOrder:
         assert order.index("a") < order.index("b") < order.index("c")
 
     def test_single_node(self):
-        g = AgentGraph(target="t", ollama=None, engine=None)
+        g = AgentGraph(target="t", llm=None, engine=None)
         g.add_node(AgentNode(id="solo", role=AgentRole.RECON, prompt_template=""))
         order = g.execution_order()
         assert len(order) == 1
         assert order[0].id == "solo"
 
     def test_empty_graph(self):
-        g = AgentGraph(target="t", ollama=None, engine=None)
+        g = AgentGraph(target="t", llm=None, engine=None)
         assert g.execution_order() == []
 
     def test_diamond_dependency(self):
         """a → b, a → c, b → d, c → d (diamond)."""
-        g = AgentGraph(target="t", ollama=None, engine=None)
+        g = AgentGraph(target="t", llm=None, engine=None)
         for nid, role in [
             ("a", AgentRole.RECON),
             ("b", AgentRole.ANALYZER),
@@ -155,7 +155,7 @@ class TestExecutionOrder:
 
     def test_cycle_raises(self):
         """a → b → a (cycle) must raise ValueError."""
-        g = AgentGraph(target="t", ollama=None, engine=None)
+        g = AgentGraph(target="t", llm=None, engine=None)
         g.add_node(AgentNode(id="a", role=AgentRole.RECON, prompt_template=""))
         g.add_node(AgentNode(id="b", role=AgentRole.ANALYZER, prompt_template=""))
         # Manually create cycle — bypass add_edge validation
@@ -168,7 +168,7 @@ class TestExecutionOrder:
 
     def test_unknown_dependency_raises(self):
         """Node depends on a node not in the graph."""
-        g = AgentGraph(target="t", ollama=None, engine=None)
+        g = AgentGraph(target="t", llm=None, engine=None)
         node = AgentNode(
             id="x", role=AgentRole.RECON, prompt_template="", depends_on=["ghost"]
         )
@@ -238,7 +238,7 @@ class TestAgentGraphExecute:
         """execute() should yield at least one agent_state event per node."""
         from airecon.proxy.agent.session import SessionData
 
-        g = AgentGraph(target="test.com", ollama=MagicMock(), engine=MagicMock())
+        g = AgentGraph(target="test.com", llm=MagicMock(), engine=MagicMock())
         node = AgentNode(id="solo", role=AgentRole.RECON, prompt_template="run recon")
         g.add_node(node)
 
@@ -263,7 +263,7 @@ class TestAgentGraphExecute:
         """Events yielded from each node get __source_node tag."""
         from airecon.proxy.agent.session import SessionData
 
-        g = AgentGraph(target="test.com", ollama=MagicMock(), engine=MagicMock())
+        g = AgentGraph(target="test.com", llm=MagicMock(), engine=MagicMock())
         node = AgentNode(id="recon", role=AgentRole.RECON, prompt_template="")
         g.add_node(node)
 

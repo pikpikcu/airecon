@@ -1617,11 +1617,11 @@ class MemoryManager:
                 from airecon.proxy.config import get_config
 
                 cfg = get_config()
-                model = (cfg.ollama_model if cfg else "") or ""
-                logger.debug("Config loaded: ollama_model=%s", model or None)
+                model = (cfg.openai_model if cfg else "") or ""
+                logger.debug("Config loaded: openai_model=%s", model or None)
                 if model:
                     return model
-                logger.debug("Config or ollama_model is None/empty")
+                logger.debug("Config or openai_model is None/empty")
             except Exception as e:
                 logger.debug("Config read failed: %s", e)
             return ""

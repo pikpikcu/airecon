@@ -464,8 +464,8 @@ class TestConfigIntegration:
         """Only essential keys are written to config.yaml."""
         from airecon.proxy.config import _ESSENTIAL_CONFIG_KEYS
 
-        assert "ollama_url" in _ESSENTIAL_CONFIG_KEYS
-        assert "ollama_model" in _ESSENTIAL_CONFIG_KEYS
+        assert "openai_base_url" in _ESSENTIAL_CONFIG_KEYS
+        assert "openai_model" in _ESSENTIAL_CONFIG_KEYS
         assert "proxy_port" in _ESSENTIAL_CONFIG_KEYS
         assert "verification_enabled" not in _ESSENTIAL_CONFIG_KEYS
         assert "intelligence_enabled" not in _ESSENTIAL_CONFIG_KEYS
@@ -476,16 +476,22 @@ class TestConfigIntegration:
         from airecon.proxy.config import DEFAULT_CONFIG
 
         assert len(DEFAULT_CONFIG) >= 120
-        assert "ollama_url" in DEFAULT_CONFIG
+        assert "openai_base_url" in DEFAULT_CONFIG
         assert "fuzzer_quick_timeout_seconds" in DEFAULT_CONFIG
         assert "payload_memory_enabled" in DEFAULT_CONFIG
 
-    def test_ollama_url_required(self):
-        """ollama_url is required and validated."""
+    def test_openai_base_url_required(self):
+        """openai_base_url is required and validated."""
         from airecon.proxy.config import Config
 
-        cfg = Config.load_with_defaults({"ollama_url": "http://127.0.0.1:11434"})
-        assert cfg.ollama_url == "http://127.0.0.1:11434"
+        cfg = Config.load_with_defaults(
+            {
+                "openai_base_url": "http://127.0.0.1:20128/v1",
+                "openai_model": "claude-sonnet-4",
+            }
+        )
+        assert cfg.openai_base_url == "http://127.0.0.1:20128/v1"
+        assert cfg.openai_model == "claude-sonnet-4"
 
 
 # ── 9. End-to-End Integration Tests ─────────────────────────────────────────

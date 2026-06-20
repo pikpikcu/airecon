@@ -425,7 +425,9 @@ async def _create_browser() -> Browser:
         if _state.playwright:
             await _state.playwright.stop()
             _state.playwright = None
-        raise RuntimeError(f"Failed to launch both Docker and fallback browsers: {e2}")
+        raise RuntimeError(
+            f"Failed to launch both Docker and fallback browsers: {e2}"
+        ) from e2
 
 
 def _get_browser() -> Browser:
@@ -465,9 +467,11 @@ class BrowserInstance:
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         try:
             return cast("dict[str, Any]", future.result(timeout=timeout))
-        except TimeoutError:
+        except TimeoutError as exc:
             future.cancel()
-            raise RuntimeError(f"Browser action timed out after {timeout}s")
+            raise RuntimeError(
+                f"Browser action timed out after {timeout}s"
+            ) from exc
 
     def _resolve_tab_id(self, tab_id: str | None) -> str:
         if tab_id and tab_id in self.pages:
@@ -495,7 +499,11 @@ class BrowserInstance:
             seen_urls: set[str] = {url}
             max_redirects = 10  # modern sites often chain 5-8 redirects
 
-            def check_redirect(request: Any) -> None:
+            def check_redirect(
+                request: Any,
+                seen_urls: set[str] = seen_urls,
+                max_redirects: int = max_redirects,
+            ) -> None:
                 nonlocal redirect_count, last_url
                 current_url = request.url
                 if current_url != last_url:
@@ -1589,24 +1597,25 @@ class BrowserInstance:
                 except Exception as _ss_err:
                     logger.debug("Auto-screenshot on CAPTCHA failed: %s", _ss_err)
 
-                # Auto-solve CAPTCHA via Ollama vision + DOM bypass
+                # Auto-solve CAPTCHA via LLM vision + DOM bypass
                 _capt_type = r.get("captchaType") or "unknown"
                 _captcha_bypass_applied = False
                 try:
                     from .agent.captcha_solver import CaptchaSolver
 
                     _cfg = get_config()
-                    _captcha_model_cfg = _cfg.ollama_model
+                    _captcha_model_cfg = _cfg.openai_model
                     _solver = CaptchaSolver(
-                        ollama_url=_cfg.ollama_url,
+                        base_url=_cfg.openai_base_url,
                         captcha_model=_captcha_model_cfg,
-                        timeout=_cfg.ollama_timeout,
+                        api_key=_cfg.openai_api_key,
+                        timeout=_cfg.llm_timeout,
                     )
 
                     # Always try DOM bypass first for widget-type CAPTCHAs
                     _bypass_js = _solver._get_dom_bypass_js(_capt_type)
                     if _captcha_screenshot:
-                        # Send screenshot to Ollama vision for text CAPTCHA solving
+                        # Send screenshot to LLM vision for text CAPTCHA solving
                         _solve_result = await _solver.solve_from_page(
                             page_screenshot_b64=base64.b64encode(
                                 await page.screenshot(type="png", full_page=False)
@@ -1647,7 +1656,7 @@ class BrowserInstance:
                     )
                 elif _captcha_model_cfg:
                     _captcha_strategy_msg = (
-                        f" Ollama vision model configured ({_captcha_model_cfg}) but failed."
+                        f" LLM vision model configured ({_captcha_model_cfg}) but failed."
                     )
 
                 _captcha_hint = (
@@ -2630,15 +2639,16 @@ class BrowserTabManager:
         sitekey: str = "",
         tab_id: str | None = None,
     ) -> dict[str, Any]:
-        """Auto-solve CAPTCHA using Ollama vision or DOM bypass."""
+        """Auto-solve CAPTCHA using LLM vision or DOM bypass."""
         from .agent.captcha_solver import CaptchaSolver
 
         cfg = get_config()
 
         solver = CaptchaSolver(
-            ollama_url=cfg.ollama_url,
-            captcha_model=cfg.ollama_model,
-            timeout=cfg.ollama_timeout,
+            base_url=cfg.openai_base_url,
+            captcha_model=cfg.openai_model,
+            api_key=cfg.openai_api_key,
+            timeout=cfg.llm_timeout,
         )
 
         try:

@@ -31,14 +31,14 @@ async def test_python_session_tool_self_heals_missing_runtime_state():
 def test_agent_loop_initializes_utils_runtime_state():
     from airecon.proxy.agent.loop import AgentLoop
 
-    ollama_mock = MagicMock()
+    llm_mock = MagicMock()
     engine_mock = MagicMock()
 
     with patch("airecon.proxy.agent.loop.get_config") as mock_cfg:
         cfg = MagicMock()
         cfg.agent_max_browser_visits_per_domain = 5
         mock_cfg.return_value = cfg
-        loop = AgentLoop(ollama=ollama_mock, engine=engine_mock)
+        loop = AgentLoop(llm=llm_mock, engine=engine_mock)
 
     assert isinstance(loop._python_sessions, dict)
     assert loop._notes_manager is None

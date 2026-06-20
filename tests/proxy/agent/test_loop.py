@@ -10,18 +10,18 @@ from airecon.proxy.agent.session import SessionData
 
 @pytest.fixture
 def agent_loop(mocker):
-    ollama_mock = MagicMock()
-    ollama_mock.chat_stream = AsyncMock()
+    llm_mock = MagicMock()
+    llm_mock.chat_stream = AsyncMock()
 
     engine_mock = MagicMock()
     engine_mock.discover_tools = AsyncMock(return_value=[])
-    engine_mock.tools_to_ollama_format = MagicMock(return_value=[])
+    engine_mock.tools_to_llm_format = MagicMock(return_value=[])
 
     with patch("airecon.proxy.agent.loop.get_config") as mock_config:
         cfg = MagicMock()
         cfg.agent_max_tool_iterations = 5
         mock_config.return_value = cfg
-        loop = AgentLoop(ollama=ollama_mock, engine=engine_mock)
+        loop = AgentLoop(llm=llm_mock, engine=engine_mock)
         return loop
 
 
@@ -300,10 +300,10 @@ async def test_standard_mode_scoped_request_keeps_scope_lock_disabled(agent_loop
     cfg = MagicMock()
     cfg.agent_recon_mode = "standard"
     cfg.deep_recon_autostart = True
-    cfg.ollama_num_ctx_small = 4096
+    cfg.llm_context_window_small = 4096
     mocker.patch("airecon.proxy.agent.loop_message_entry.get_config", return_value=cfg)
 
-    agent_loop._tools_ollama = []
+    agent_loop._tools_llm = []
     mocker.patch.object(agent_loop, "_scan_workspace_state", return_value="")
 
     await agent_loop._prepare_message_context("enumerate subdomains for example.com only")
@@ -317,10 +317,10 @@ async def test_wildcard_scope_moves_workspace_to_root_target(agent_loop, mocker)
     cfg = MagicMock()
     cfg.agent_recon_mode = "standard"
     cfg.deep_recon_autostart = False
-    cfg.ollama_num_ctx_small = 4096
+    cfg.llm_context_window_small = 4096
     mocker.patch("airecon.proxy.agent.loop_message_entry.get_config", return_value=cfg)
 
-    agent_loop._tools_ollama = [MagicMock()]
+    agent_loop._tools_llm = [MagicMock()]
     agent_loop.state.active_target = "app.ringkas.co.id"
     agent_loop._scope_anchor_target = "app.ringkas.co.id"
     mocker.patch.object(agent_loop, "_scan_workspace_state", return_value="")
@@ -338,11 +338,11 @@ async def test_prepare_message_context_does_not_emergency_truncate_on_high_cumul
     cfg = MagicMock()
     cfg.agent_recon_mode = "standard"
     cfg.deep_recon_autostart = False
-    cfg.ollama_num_ctx_small = 4096
-    cfg.ollama_num_ctx = 32768
+    cfg.llm_context_window_small = 4096
+    cfg.llm_context_window = 32768
     mocker.patch("airecon.proxy.agent.loop_message_entry.get_config", return_value=cfg)
 
-    agent_loop._tools_ollama = [MagicMock()]
+    agent_loop._tools_llm = [MagicMock()]
     agent_loop.state.active_target = "example.com"
     agent_loop._scope_anchor_target = "example.com"
     agent_loop._session = SessionData(target="example.com")
@@ -649,7 +649,7 @@ class TestReflectorAgentPattern:
 
     def test_reflector_infers_known_tool_from_registry(self, agent_loop):
         # Inject a mock tool registry so _reflector_infer_tool_hint can detect it
-        agent_loop._tools_ollama = [
+        agent_loop._tools_llm = [
             {"function": {"name": "execute"}},
             {"function": {"name": "browser_action"}},
         ]
@@ -659,7 +659,7 @@ class TestReflectorAgentPattern:
         assert "browser_action" in hint
 
     def test_reflector_fallback_when_no_match(self, agent_loop):
-        agent_loop._tools_ollama = [{"function": {"name": "execute"}}]
+        agent_loop._tools_llm = [{"function": {"name": "execute"}}]
         hint = agent_loop._reflector_infer_tool_hint(
             "I will analyze the results carefully"
         )
@@ -667,7 +667,7 @@ class TestReflectorAgentPattern:
         assert "execute" in hint or "<command>" in hint
 
     def test_reflector_fallback_when_no_registry(self, agent_loop):
-        agent_loop._tools_ollama = []
+        agent_loop._tools_llm = []
         hint = agent_loop._reflector_infer_tool_hint("I will do something")
         assert hint == 'execute({"command": "<command>"})'
 

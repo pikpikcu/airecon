@@ -8,20 +8,20 @@
 
 **AI-Assisted Penetration Testing Agent**
 
-[![version](https://img.shields.io/badge/version-v0.1.7--beta-red.svg)](https://github.com/pikpikcu/airecon/releases)
+[![version](https://img.shields.io/badge/version-v1.7.1--beta-red.svg)](https://github.com/pikpikcu/airecon/releases)
 [![python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/)
-[![llm](https://img.shields.io/badge/LLM-Ollama%20(local)-orange.svg)](https://ollama.com/)
+[![llm](https://img.shields.io/badge/LLM-OpenAI--compatible-orange.svg)](https://platform.openai.com/docs/api-reference)
 [![license](https://img.shields.io/badge/LICENSE-MIT-green.svg)](https://github.com/pikpikcu/airecon/blob/main/LICENSE)
 
 </div>
 
 ---
 
-AIRecon combines a self-hosted **Ollama LLM** with a **Kali Linux Docker sandbox**, native **Caido proxy integration**, a structured **RECON → ANALYSIS → EXPLOIT → REPORT pipeline**, and a real-time **Textual TUI**.
+AIRecon drives any **OpenAI-compatible LLM gateway** (LiteLLM / vLLM / a hosted endpoint — or a local gateway proxying a local Ollama) with a **Kali Linux Docker sandbox**, native **Caido proxy integration**, a structured **RECON → ANALYSIS → EXPLOIT → REPORT pipeline**, and a real-time **Textual TUI**.
 
 ## Why AIRecon?
 
-AIRecon is designed for local-first workflows where model execution and tool orchestration run in your own environment.
+AIRecon is backend-agnostic: point it at a **local** gateway for fully offline/private operation, or a **hosted** model for maximum reasoning quality. Reasoning support is auto-detected at runtime — no per-model hardcoding.
 
 | Feature | AIRecon | Cloud-based agents |
 |---------|---------|-------------------|
@@ -45,8 +45,8 @@ Structured 4-phase state machine: **RECON → ANALYSIS → EXPLOIT → REPORT**.
 </div>
 
 <div class="feature-card" markdown>
-### Ollama Stability
-Includes VRAM/OOM recovery paths, context monitoring, and conversation compression controls.
+### Backend Resilience
+Runtime reasoning-capability detection, 5xx retry, context monitoring, and adaptive conversation-compression controls.
 </div>
 
 <div class="feature-card" markdown>

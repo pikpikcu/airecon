@@ -28,11 +28,20 @@ echo "[airecon-sandbox] Tools ready at: $(date)"
 #    --ignore-certificate-errors \
 #    > /dev/null 2>&1 &
 
-# Keep container alive
+# Ensure the sandbox user can create its output subdirectories WITHOUT rewriting
+# the ownership/permissions of existing files inside the host bind-mount.
+# A recursive chown/chmod here would clobber the user's real files (git objects,
+# secrets, source, @-referenced copies) on the host — so we only adjust the
+# mount-point directory itself (non-recursive). AIRecon creates and owns its own
+# per-target output subdirs (output/, command/, tools/, vulnerabilities/), which
+# are therefore writable without touching anything that was already there.
 if [ -d "/workspace" ]; then
-    sudo chown -R pentester:pentester /workspace 2>/dev/null || true
-    sudo chmod -R 775 /workspace 2>/dev/null || true
-    echo "[airecon-sandbox] Workspace permissions fixed."
+    # Make the mount point group-writable + group-owned by the sandbox user so
+    # the agent can mkdir its target folders. NOT recursive — existing host
+    # files keep their original ownership and permissions.
+    sudo chown pentester:pentester /workspace 2>/dev/null || true
+    sudo chmod 0775 /workspace 2>/dev/null || true
+    echo "[airecon-sandbox] Workspace mount-point writable (existing files untouched)."
 fi
 
 # Keep container alive

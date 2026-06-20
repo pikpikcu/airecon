@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import signal
+
 from airecon.proxy.agent.models import AgentState, ToolExecution, _get_model_limits
 
 
@@ -51,6 +53,48 @@ def test_agent_state_truncate_conversation():
         for msg in state.conversation
     )
     assert separator_exists
+
+
+def test_agent_state_truncate_conversation_keeps_boundary_tool_pair_without_loop():
+    state = AgentState()
+    state.conversation = [
+        {"role": "user", "content": "scan example.com"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "execute", "arguments": "{}"},
+                }
+            ],
+        },
+        {"role": "tool", "tool_call_id": "call_1", "content": "ok"},
+    ]
+    state.conversation.extend(
+        {"role": "user", "content": f"follow-up {i}"} for i in range(10)
+    )
+
+    def _timeout_handler(_signum, _frame):
+        raise TimeoutError("truncate_conversation did not make progress")
+
+    previous_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+    signal.setitimer(signal.ITIMER_REAL, 1.0)
+    try:
+        state.truncate_conversation(max_messages=12)
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0.0)
+        signal.signal(signal.SIGALRM, previous_handler)
+
+    assert any(
+        msg.get("role") == "assistant" and msg.get("tool_calls")
+        for msg in state.conversation
+    )
+    assert any(
+        msg.get("role") == "tool" and msg.get("tool_call_id") == "call_1"
+        for msg in state.conversation
+    )
 
 
 def test_agent_state_phase_objectives_and_status_updates():
