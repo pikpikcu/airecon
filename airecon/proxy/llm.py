@@ -128,6 +128,25 @@ def _to_openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 new_msg["name"] = name
 
         new_msg = {k: v for k, v in new_msg.items() if k in _ALLOWED_MESSAGE_KEYS}
+
+        # Strict gateways (e.g. Gemini via gemini-cli) reject a message/part with
+        # empty text and return HTTP 400 "Request contains an invalid argument".
+        # OpenAI tolerates empty content, so these slip in — notably after
+        # compression, when an assistant turn that held only `thinking` is left
+        # with empty content and no tool_calls. Never emit an empty part: drop
+        # empty user/assistant/system messages, and give an empty tool result a
+        # placeholder so its tool_call pairing is preserved.
+        _has_text = bool(str(new_msg.get("content", "")).strip())
+        if role == "tool":
+            if not _has_text:
+                new_msg["content"] = "[no output]"
+        elif role == "assistant":
+            if not _has_text and not new_msg.get("tool_calls"):
+                continue
+        else:
+            if not _has_text:
+                continue
+
         converted.append(new_msg)
     return converted
 

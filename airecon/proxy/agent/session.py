@@ -354,6 +354,59 @@ def _normalize_url(url: str) -> str:
         return url
 
 
+def _target_apex(target: str) -> str:
+    """Reduce a target ('https://*.example.com/x', 'example.com:443') to its
+    bare apex host ('example.com'). Empty when no usable host."""
+    t = (target or "").strip().lower()
+    if not t:
+        return ""
+    if "://" in t:
+        try:
+            t = urlparse(t).hostname or t
+        except Exception:
+            pass
+    else:
+        t = t.split("/", 1)[0]
+    t = t.lstrip("*").lstrip(".").split(":", 1)[0].rstrip(".")
+    return t
+
+
+def _host_of(value: str) -> str:
+    """Best-effort host extraction from a URL or host[:port] token."""
+    v = (value or "").strip().lower()
+    if not v:
+        return ""
+    try:
+        host = urlparse(v if "://" in v else "http://" + v).hostname or ""
+    except Exception:
+        host = ""
+    return host.split(":", 1)[0].rstrip(".")
+
+
+def url_in_target_scope(value: str, target: str, allow: list[str] | None = None) -> bool:
+    """True if a discovered URL/host belongs to the engagement scope.
+
+    Anchors on the target apex (apex + any subdomain) so third-party noise
+    (google.com, login.microsoftonline.com, w3.org, example.org, CDNs) never
+    enters the testable attack surface. An explicit scope allowlist (e.g. a
+    target-owned cloud asset) is also honored. When no target is set, nothing is
+    filtered (returns True) so non-scoped/CTF runs are unaffected.
+    """
+    apex = _target_apex(target)
+    if not apex:
+        return True
+    host = _host_of(value)
+    if not host:
+        return False
+    if host == apex or host.endswith("." + apex):
+        return True
+    for pat in allow or []:
+        pat = str(pat or "").strip().lower().lstrip("*").lstrip(".")
+        if pat and (host == pat or host.endswith("." + pat)):
+            return True
+    return False
+
+
 def _calculate_similarity(v1: str, v2: str) -> float:
     v1_lower = v1.lower()
     v2_lower = v2.lower()
@@ -1990,6 +2043,21 @@ def update_from_parsed_output(
             return has_signal and (has_context or len(candidate) >= 35)
         return has_signal and (has_context or len(candidate) >= 30)
 
+    # Resolve the engagement scope once so out-of-scope third-party URLs
+    # (google.com, login.microsoftonline.com, w3.org, CDNs, example.org) never
+    # pollute the testable attack surface — the dominant reason analysis/exploit
+    # looked "dumb" regardless of model. An explicit allowlist is honored.
+    _scope_allow: list[str] = []
+    try:
+        from ..scope import get_scope_guard
+
+        _scope_allow = list(get_scope_guard().allow)
+    except Exception as _e:
+        logger.debug("scope allowlist unavailable for ingestion filter: %s", _e)
+
+    def _in_scope(_u: str) -> bool:
+        return url_in_target_scope(_u, session.target, _scope_allow)
+
     for item in parsed.items:
         item_stripped = item.strip()
         if not item_stripped:
@@ -2027,11 +2095,11 @@ def update_from_parsed_output(
         status_match = _HTTP_STATUS_RE.search(item_stripped)
         if status_match:
             url = _normalize_url(status_match.group(1).rstrip(".,;:)]}>\"'"))
-            if url and url not in session.live_hosts:
-                session.live_hosts.append(url)
-
-            if url and url not in session.urls:
-                session.urls.append(url)
+            if url and _in_scope(url):
+                if url not in session.live_hosts:
+                    session.live_hosts.append(url)
+                if url not in session.urls:
+                    session.urls.append(url)
             continue
 
         url_token: str | None = None
@@ -2044,6 +2112,10 @@ def update_from_parsed_output(
 
         if url_token:
             url = _normalize_url(url_token.rstrip(".,;:)]}>\"'"))
+            # Only ingest in-scope URLs into the testable surface; third-party
+            # hosts (OAuth providers, CDNs, w3.org, example.org) are noise.
+            if not _in_scope(url):
+                continue
             if url not in session.urls:
                 session.urls.append(url)
             # Live hosts: URLs from probing tools (httpx, etc.) ARE confirmed live
@@ -2058,6 +2130,9 @@ def update_from_parsed_output(
         hp_match = _HOST_PORT_RE.match(item_stripped)
         if hp_match:
             host, port_str = hp_match.group(1), hp_match.group(2)
+            # NOTE: open ports are keyed by host/IP from a scan the agent
+            # explicitly ran (a domain target resolves to an IP), so these are
+            # NOT scope-filtered — only discovered URLs/injection points are.
             if port_str.isdigit():
                 port = int(port_str)
                 session.open_ports.setdefault(host, [])
