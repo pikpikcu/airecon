@@ -129,7 +129,7 @@ RUN go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest && \
     go install -v github.com/tomnomnom/anew@latest 2>/dev/null || true
 
 # ── Copy Go binaries to /usr/local/bin so they are always in default PATH ──
-# Ollama subprocess calls (which/command -v) don't always inherit custom PATH
+# LLM gateway subprocess calls (which/command -v) don't always inherit custom PATH
 USER root
 RUN cp -n /home/pentester/go/bin/* /usr/local/bin/ 2>/dev/null || true && \
     # stratus-red-team Go install produces binary 'stratus'; alias to canonical meta name

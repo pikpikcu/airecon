@@ -129,7 +129,7 @@ class TestRepairToolPairs:
         assert len(result) == 4
 
     def test_non_standard_tool_call_object(self):
-        """tool_calls entry as object with .id attribute (Ollama sometimes returns these)."""
+        """tool_calls entry as object with .id attribute (LLM sometimes returns these)."""
 
         class FakeTc:
             id = "call_obj"

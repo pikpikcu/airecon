@@ -133,8 +133,8 @@ class _SupervisionMixin:
         return None
 
     def _reflector_infer_tool_hint(self, content_lower: str) -> str:
-        if self._tools_ollama:
-            for tool_def in self._tools_ollama:
+        if self._tools_llm:
+            for tool_def in self._tools_llm:
                 name = str(tool_def.get("function", {}).get("name", ""))
                 if name and name.lower() in content_lower:
                     return f"{name}({{...}})"

@@ -155,7 +155,7 @@ class AIReconApp(App):
     TITLE = "AIRecon"
     SUB_TITLE = "AI Security Reconnaissance"
     CSS_PATH = "styles.tcss"
-    _OLLAMA_DEGRADED_SECONDS = 45.0
+    _LLM_DEGRADED_SECONDS = 45.0
     BINDINGS = [
         Binding("ctrl+c", "request_quit", "Quit", show=True, priority=True),
         Binding("ctrl+q", "request_quit", "Quit", show=False, priority=True),
@@ -177,7 +177,7 @@ class AIReconApp(App):
         try:
             from airecon.proxy.config import get_config
 
-            ctx = int(get_config().ollama_num_ctx)
+            ctx = int(get_config().llm_context_window)
             if ctx > 0:
                 return ctx
         except Exception as e:
@@ -262,7 +262,7 @@ class AIReconApp(App):
         self._copy_toast_task: asyncio.Task | None = None
         self._recon_frame: int = 0
         self._file_agents_running: int = 0
-        self._ollama_degraded_until: float = 0.0
+        self._llm_degraded_until: float = 0.0
 
     @staticmethod
     def _history_content_to_text(content: Any) -> str:
@@ -343,7 +343,7 @@ class AIReconApp(App):
             logger.debug("Failed to restore session history: %s", e)
 
     @staticmethod
-    def _is_ollama_recovery_marker(text: str) -> bool:
+    def _is_llm_recovery_marker(text: str) -> bool:
         lowered = (text or "").lower()
         return (
             "auto-recovery" in lowered
@@ -352,29 +352,29 @@ class AIReconApp(App):
             or "cuda out of memory" in lowered
         )
 
-    def _is_ollama_degraded_active(self) -> bool:
-        return self._ollama_degraded_until > time.monotonic()
+    def _is_llm_degraded_active(self) -> bool:
+        return self._llm_degraded_until > time.monotonic()
 
-    def _should_show_ollama_degraded(self, ollama_ok: bool) -> bool:
+    def _should_show_llm_degraded(self, llm_ok: bool) -> bool:
         return bool(
-            ollama_ok and self._processing and self._is_ollama_degraded_active()
+            llm_ok and self._processing and self._is_llm_degraded_active()
         )
 
-    def _mark_ollama_degraded(self, reason: str = "") -> None:
+    def _mark_llm_degraded(self, reason: str = "") -> None:
         if not self._processing:
             return
-        self._ollama_degraded_until = max(
-            self._ollama_degraded_until,
-            time.monotonic() + self._OLLAMA_DEGRADED_SECONDS,
+        self._llm_degraded_until = max(
+            self._llm_degraded_until,
+            time.monotonic() + self._LLM_DEGRADED_SECONDS,
         )
         if reason:
             logger.warning(
-                "Marking Ollama status degraded due to recovery event: %s", reason
+                "Marking LLM status degraded due to recovery event: %s", reason
             )
         try:
-            self.query_one("#status-bar", StatusBar).set_status(ollama_degraded=True)
+            self.query_one("#status-bar", StatusBar).set_status(llm_degraded=True)
         except Exception as e:
-            logger.debug("Expected failure in _mark_ollama_degraded set_status: %s", e)
+            logger.debug("Expected failure in _mark_llm_degraded set_status: %s", e)
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -421,6 +421,8 @@ class AIReconApp(App):
             "[#58a6ff]/help[/#58a6ff] [#484f58]·[/#484f58] "
             "[#58a6ff]/skills[/#58a6ff] [#484f58]·[/#484f58] "
             "[#58a6ff]/mcp[/#58a6ff] [#484f58]·[/#484f58] "
+            "[#58a6ff]/models[/#58a6ff] [#484f58]·[/#484f58] "
+            "[#58a6ff]/think[/#58a6ff] [#484f58]·[/#484f58] "
             "[#58a6ff]/shell[/#58a6ff] [#484f58]·[/#484f58] "
             "[#58a6ff]/status[/#58a6ff] [#484f58]·[/#484f58] "
             "[#58a6ff]/clear[/#58a6ff]\n"
@@ -658,9 +660,10 @@ class AIReconApp(App):
                 resp = await self._http.get("/api/status", timeout=3.0)
                 if resp.status_code == 200:
                     data = resp.json()
-                    ollama_ok = data.get("ollama", {}).get("connected", False)
+                    llm_ok = data.get("llm", {}).get("connected", False)
                     docker_ok = data.get("docker", {}).get("connected", False)
-                    model = data.get("ollama", {}).get("model", "—")
+                    model = data.get("llm", {}).get("model", "—")
+                    backend_label = data.get("llm", {}).get("backend", "LLM")
                     agent_stats = data.get("agent", {})
                     tool_counts = agent_stats.get("tool_counts", {})
                     exec_used = tool_counts.get("exec", 0)
@@ -678,8 +681,9 @@ class AIReconApp(App):
 
                     proxy_reachable = True
                     status_bar.set_status(
-                        ollama="online" if ollama_ok else "offline",
-                        ollama_degraded=self._should_show_ollama_degraded(ollama_ok),
+                        llm="online" if llm_ok else "offline",
+                        llm_degraded=self._should_show_llm_degraded(llm_ok),
+                        backend_label=backend_label,
                         docker="online" if docker_ok else "offline",
                         model=model,
                         tokens=tokens_used,
@@ -691,10 +695,11 @@ class AIReconApp(App):
                         caido_findings=caido_data.get("findings_count", 0),
                     )
 
-                    if ollama_ok and docker_ok:
+                    if llm_ok and docker_ok:
                         connected = True
                         chat.add_assistant_message(
-                            f"✅ Connected — **{model}** ready with Docker sandbox"
+                            f"✅ Connected — **{model}** via {backend_label} "
+                            "ready with Docker sandbox"
                         )
                         try:
                             sess_resp = await self._http.get(
@@ -745,11 +750,15 @@ class AIReconApp(App):
                         logger.debug(
                             "Expected failure in _poll_services get status data: %s", e
                         )
-                ollama_ok = data.get("ollama", {}).get("connected", False)
+                llm_ok = data.get("llm", {}).get("connected", False)
                 docker_ok = data.get("docker", {}).get("connected", False)
+                backend_label = data.get("llm", {}).get("backend", "LLM")
                 issues = []
-                if not ollama_ok:
-                    issues.append("Ollama offline (check `ollama serve`)")
+                if not llm_ok:
+                    issues.append(
+                        f"{backend_label} backend offline "
+                        "(check the gateway URL / API key in config.yaml)"
+                    )
                 if not docker_ok:
                     issues.append("Docker sandbox not running (check Docker daemon)")
                 detail = " · ".join(issues) if issues else "services not ready"
@@ -778,9 +787,9 @@ class AIReconApp(App):
                 resp = await self._http.get("/api/status", timeout=3.0)
                 if resp.status_code == 200:
                     data = resp.json()
-                    ollama_ok = data.get("ollama", {}).get("connected", False)
+                    llm_ok = data.get("llm", {}).get("connected", False)
                     docker_ok = data.get("docker", {}).get("connected", False)
-                    model = data.get("ollama", {}).get("model", "—")
+                    model = data.get("llm", {}).get("model", "—")
                     tool_counts = data.get("agent", {}).get("tool_counts", {})
                     exec_used = tool_counts.get("exec", 0)
                     subagents = (
@@ -801,8 +810,8 @@ class AIReconApp(App):
                     caido_findings = caido_data.get("findings_count", 0)
 
                     self.query_one("#status-bar", StatusBar).set_status(
-                        ollama="online" if ollama_ok else "offline",
-                        ollama_degraded=self._should_show_ollama_degraded(ollama_ok),
+                        llm="online" if llm_ok else "offline",
+                        llm_degraded=self._should_show_llm_degraded(llm_ok),
                         docker="online" if docker_ok else "offline",
                         model=model,
                         tokens=tokens_used,
@@ -833,13 +842,14 @@ class AIReconApp(App):
             resp = await self._http.get("/api/status", timeout=5.0)
             if resp.status_code == 200:
                 data = resp.json()
-                ollama = data.get("ollama", {})
+                llm = data.get("llm", {})
                 docker = data.get("docker", {})
                 agent = data.get("agent", {})
 
-                ollama_ok = ollama.get("connected", False)
+                llm_ok = llm.get("connected", False)
                 docker_ok = docker.get("connected", False)
-                model = ollama.get("model", "—")
+                model = llm.get("model", "—")
+                backend_label = llm.get("backend", "LLM")
 
                 tool_counts = agent.get("tool_counts", {})
                 exec_used = tool_counts.get("exec", 0)
@@ -856,8 +866,9 @@ class AIReconApp(App):
                 phase = agent.get("phase")
 
                 status_bar.set_status(
-                    ollama="online" if ollama_ok else "offline",
-                    ollama_degraded=self._should_show_ollama_degraded(ollama_ok),
+                    llm="online" if llm_ok else "offline",
+                    llm_degraded=self._should_show_llm_degraded(llm_ok),
+                    backend_label=backend_label,
                     docker="online" if docker_ok else "offline",
                     model=model,
                     exec_used=exec_used,
@@ -873,8 +884,8 @@ class AIReconApp(App):
                 if verbose:
                     status_md = f"""## 🟢 AIRecon Status Report
 
-- **Ollama**: {"✅ Online" if ollama_ok else "❌ Offline"}
-  - URL: `{ollama.get("url", "Unknown")}`
+- **{backend_label} backend**: {"✅ Online" if llm_ok else "❌ Offline"}
+  - URL: `{llm.get("url", "Unknown")}`
   - Model: `{model}`
 - **Docker Sandbox**: {"✅ Running" if docker_ok else "❌ Stopped"}
   - Image: `{docker.get("image", "airecon-sandbox")}`
@@ -887,13 +898,13 @@ class AIReconApp(App):
                     pass
 
             else:
-                status_bar.set_status(ollama="offline", docker="offline")
+                status_bar.set_status(llm="offline", docker="offline")
                 if verbose:
                     chat.add_error_message(
                         f"Status check failed: HTTP {resp.status_code}"
                     )
         except Exception as e:
-            status_bar.set_status(ollama="offline", docker="offline")
+            status_bar.set_status(llm="offline", docker="offline")
             if verbose:
                 chat.add_error_message(f"Status check error: {e}")
 
@@ -921,7 +932,7 @@ class AIReconApp(App):
                 _status_timeout = (
                     _HTTP_TIMEOUT_ACTIVE if self._processing else _HTTP_TIMEOUT_IDLE
                 )
-                resp = await self._http.get("/api/status", timeout=_status_timeout)
+                resp = await self._http.get("/api/health", timeout=_status_timeout)
                 if resp.status_code == 200:
                     data = resp.json()
                     docker_ok = data.get("docker", {}).get("connected", False)
@@ -987,7 +998,7 @@ class AIReconApp(App):
                     )
                     if sse_age < _EXTENDED_SSE_WINDOW and is_proxy_alive():
                         logger.debug(
-                            "Status endpoint returned HTTP %s but SSE is recent (%.0fs) and proxy thread is alive — treating as transient",
+                            "Health endpoint returned HTTP %s but SSE is recent (%.0fs) and proxy thread is alive — treating as transient",
                             resp.status_code,
                             sse_age,
                         )
@@ -1511,6 +1522,9 @@ class AIReconApp(App):
                         )
                         continue
 
+                    if event_type == "ping":
+                        continue
+
                     if event_type in {
                         "tool_start",
                         "tool_end",
@@ -1528,8 +1542,8 @@ class AIReconApp(App):
                     if event_type == "text":
                         content = event.get("content", "")
                         if content:
-                            if self._is_ollama_recovery_marker(content):
-                                self._mark_ollama_degraded(content[:120])
+                            if self._is_llm_recovery_marker(content):
+                                self._mark_llm_degraded(content[:120])
                             if not streaming_started:
                                 chat.start_streaming()
                                 streaming_started = True
@@ -1733,13 +1747,13 @@ class AIReconApp(App):
 
                     elif event_type == "error":
                         error_msg = event.get("message", "Unknown error")
-                        if self._is_ollama_recovery_marker(str(error_msg)):
-                            self._mark_ollama_degraded(str(error_msg)[:120])
+                        if self._is_llm_recovery_marker(str(error_msg)):
+                            self._mark_llm_degraded(str(error_msg)[:120])
                         logger.error(f"Agent Error Event: {error_msg}")
                         chat.set_buddy_state("error")
 
-                        def show_error_safely():
-                            chat.add_error_message(error_msg)
+                        def show_error_safely(msg: str = error_msg) -> None:
+                            chat.add_error_message(msg)
 
                         self.call_later(show_error_safely)
                         logger.error(f"Error event received: {error_msg}")
@@ -2002,6 +2016,59 @@ class AIReconApp(App):
                 logger.debug("Expected failure in _refresh_mcp_until_ready: %s", e)
                 continue
 
+    @staticmethod
+    def _parse_bool_arg(value: str) -> bool | None:
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "y", "on", "enable", "enabled"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "off", "disable", "disabled"}:
+            return False
+        return None
+
+    @staticmethod
+    def _format_models_response(data: dict[str, Any]) -> str:
+        current = str(data.get("current_model") or "").strip()
+        source_url = str(data.get("source_url") or data.get("openai_base_url") or "")
+        models = [str(m) for m in (data.get("models") or []) if str(m).strip()]
+
+        lines: list[str] = [f"Available models ({len(models)})"]
+        if current:
+            lines.append(f"Current: {current}")
+        if source_url:
+            lines.append(f"Source: {source_url}")
+        lines.append("")
+
+        if not models:
+            lines.append("(No models returned by the configured /models endpoint.)")
+        else:
+            if current and current not in set(models):
+                lines.append(
+                    "Current model was not returned by the configured /models endpoint."
+                )
+                lines.append("")
+            for model in models:
+                marker = "*" if model == current else " "
+                lines.append(f"{marker} {model}")
+
+        lines.append("")
+        lines.append("Switch with: /models <model>")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_thinking_response(data: dict[str, Any]) -> str:
+        enabled = bool(data.get("enabled", False))
+        mode = str(data.get("mode") or "unknown")
+        request_mode = str(data.get("request_mode") or "unknown")
+        supports = data.get("supports_thinking")
+        support_text = "unknown" if supports is None else str(bool(supports)).lower()
+        return (
+            "Thinking mode\n"
+            f"Enabled: {str(enabled).lower()}\n"
+            f"Mode: {mode}\n"
+            f"Request mode: {request_mode}\n"
+            f"Runtime support: {support_text}"
+        )
+
     async def _handle_slash_command(self, cmd: str) -> None:
         chat = self.query_one("#chat-panel", ChatPanel)
 
@@ -2014,7 +2081,11 @@ class AIReconApp(App):
                 "- /tools                List available tools\n"
                 "- /skills               Show AI skills\n"
                 "- /mcp                  Manage MCP servers\n"
+                "- /models               List available OpenAI-compatible models\n"
+                "- /models <model>       Switch active model\n"
+                "- /think true|false     Enable/disable thinking\n"
                 "- /shell <command>      Run command in AIRecon Kali Docker shell\n"
+                "- /scope ...            Scope guard: allow/deny <hosts>, mode <off|warn|block>, show, clear\n"
                 "- /reset                Reset conversation\n"
                 "- /clear                Clear chat display\n\n"
                 "Note: For authenticated MCP endpoint, use auth:user/pass or auth:apikey:<token> after URL."
@@ -2047,6 +2118,108 @@ class AIReconApp(App):
                     chat.add_error_message("Failed to fetch skills.")
             except Exception as e:
                 chat.add_error_message(f"Error: {e}")
+
+        elif cmd == "/models" or cmd.startswith("/models "):
+            model_arg = cmd[len("/models") :].strip()
+            if not model_arg:
+                try:
+                    resp = await self._http.get("/api/models", timeout=15.0)
+                    try:
+                        data = resp.json() if resp.content else {}
+                    except Exception:
+                        data = {"error": resp.text}
+                    if resp.status_code == 200:
+                        chat.add_assistant_message(
+                            self._format_models_response(data), markup=False
+                        )
+                    else:
+                        err = str(data.get("error", "Failed to fetch models"))
+                        chat.add_error_message(f"Model list failed: {err}")
+                except Exception as e:
+                    chat.add_error_message(f"Model list request failed: {e}")
+                return
+
+            try:
+                chat.add_system_message(f"Switching model to {model_arg}")
+                resp = await self._http.post(
+                    "/api/models",
+                    json={"model": model_arg},
+                    timeout=30.0,
+                )
+                try:
+                    data = resp.json() if resp.content else {}
+                except Exception:
+                    data = {"error": resp.text}
+                if resp.status_code == 200:
+                    model = str(data.get("current_model") or data.get("model") or model_arg)
+                    thinking = data.get("thinking") if isinstance(data, dict) else {}
+                    enabled = (
+                        bool(thinking.get("enabled"))
+                        if isinstance(thinking, dict)
+                        else False
+                    )
+                    chat.add_assistant_message(
+                        "Model switched\n"
+                        f"Current: {model}\n"
+                        f"Thinking: {str(enabled).lower()}",
+                        markup=False,
+                    )
+                else:
+                    err = str(data.get("error", "Model switch failed"))
+                    chat.add_error_message(f"Model switch failed: {err}")
+            except Exception as e:
+                chat.add_error_message(f"Model switch request failed: {e}")
+            return
+
+        elif cmd == "/think" or cmd.startswith("/think "):
+            arg = cmd[len("/think") :].strip()
+            if not arg:
+                try:
+                    resp = await self._http.get("/api/think", timeout=10.0)
+                    try:
+                        data = resp.json() if resp.content else {}
+                    except Exception:
+                        data = {"error": resp.text}
+                    if resp.status_code == 200:
+                        chat.add_assistant_message(
+                            self._format_thinking_response(data), markup=False
+                        )
+                    else:
+                        err = str(data.get("error", "Failed to read thinking mode"))
+                        chat.add_error_message(f"Thinking status failed: {err}")
+                except Exception as e:
+                    chat.add_error_message(f"Thinking status request failed: {e}")
+                return
+
+            enabled = self._parse_bool_arg(arg)
+            if enabled is None:
+                chat.add_assistant_message(
+                    "Usage: /think true|false\n"
+                    "Also accepted: on/off, yes/no, 1/0.",
+                    markup=False,
+                )
+                return
+
+            try:
+                resp = await self._http.post(
+                    "/api/think",
+                    json={"enabled": enabled},
+                    timeout=30.0,
+                )
+                try:
+                    data = resp.json() if resp.content else {}
+                except Exception:
+                    data = {"error": resp.text}
+                if resp.status_code == 200:
+                    chat.add_assistant_message(
+                        self._format_thinking_response(data), markup=False
+                    )
+                else:
+                    err = str(data.get("error", "Failed to update thinking mode"))
+                    chat.add_error_message(f"Thinking update failed: {err}")
+            except Exception as e:
+                chat.add_error_message(f"Thinking update request failed: {e}")
+            return
 
         elif cmd.startswith("/shell"):
             shell_cmd = cmd[len("/shell") :].strip()
@@ -2102,6 +2275,59 @@ class AIReconApp(App):
                     chat.add_assistant_message("\n".join(body_lines), markup=False)
             except Exception as e:
                 chat.add_error_message(f"Shell request failed: {e}")
+            return
+
+        elif cmd == "/scope" or cmd.startswith("/scope "):
+            parts = cmd.split()
+            sub = parts[1].lower() if len(parts) >= 2 else "show"
+            payload: dict[str, Any] = {"action": sub}
+            if sub in ("allow", "deny", "remove"):
+                hosts = parts[2:]
+                if not hosts:
+                    chat.add_assistant_message(
+                        f"Usage: /scope {sub} <host1> <host2> ...\n"
+                        "Patterns match the host and its subdomains; '*.example.com' matches subdomains only."
+                    )
+                    return
+                payload["hosts"] = hosts
+            elif sub == "mode":
+                if len(parts) < 3 or parts[2].lower() not in ("off", "warn", "block"):
+                    chat.add_assistant_message("Usage: /scope mode <off|warn|block>")
+                    return
+                payload["mode"] = parts[2].lower()
+            elif sub not in ("show", "clear"):
+                chat.add_assistant_message(
+                    "Usage:\n"
+                    "  /scope                      show current scope\n"
+                    "  /scope allow <hosts...>     add to allowlist\n"
+                    "  /scope deny <hosts...>      add to denylist\n"
+                    "  /scope remove <hosts...>    remove from both lists\n"
+                    "  /scope mode <off|warn|block>\n"
+                    "  /scope clear                clear both lists"
+                )
+                return
+            try:
+                resp = await self._http.post("/api/scope", json=payload, timeout=10.0)
+                data = resp.json() if resp.content else {}
+                if resp.status_code == 200 and data.get("success"):
+                    lines = [
+                        "[scope]",
+                        f"  mode:      {data.get('mode', '?')}",
+                        f"  allowlist: {', '.join(data.get('allowlist') or []) or '(empty — all hosts allowed)'}",
+                        f"  denylist:  {', '.join(data.get('denylist') or []) or '(empty)'}",
+                        f"  audit log: {'on' if data.get('audit_log_enabled') else 'off'}",
+                    ]
+                    if data.get("mode") == "warn" and (data.get("allowlist") or data.get("denylist")):
+                        lines.append(
+                            "  note: mode is 'warn' (advisory). Use /scope mode block to ENFORCE."
+                        )
+                    chat.add_assistant_message("\n".join(lines), markup=False)
+                else:
+                    chat.add_error_message(
+                        f"Scope update failed: {data.get('error', resp.text)}"
+                    )
+            except Exception as e:
+                chat.add_error_message(f"Scope request failed: {e}")
             return
 
         elif cmd.startswith("/mcp"):
@@ -2348,6 +2574,8 @@ class AIReconApp(App):
 - /tools: List available tools.
 - /skills: Show AI skills.
 - /mcp: Manage MCP servers.
+- /models: List/switch OpenAI-compatible models.
+- /think true|false: Enable/disable thinking.
 - /shell <command>: Run command in AIRecon Kali Docker shell.
 - /reset: Reset conversation.
 - /clear: Clear chat history.
@@ -2412,47 +2640,39 @@ class AIReconApp(App):
         self.push_screen(QuitConfirmScreen(), _on_dismiss)
 
     async def action_quit(self) -> None:
+        # Always reach self.exit(), even if a cleanup step stalls — otherwise the
+        # app can hang on quit (the reported Ctrl+C → "yes" freeze).
         try:
-            await self._http.post("/api/stop", timeout=2.0)
-        except Exception as e:
-            logger.debug("Expected failure in action_quit send stop: %s", e)
+            # 1) Stop the local SSE stream worker FIRST so it releases the HTTP
+            #    connection. Closing self._http below while a stream is still
+            #    in-flight on the same client can block indefinitely.
+            try:
+                if self._chat_worker and self._chat_worker.is_running:
+                    self._chat_worker.cancel()
+            except Exception as e:
+                logger.debug("Expected failure cancelling chat worker on quit: %s", e)
 
-        if self._status_task and not self._status_task.done():
-            self._status_task.cancel()
+            # 2) Tell the server to stop the agent — hard-bounded so a slow/stuck
+            #    server can never freeze the UI.
+            try:
+                await asyncio.wait_for(self._http.post("/api/stop"), timeout=2.0)
+            except Exception as e:
+                logger.debug("Expected failure in action_quit send stop: %s", e)
 
-        try:
-            import json
-            import subprocess  # nosec B404
+            if self._status_task and not self._status_task.done():
+                self._status_task.cancel()
 
-            from airecon.proxy.config import get_config
+            # Remote OpenAI-compatible backends (LiteLLM/vLLM/hosted) are
+            # stateless — there is no local model in VRAM to unload on quit.
 
-            cfg = get_config()
-            ollama_url = cfg.ollama_url.rstrip("/")
-            model = cfg.ollama_model
-
-            cmd = [
-                "curl",
-                "-s",
-                "-X",
-                "POST",
-                f"{ollama_url}/api/generate",
-                "-d",
-                json.dumps({"model": model, "keep_alive": 0}),
-            ]
-
-            subprocess.run(  # nosec B603
-                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2
-            )
-
-        except Exception as e:
-            logger.debug("Expected failure in action_quit curl unload model: %s", e)
-
-        try:
-            await self._http.aclose()
-        except Exception as e:
-            logger.debug("Expected failure in action_quit http close: %s", e)
-
-        self.exit()
+            # 3) Close the HTTP client, bounded so a lingering connection can't
+            #    block the shutdown.
+            try:
+                await asyncio.wait_for(self._http.aclose(), timeout=2.0)
+            except Exception as e:
+                logger.debug("Expected failure in action_quit http close: %s", e)
+        finally:
+            self.exit()
 
     def on_text_selected(self) -> None:
         """Fires on mouse-up after a drag-selection in the terminal.

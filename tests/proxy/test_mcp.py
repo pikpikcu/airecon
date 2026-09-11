@@ -96,7 +96,7 @@ def test_tools_json_has_no_hardcoded_mcp_tools():
     assert not any(str(name).startswith("mcp_") for name in names)
 
 
-def test_mcp_ollama_tools_only_exposes_enabled_servers():
+def test_mcp_llm_tools_only_exposes_enabled_servers():
     with patch(
         "airecon.proxy.mcp.list_mcp_servers",
         return_value={
@@ -104,7 +104,7 @@ def test_mcp_ollama_tools_only_exposes_enabled_servers():
             "disabledsrv": {"url": "http://127.0.0.1:7777/sse", "enabled": False},
         },
     ):
-        dynamic = mcp.mcp_ollama_tools()
+        dynamic = mcp.mcp_llm_tools()
 
     names = [t.get("function", {}).get("name") for t in dynamic]
     assert "mcp_hexstrike" in names

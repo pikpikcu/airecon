@@ -63,47 +63,52 @@ class TestConfigCorruptionRecovery:
 
         cfg = Config.load(str(config_file))
         assert cfg is not None
-        assert cfg.ollama_model is not None
+        assert cfg.openai_model is not None
 
     def test_load_yaml_with_null_bytes(self, tmp_path):
         """YAML with null bytes should be handled gracefully."""
         from airecon.proxy.config import Config
 
         config_file = tmp_path / "config.yaml"
-        config_file.write_bytes(b"ollama_model: \x00llama3\n")
+        config_file.write_bytes(b"openai_model: \x00llama3\n")
 
         cfg = Config.load(str(config_file))
         assert cfg is not None
 
 
-class TestOllamaFailureRecovery:
-    """Test that agent survives Ollama failures."""
+class TestLLMFailureRecovery:
+    """Test that agent survives LLM backend failures."""
 
     @pytest.mark.asyncio
     async def test_complete_retries_then_raises(self):
-        """After max retries, complete() should raise with clear message."""
-        from airecon.proxy.ollama import OllamaClient
+        """After max retries, complete() should re-raise the timeout."""
+        from airecon.proxy.llm import LLMClient
         import asyncio
 
-        with patch("airecon.proxy.ollama.get_config") as mock_cfg:
+        with patch("airecon.proxy.llm.get_config") as mock_cfg:
             cfg = MagicMock()
-            cfg.ollama_url = "http://localhost:11434"
-            cfg.ollama_model = "llama3"
-            cfg.ollama_supports_thinking = False
-            cfg.ollama_supports_native_tools = False
-            cfg.ollama_timeout = 120.0
-            cfg.ollama_chunk_timeout = 60.0
+            cfg.openai_base_url = "http://localhost:20128/v1"
+            cfg.openai_api_key = "test-key"
+            cfg.openai_model = "llama3"
+            cfg.openai_max_tokens = 4096
+            cfg.openai_temperature = 0.15
+            cfg.openai_supports_thinking = False
+            cfg.openai_supports_native_tools = False
+            cfg.llm_timeout = 120.0
+            cfg.llm_chunk_timeout = 60.0
+            cfg.llm_max_concurrent_requests = 1
             mock_cfg.return_value = cfg
 
-            client = OllamaClient()
-            client._httpx_client = MagicMock()
-            client._initialized = True
+            client = LLMClient()
+            LLMClient._httpx_client = MagicMock()
+            LLMClient._initialized = True
+            client._request_semaphore = asyncio.Semaphore(1)
 
             async def always_timeout(*args, **kwargs):
                 raise asyncio.TimeoutError()
 
-            with patch.object(client, "_run_http_request", side_effect=always_timeout):
-                with pytest.raises(RuntimeError, match="timeout"):
+            with patch.object(client, "_post", side_effect=always_timeout):
+                with pytest.raises(asyncio.TimeoutError):
                     await client.complete(
                         messages=[{"role": "user", "content": "hi"}],
                         max_retries=2,

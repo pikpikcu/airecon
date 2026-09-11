@@ -852,14 +852,17 @@ class AdaptiveLearningEngine:
 
     # ── Abstraction (LLM-assisted distillation) ──────────────────────────────
 
-    def distill_insights(self, ollama_url: str = "", model: str = "") -> list[LearnedInsight]:
-        """Ask Ollama to abstract patterns from recent observations.
+    def distill_insights(
+        self, base_url: str = "", model: str = "", api_key: str = ""
+    ) -> list[LearnedInsight]:
+        """Ask the LLM to abstract patterns from recent observations.
 
         Returns newly created insights (not the full catalog).
         This is how airecon 'learns' — raw data → generalized rules via LLM.
+        Routed through the OpenAI-compatible gateway (LiteLLM/vLLM/hosted).
         """
-        if not ollama_url or not model:
-            logger.debug("distill_insights: no ollama config, skipping")
+        if not base_url or not model:
+            logger.debug("distill_insights: no LLM config, skipping")
             return []
 
         # Only distill if we have enough new observations
@@ -893,23 +896,21 @@ class AdaptiveLearningEngine:
         )
 
         try:
-            import aiohttp
-
             async def _call():
-                payload = {
-                    "model": model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {"temperature": 0.1, "num_predict": 1024},
-                }
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        f"{ollama_url.rstrip('/')}/api/generate",
-                        json=payload,
-                        timeout=aiohttp.ClientTimeout(total=120),
-                    ) as resp:
-                        data = await resp.json()
-                        return data.get("response", "").strip()
+                # Route through LLMClient so distillation reuses the shared
+                # retry/5xx-handling, reasoning-capability detection, and timeout
+                # plumbing instead of a bespoke aiohttp call.
+                from ..llm import LLMClient
+
+                client = LLMClient(base_url=base_url, model=model)
+                await client._async_init()
+                answer = await client.complete(
+                    [{"role": "user", "content": prompt}],
+                    max_retries=1,
+                    options={"temperature": 0.1, "num_predict": 1024},
+                    operation="compression",
+                )
+                return (answer or "").strip()
 
             try:
                 asyncio.get_running_loop()
@@ -1059,24 +1060,34 @@ class AdaptiveLearningEngine:
         if not self.learned_insights:
             return []
 
-        matched: list[LearnedInsight] = []
+        techs_lc = [t.lower() for t in (tech_stack or [])]
+        scored: list[tuple[float, LearnedInsight]] = []
         for insight in self.learned_insights:
             score = 0.0
             conds = insight.conditions
+            conds_lc = str(conds).lower()
 
-            if phase and conds.get("phase", "").lower() == phase.lower():
+            if phase and str(conds.get("phase", "")).lower() == phase.lower():
                 score += 0.5
 
-            if tech_stack:
-                for tech in tech_stack:
-                    if tech.lower() in str(conds).lower():
-                        score += 0.3
+            for tech in techs_lc:
+                if tech and tech in conds_lc:
+                    score += 0.3
 
+            # Keep context-specific matches AND generally-applicable
+            # (conditionless) insights, but rank the relevant ones first so the
+            # model sees its most pertinent past learning at the top of context.
             if score > 0 or not conds:
-                matched.append(insight)
+                # Blend relevance with how trustworthy/well-supported the
+                # insight is: confidence and the number of observations behind
+                # it. This stops a high-confidence-but-irrelevant insight from
+                # crowding out a directly-relevant one.
+                support = min(getattr(insight, "observation_count", 0) / 10.0, 0.5)
+                rank = score + (insight.confidence * 0.4) + support
+                scored.append((rank, insight))
 
-        matched.sort(key=lambda i: i.confidence, reverse=True)
-        return matched[:10]
+        scored.sort(key=lambda pair: pair[0], reverse=True)
+        return [insight for _, insight in scored[:10]]
 
     def should_avoid_tool(self, tool_name: str) -> tuple[bool, list[str]]:
         if tool_name in self.negative_patterns:

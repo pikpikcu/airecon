@@ -231,7 +231,7 @@ class _CycleLlmMixin:
 
     def _inject_tool_intelligence(self, wrong_tool_picked: str = "") -> None:
 
-        if not self._tools_ollama:
+        if not self._tools_llm:
             return
 
         current_phase = (
@@ -342,7 +342,7 @@ class _CycleLlmMixin:
                         break
 
         ranked_tools = rank_tools_for_phase(
-            self._tools_ollama,
+            self._tools_llm,
             current_phase=current_phase,
             tool_use_counts=tool_use_counts,
             tool_success_counts=tool_success_counts,
@@ -357,15 +357,15 @@ class _CycleLlmMixin:
             strategy_tool_sequence=strategy_tool_sequence or None,
         )
 
-        if ranked_tools and len(ranked_tools) == len(self._tools_ollama):
-            self._tools_ollama = ranked_tools
+        if ranked_tools and len(ranked_tools) == len(self._tools_llm):
+            self._tools_llm = ranked_tools
 
         rec_context = build_tool_recommendation_context(
             current_phase=current_phase,
             chain_step_hint=chain_step_hint,
             consecutive_failures=self._consecutive_failures,
             wrong_tool_picked=wrong_tool_picked,
-            tool_registry=self._tools_ollama,
+            tool_registry=self._tools_llm,
         )
 
         if rec_context:
@@ -702,7 +702,7 @@ class _CycleLlmMixin:
 
             if not tool_calls_acc:
                 _registered = {
-                    t["function"]["name"] for t in (self._tools_ollama or [])
+                    t["function"]["name"] for t in (self._tools_llm or [])
                 }
                 _search_text = content_acc + "\n" + thinking_acc
                 extracted = self._extract_tool_calls_from_text(
@@ -761,7 +761,7 @@ class _CycleLlmMixin:
                 "[TASK_COMPLETE]", "").strip()
 
             # Ensure assistant message always has non-empty content when
-            # tool calls are emitted — models like local Ollama get confused
+            # tool calls are emitted — models like local LLM get confused
             # by content="" + tool_calls (appears as an empty turn).
             if tool_calls_acc and not content_acc.strip():
                 tool_names = ", ".join(

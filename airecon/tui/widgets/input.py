@@ -16,11 +16,14 @@ logger = logging.getLogger("airecon.tui.input")
 _SLASH_COMMANDS: tuple[tuple[str, str], ...] = (
     ("/help",   "Show help and available commands"),
     ("/info",   "Show AIRecon information and key bindings"),
-    ("/status", "Check Ollama / Docker service status"),
+    ("/status", "Check LLM / Docker service status"),
     ("/tools",  "List all available agent tools"),
     ("/skills", "Browse AI skill knowledge base"),
     ("/mcp",    "Manage MCP servers (/mcp list, /mcp add <url>)"),
+    ("/models", "List/switch OpenAI-compatible models"),
+    ("/think",  "Enable/disable thinking (/think true|false)"),
     ("/shell",  "Run command in AIRecon Kali Docker shell"),
+    ("/scope",  "Scope guard: /scope allow|deny <hosts> · mode <off|warn|block>"),
     ("/reset",  "Reset conversation context"),
     ("/clear",  "Clear the chat display"),
 )

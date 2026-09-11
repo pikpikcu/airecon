@@ -59,6 +59,54 @@ class _StateMixin:
 
         if hasattr(self.state, 'conversation') and self.state.conversation:
             self._session.conversation = list(self.state.conversation)[-1000:]
+            self._accumulate_recent_turns()
+
+    def _accumulate_recent_turns(self, cap: int = 400) -> None:
+        """Append NEW raw user/assistant/tool turns to the session's persistent
+        recent_turns buffer so resume can replay real history even after the live
+        conversation has been compacted into summaries."""
+        try:
+            existing = list(getattr(self._session, "recent_turns", []) or [])
+            seen = {self._turn_signature(m) for m in existing}
+            for msg in self.state.conversation:
+                if not isinstance(msg, dict):
+                    continue
+                role = msg.get("role")
+                if role not in ("user", "assistant", "tool"):
+                    continue
+                # Skip empty assistant chatter with no tool_calls.
+                if role == "assistant" and not str(msg.get("content", "") or "").strip() and not msg.get("tool_calls"):
+                    continue
+                sig = self._turn_signature(msg)
+                if sig in seen:
+                    continue
+                seen.add(sig)
+                existing.append(
+                    {
+                        "role": role,
+                        "content": msg.get("content", ""),
+                        **({"tool_calls": msg["tool_calls"]} if msg.get("tool_calls") else {}),
+                    }
+                )
+            self._session.recent_turns = existing[-cap:]
+        except Exception as e:
+            logger.debug("recent_turns accumulation failed: %s", e)
+
+    @staticmethod
+    def _turn_signature(msg: dict) -> str:
+        role = str(msg.get("role", ""))
+        content = str(msg.get("content", ""))[:300]
+        tc = msg.get("tool_calls")
+        tc_sig = ""
+        if tc:
+            try:
+                tc_sig = ";".join(
+                    str((c.get("function") or {}).get("name", "")) for c in tc
+                )
+            except Exception as _e:
+                logger.debug("turn signature tool_calls parse failed: %s", _e)
+                tc_sig = "tc"
+        return f"{role}|{content}|{tc_sig}"
 
     def _save_to_memory_realtime(self) -> None:
         if not self._session or not self._session.target:
@@ -134,7 +182,7 @@ class _StateMixin:
                 "live_hosts": valid_live_hosts,
                 "vulnerabilities": valid_vulnerabilities,
                 "token_total": self._session.token_total,
-                "model_used": self.ollama.model if hasattr(self, 'ollama') else None,
+                "model_used": self.llm.model if hasattr(self, 'llm') else None,
             })
 
             if valid_subdomains or self._session.open_ports or self._session.technologies:
@@ -191,9 +239,37 @@ class _StateMixin:
         )
         saved = 0
 
+        # Quality gate: the cross-session brain should learn only from VERIFIED /
+        # high-confidence findings. Learning from unverified claims would make the
+        # agent accumulate false patterns and get *dumber* over time.
+        from ..config import get_config
+
+        _cfg = get_config()
+        _learn_only_verified = bool(
+            getattr(_cfg, "intelligence_learn_only_verified", True)
+        )
+        try:
+            _learn_min_conf = float(
+                getattr(_cfg, "intelligence_learn_min_confidence", 0.65)
+            )
+        except (TypeError, ValueError):
+            _learn_min_conf = 0.65
+
         for vuln in self._session.vulnerabilities:
             if not isinstance(vuln, dict):
                 continue
+
+            if _learn_only_verified:
+                _is_verified = bool(
+                    vuln.get("verified") or vuln.get("replay_verified")
+                )
+                try:
+                    _vconf = float(vuln.get("verified_confidence", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    _vconf = 0.0
+                if not _is_verified and _vconf < _learn_min_conf:
+                    # Not proven enough to become long-term knowledge — skip.
+                    continue
 
             finding_type = str(
                 vuln.get("type")

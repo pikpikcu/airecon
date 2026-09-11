@@ -4,7 +4,7 @@
 
 1. [Config File Location](#1-config-file-location)
 2. [Full Config Reference](#2-full-config-reference)
-3. [Ollama Settings](#3-ollama-settings)
+3. [LLM Backend Settings](#3-llm-backend-settings)
 4. [Agent Behavior](#4-agent-behavior)
    - [Context Management](#context-management)
    - [Exploration Engine](#exploration-engine)
@@ -51,7 +51,7 @@ code ~/.airecon/config.yaml
 #╔══════════════════════════════════════════════════════════╗
 #║              AIRecon Configuration File                  ║
 #║                                                          ║
-#║  Version: 0.1.7b0                                        ║
+#║  Version: 1.7.1b0                                        ║
 #║  Format: YAML (supports comments)                        ║
 #║  Edit this file to customize AIRecon behavior            ║
 #║                                                          ║
@@ -62,45 +62,46 @@ code ~/.airecon/config.yaml
 #╚══════════════════════════════════════════════════════════╝
 
 # Quick Start:
-#   1. Choose a tool-calling model that fits your VRAM:
-#      - Small: qwen3.5:9b (minimum viable)
-#      - Medium: qwen3.5:35b (recommended)
-#      - Large: qwen3.5:70b / qwen3.5:122b (high-end)
-#   2. Context sizes (VRAM requirements):
-#      - 32K (32768): 8GB VRAM stable (CTF mode)
-#      - 64K (65536): 12GB VRAM stable (standard mode)
-#      - 128K (131072): 30GB+ VRAM required
-#   3. Set ollama_url for remote Ollama servers
+#   1. Set openai_base_url to your OpenAI-compatible gateway (must include /v1).
+#      - Local/offline: a local gateway (default http://localhost:20128/v1), vLLM, LiteLLM, or a gateway->Ollama
+#      - Hosted: any OpenAI/Anthropic/Gemini-compatible endpoint (set openai_api_key)
+#   2. Set openai_model to a model your gateway exposes (must support tool calling).
+#   3. Context sizes: 32768 (small/CTF), 65536 (standard), 131072+ (long-context hosted).
 #   4. Run: airecon start
 
+# ======================================
+# LLM Backend (OpenAI-compatible / LiteLLM / vLLM / hosted)
+# ======================================
+# OpenAI-compatible API base URL. REQUIRED. Must include /v1. default (local gateway): http://localhost:20128/v1
+openai_base_url: "http://localhost:20128/v1"
+# API key sent as 'Authorization: Bearer <key>'. Leave empty for local gateways without auth.
+openai_api_key: ""
+# Model name. REQUIRED. e.g. 'claude-sonnet-4', 'gpt-4o', 'gemini-2.0-flash', or 'qwen3:8b' via a local gateway.
+openai_model: ""
+# Whether the model supports native function/tool calling (REQUIRED for AIRecon to function).
+openai_supports_native_tools: true
 
 # ======================================
-# Ollama Connection
+# LLM Tuning
 # ======================================
-# Ollama API endpoint. REQUIRED — must be set. For local: http://127.0.0.1:11434. For remote: http://IP:11434
-ollama_url: "http://127.0.0.1:11434"
-# Model to use. Choose based on your VRAM and tool-calling support.
-ollama_model: "qwen3.5:122b"
-# Total request timeout (seconds). 180s = 3 min. Stable for most models. Increase to 300s for slow remote servers or 122B models.
-ollama_timeout: 180.0
-
-# ======================================
-# Ollama Model Settings
-# ======================================
-# Context window size. 65536 = 64K (stable for 12GB VRAM with 8B models). 131072 = 128K requires 30GB+ VRAM. Set -1 for server default.
-ollama_num_ctx: 65536
-# Context for CTF/summary mode. 32768 = 32K (stable for 12GB VRAM). Reduced from 64K for stability with 8B+ models.
-ollama_num_ctx_small: 32768
-# LLM output randomness. 0.0=deterministic, 0.15=recommended (strict), 0.3=creative. Does NOT affect thinking mode — controls output diversity only.
-ollama_temperature: 0.15
-# Max tokens to generate. 16384 = 16K (stable for 12GB VRAM). 32K requires more VRAM.
-ollama_num_predict: 16384
-# Enable extended thinking mode (for Qwen3.5+/Qwen2.5+). When enabled, model generates <think> reasoning blocks before answering.
-ollama_enable_thinking: true
-# Thinking intensity: low|medium|high|adaptive. For 12GB VRAM: use 'low' or 'medium'. 'high' may cause OOM with 8B models. Low=only deep tools, Medium=ANALYSIS+deep tools, High=most iterations (high VRAM only).
-ollama_thinking_mode: low
-# Protect first N tokens from KV eviction. 4096 = 4K (reduced for 12GB VRAM stability). 8K for larger VRAM.
-ollama_num_keep: 4096
+# Max tokens to generate (OpenAI max_tokens).
+openai_max_tokens: 16384
+# Output randomness. 0.0=deterministic, 0.15=recommended (strict), 0.3=creative.
+openai_temperature: 0.15
+# Total request timeout (seconds). Increase for slow gateways / large models.
+llm_timeout: 180.0
+# Assumed context window (tokens). Raise for long-context hosted models (131072+).
+llm_context_window: 65536
+# Context for CTF/summary mode.
+llm_context_window_small: 32768
+# Master switch for extended thinking.
+llm_enable_thinking: true
+# Thinking intensity: low | medium | high | adaptive.
+llm_thinking_mode: low
+# How to request reasoning: auto = use the OpenAI-standard reasoning_effort and auto-detect
+# support at runtime (HTTP 400 unsupported -> stripped & remembered; no model-name list).
+# off | reasoning_effort | enable_thinking (vLLM/SGLang chat-template flag) to force.
+llm_thinking_request_mode: auto
 
 # ======================================
 # Proxy Server
@@ -139,49 +140,49 @@ allow_destructive_testing: false
 
 ---
 
-## 3. Ollama Settings
+## 3. LLM Backend Settings
 
-### `ollama_url`
-**Type:** string | **Default:** `"http://127.0.0.1:11434"`
+### `openai_base_url`
+**Type:** string | **Default:** `"http://localhost:20128/v1"` | **Required**
 
-The HTTP endpoint of your Ollama instance. Change this if Ollama runs on a different host or port.
+The OpenAI-compatible `/v1` endpoint AIRecon talks to. **Must include the `/v1` suffix.**
 
 ```yaml
-# Local default
-ollama_url: "http://127.0.0.1:11434"
+# local-gateway default (can proxy a local Ollama / vLLM)
+openai_base_url: "http://localhost:20128/v1"
 
-# Remote GPU server
-ollama_url: "http://192.168.1.100:11434"
-
-# Custom port
-ollama_url: "http://127.0.0.1:3003"
+# Remote / hosted gateway
+openai_base_url: "https://your-gateway.example/v1"
 ```
 
 ---
 
-### `ollama_model`
-**Type:** string | **Default:** `"qwen3.5:122b"`
+### `openai_api_key`
+**Type:** string | **Default:** `""`
 
-The model name exactly as shown in `ollama list`. Must include the tag.
+Sent as `Authorization: Bearer <key>`. Leave empty for local gateways that don't require auth; set it for hosted endpoints.
+
+---
+
+### `openai_model`
+**Type:** string | **Default:** `""` | **Required**
+
+Any model name your gateway exposes (check `GET <base_url>/models`). Must support native tool calling.
 
 ```yaml
-# Minimum viable (small VRAM)
-ollama_model: "qwen3.5:9b"
-
-# Recommended mid-tier
-ollama_model: "qwen3.5:35b"
-
-# High-end (best quality if you have the VRAM)
-ollama_model: "qwen3.5:122b"
+openai_model: "claude-sonnet-4"     # hosted
+openai_model: "gpt-4o"              # hosted
+openai_model: "gemini-2.0-flash"    # hosted
+openai_model: "qwen3:8b"            # local via a local gateway (Ollama/vLLM)
 ```
 
-> **Important:** The name must match exactly. `qwen3.5:35b` and `qwen3.5:latest` are different entries. Run `ollama list` to see exact names.
+> **Reasoning is auto-detected** at runtime (`llm_thinking_request_mode: auto`) — no model-name list to maintain.
 >
-> **Small models:** models below 8B are not recommended for full engagements. Expect more tool-call errors and hallucinations as size shrinks.
+> **Small models:** local models below ~8B are not recommended for full engagements. Expect more tool-call errors and hallucinations as size shrinks.
 
 ---
 
-### `ollama_temperature`
+### `openai_temperature`
 **Type:** float | **Default:** `0.15`
 
 Controls output randomness. This is the single most impactful setting for agent reliability.
@@ -199,11 +200,11 @@ Controls output randomness. This is the single most impactful setting for agent 
 
 The model's job is to follow strict protocols (task scoping, CVSS scoring, PoC requirements) rather than to be creative. Higher temperature increases the chance the model "reasons itself" into skipping rules.
 
-For reasoning-capable models with `ollama_enable_thinking: true`, the `<think>` phase handles analytical depth internally. The output temperature can therefore be very low (0.15) without losing quality.
+For reasoning-capable models with `llm_enable_thinking: true`, the `<think>` phase handles analytical depth internally. The output temperature can therefore be very low (0.15) without losing quality.
 
 ---
 
-### `ollama_num_ctx`
+### `llm_context_window`
 **Type:** int | **Default:** `65536` (64K tokens)
 
 Context window size in tokens. Larger = more history visible to the model = better continuity, but requires more VRAM.
@@ -217,20 +218,20 @@ Context window size in tokens. Larger = more history visible to the model = bett
 | `131072` | ~31 GB | Large context window; high VRAM requirement |
 | `1000000` | ~248 GB | 1M tokens — specialized setups only |
 
-**For remote Ollama servers:** Set `ollama_num_ctx: -1` to use the server's default/max context limit without hardcoding a value. This is useful when connecting to cloud Ollama instances with high context limits.
+**For remote Ollama servers:** Set `llm_context_window: -1` to use the server's default/max context limit without hardcoding a value. This is useful when connecting to cloud Ollama instances with high context limits.
 
 > If you get VRAM/OOM errors, reduce this first. The agent uses automatic multi-level crash recovery (see VRAM Recovery below) and proactive context trimming at ≥80% usage.
 
 ---
 
-### `ollama_num_ctx_small`
+### `llm_context_window_small`
 **Type:** int | **Default:** `32768` (32K tokens)
 
 A smaller context window used for compression calls (`compress_with_llm`) and VRAM crash recovery tiers. Reduces VRAM pressure during context management. This is also the starting point for multi-level recovery — see VRAM Recovery below.
 
 ---
 
-### `ollama_num_predict`
+### `openai_max_tokens`
 **Type:** int | **Default:** `16384`
 
 Maximum number of tokens the model can generate in a single response. 32768 ≈ ~24,000 words — sufficient for complex reasoning + tool-calling responses.
@@ -239,22 +240,22 @@ Reduce to `8192` if responses feel slow. The agent automatically caps this furth
 
 ---
 
-### `ollama_timeout`
+### `llm_timeout`
 **Type:** float | **Default:** `180.0` seconds
 
 How long to wait for a streaming response before giving up. Increase for slow remote servers or large models.
 
 ```yaml
 # Example: increase for slow inference
-ollama_timeout: 240.0
+llm_timeout: 240.0
 
 # For very large models (122B) on CPU
-ollama_timeout: 7200.0
+llm_timeout: 7200.0
 ```
 
 ---
 
-### `ollama_chunk_timeout`
+### `llm_chunk_timeout`
 **Type:** float | **Default:** `180.0` seconds (3 minutes)
 
 Per-chunk stream timeout. If no token arrives for this long, the stream is considered stalled and a recoverable TimeoutError is raised.
@@ -263,7 +264,7 @@ Per-chunk stream timeout. If no token arrives for this long, the stream is consi
 
 ---
 
-### `ollama_enable_thinking`
+### `llm_enable_thinking`
 **Type:** bool | **Default:** `true`
 
 Enables the `think=true` parameter when calling Ollama, which activates extended reasoning (`<think>` blocks) for supported models.
@@ -277,10 +278,10 @@ When enabled, the TUI shows the model's internal reasoning process in the thinki
 
 ---
 
-### `ollama_thinking_mode`
+### `llm_thinking_mode`
 **Type:** string | **Default:** `adaptive`
 
-Controls **WHEN** the model uses `<think>` reasoning blocks. Different from `ollama_temperature` — thinking_mode affects reasoning depth, temperature affects output randomness.
+Controls **WHEN** the model uses `<think>` reasoning blocks. Different from `openai_temperature` — thinking_mode affects reasoning depth, temperature affects output randomness.
 
 | Mode | Behavior | Use Case |
 |------|----------|----------|
@@ -290,27 +291,27 @@ Controls **WHEN** the model uses `<think>` reasoning blocks. Different from `oll
 | `adaptive` | Auto-adjust based on phase, tool complexity, and stagnation | **Recommended** — smart balance |
 
 **Thinking mode vs temperature:**
-- `ollama_thinking_mode`: Controls reasoning depth (whether model thinks before answering)
-- `ollama_temperature`: Controls output randomness (how varied/creative the answer is)
+- `llm_thinking_mode`: Controls reasoning depth (whether model thinks before answering)
+- `openai_temperature`: Controls output randomness (how varied/creative the answer is)
 
 **Example combinations:**
 ```yaml
 # Standard security testing (recommended)
-ollama_thinking_mode: adaptive  # Smart reasoning when needed
-ollama_temperature: 0.15        # Strict, reliable output
+llm_thinking_mode: adaptive  # Smart reasoning when needed
+openai_temperature: 0.15        # Strict, reliable output
 
 # Deep analysis (complex targets)
-ollama_thinking_mode: high      # Deep reasoning for most iterations
-ollama_temperature: 0.15        # Still strict output
+llm_thinking_mode: high      # Deep reasoning for most iterations
+openai_temperature: 0.15        # Still strict output
 
 # Fast recon (many targets)
-ollama_thinking_mode: low       # Minimal thinking, fast iteration
-ollama_temperature: 0.15        # Strict output
+llm_thinking_mode: low       # Minimal thinking, fast iteration
+openai_temperature: 0.15        # Strict output
 ```
 
 ---
 
-### `ollama_keep_alive`
+### `llm_keep_alive`
 **Type:** int or string | **Default:** `-1`
 
 How long to keep the model loaded in VRAM after inference completes.
@@ -333,9 +334,9 @@ For shared workstations, use `"60m"` to free VRAM when not in use. For dedicated
 These settings control how AIRecon manages conversation context to prevent VRAM crashes and optimize memory usage.
 
 ### `agent_max_conversation_messages`
-**Type:** int | **Default:** `ollama_num_ctx // 128` (1024 for 131K context)
+**Type:** int | **Default:** `llm_context_window // 128` (1024 for 131K context)
 
-Maximum number of conversation messages before truncation. Automatically calculated from `ollama_num_ctx` unless explicitly set.
+Maximum number of conversation messages before truncation. Automatically calculated from `llm_context_window` unless explicitly set.
 
 ```yaml
 # Auto-calculated (recommended)
@@ -724,7 +725,7 @@ How aggressively the exploration engine pushes the agent into new territory when
 ### `agent_exploration_temperature`
 **Type:** float (0.0–2.0) | **Default:** `0.5`
 
-Temperature used when the agent is in exploration mode (stagnation detected). Higher than `ollama_temperature` to encourage new approaches without losing control.
+Temperature used when the agent is in exploration mode (stagnation detected). Higher than `openai_temperature` to encourage new approaches without losing control.
 
 ---
 
@@ -769,19 +770,19 @@ Any config key can be overridden without editing the file using environment vari
 
 ```bash
 # Override model
-AIRECON_OLLAMA_MODEL=qwen3.5:35b airecon start
+AIRECON_OPENAI_MODEL=qwen3.5:35b airecon start
 
 # Override temperature
-AIRECON_OLLAMA_TEMPERATURE=0.2 airecon start
+AIRECON_OPENAI_TEMPERATURE=0.2 airecon start
 
 # Disable destructive testing
 AIRECON_ALLOW_DESTRUCTIVE_TESTING=false airecon start
 
 # Use a different Ollama endpoint
-AIRECON_OLLAMA_URL=http://10.0.0.5:11434 airecon start
+AIRECON_OPENAI_BASE_URL=http://10.0.0.5:20128/v1 airecon start
 
 # Override context window
-AIRECON_OLLAMA_NUM_CTX=65536 airecon start
+AIRECON_LLM_CONTEXT_WINDOW=65536 airecon start
 ```
 
 **Type conversion rules:**
@@ -798,14 +799,14 @@ Environment variables take precedence over the config file. They are applied at 
 ### Preset: Small (8–12 GB VRAM, qwen3.5:9b)
 
 ```yaml
-ollama_model: "qwen3.5:9b"
-ollama_num_ctx: 32768
-ollama_num_ctx_small: 16384
-ollama_temperature: 0.15
-ollama_num_predict: 8192
-ollama_enable_thinking: true
-ollama_supports_thinking: true
-ollama_supports_native_tools: true
+openai_model: "qwen3.5:9b"
+llm_context_window: 32768
+llm_context_window_small: 16384
+openai_temperature: 0.15
+openai_max_tokens: 8192
+llm_enable_thinking: true
+openai_supports_thinking: true
+openai_supports_native_tools: true
 command_timeout: 600.0
 agent_max_tool_iterations: 300
 searxng_url: "http://localhost:8080"
@@ -814,15 +815,15 @@ searxng_url: "http://localhost:8080"
 ### Preset: Recommended (16–24 GB VRAM, qwen3.5:35b)
 
 ```yaml
-ollama_model: "qwen3.5:35b"
-ollama_num_ctx: 65536
-ollama_num_ctx_small: 32768
-ollama_temperature: 0.15
-ollama_num_predict: 16384
-ollama_enable_thinking: true
-ollama_supports_thinking: true
-ollama_supports_native_tools: true
-ollama_keep_alive: "60m"
+openai_model: "qwen3.5:35b"
+llm_context_window: 65536
+llm_context_window_small: 32768
+openai_temperature: 0.15
+openai_max_tokens: 16384
+llm_enable_thinking: true
+openai_supports_thinking: true
+openai_supports_native_tools: true
+llm_keep_alive: "60m"
 command_timeout: 900.0
 agent_max_tool_iterations: 800
 searxng_url: "http://localhost:8080"
@@ -831,16 +832,16 @@ searxng_url: "http://localhost:8080"
 ### Preset: High-end (48+ GB VRAM, qwen3.5:122b)
 
 ```yaml
-ollama_model: "qwen3.5:122b"
-ollama_num_ctx: 65536
-ollama_num_ctx_small: 32768
-ollama_temperature: 0.15
-ollama_num_predict: 16384
-ollama_enable_thinking: true
-ollama_supports_thinking: true
-ollama_supports_native_tools: true
-ollama_timeout: 240.0
-ollama_keep_alive: "60m"
+openai_model: "qwen3.5:122b"
+llm_context_window: 65536
+llm_context_window_small: 32768
+openai_temperature: 0.15
+openai_max_tokens: 16384
+llm_enable_thinking: true
+openai_supports_thinking: true
+openai_supports_native_tools: true
+llm_timeout: 240.0
+llm_keep_alive: "60m"
 command_timeout: 900.0
 agent_max_tool_iterations: 800
 searxng_url: "http://localhost:8080"
@@ -849,16 +850,16 @@ searxng_url: "http://localhost:8080"
 ### Preset: Remote Ollama (GPU server)
 
 ```yaml
-ollama_url: "http://192.168.1.100:11434"
-ollama_model: "qwen3.5:122b"
-ollama_timeout: 240.0
-ollama_num_ctx: 65536
-ollama_num_ctx_small: 32768
-ollama_temperature: 0.15
-ollama_enable_thinking: true
-ollama_supports_thinking: true
-ollama_supports_native_tools: true
-ollama_keep_alive: "60m"
+openai_base_url: "http://192.168.1.100:11434"
+openai_model: "qwen3.5:122b"
+llm_timeout: 240.0
+llm_context_window: 65536
+llm_context_window_small: 32768
+openai_temperature: 0.15
+llm_enable_thinking: true
+openai_supports_thinking: true
+openai_supports_native_tools: true
+llm_keep_alive: "60m"
 agent_max_tool_iterations: 800
 searxng_url: "http://localhost:8080"
 ```
@@ -866,7 +867,7 @@ searxng_url: "http://localhost:8080"
 ### Preset: Passive / non-destructive assessment
 
 ```yaml
-ollama_temperature: 0.15
+openai_temperature: 0.15
 allow_destructive_testing: false
 deep_recon_autostart: false
 command_timeout: 300.0
@@ -876,8 +877,8 @@ agent_max_tool_iterations: 100
 ### Preset: CTF / Benchmark mode
 
 ```yaml
-ollama_num_ctx: 65536
-ollama_num_predict: 8192
+llm_context_window: 65536
+openai_max_tokens: 8192
 agent_max_tool_iterations: 150
 agent_exploration_mode: false
 deep_recon_autostart: false
@@ -892,9 +893,9 @@ Optimized for CTF challenges where you want fast, focused exploitation without b
 
 ### VRAM / OOM Errors
 
-1. **Reduce `ollama_num_ctx`** — Start with 65536, then 32768
-2. **Reduce `ollama_num_predict`** — Try 16384 or 8192
-3. **Set `ollama_keep_alive: "5m"`** — Frees VRAM between sessions
+1. **Reduce `llm_context_window`** — Start with 65536, then 32768
+2. **Reduce `openai_max_tokens`** — Try 16384 or 8192
+3. **Set `llm_keep_alive: "5m"`** — Frees VRAM between sessions
 4. **Check `docker_memory_limit`** — Ensure container has enough RAM
 
 ### Agent Stuck in Loops
@@ -905,12 +906,12 @@ Optimized for CTF challenges where you want fast, focused exploitation without b
 
 ### Hallucinated Tool Calls
 
-1. **Lower `ollama_temperature`** — Try 0.1 or 0.0
-2. **Ensure `ollama_enable_thinking: true`** — Helps model reason before acting
+1. **Lower `openai_temperature`** — Try 0.1 or 0.0
+2. **Ensure `llm_enable_thinking: true`** — Helps model reason before acting
 3. **Check model capability** — Use a model that supports native tool calling; smaller models are less reliable
 
 ### Slow Response Times
 
-1. **Reduce `ollama_num_ctx`** — Less context = faster inference
-2. **Reduce `ollama_timeout`** — Fail fast on stalled requests
+1. **Reduce `llm_context_window`** — Less context = faster inference
+2. **Reduce `llm_timeout`** — Fail fast on stalled requests
 3. **Use smaller model** — for example, qwen3.5:35b is faster than qwen3.5:122b

@@ -132,7 +132,7 @@ def empty_parsed_output(
 
 
 async def async_sleep_backoff(attempt: int, base: float = 2.0, max_wait: float = 120.0) -> float:
-    """Exponential backoff sleep — replaces 2**(attempt+1) with asyncio.sleep pattern repeated 5+ times in ollama.py."""
+    """Exponential backoff sleep — replaces 2**(attempt+1) with asyncio.sleep pattern repeated 5+ times in llm.py."""
     wait = min(base ** (attempt + 1), max_wait)
     await asyncio.sleep(wait)
     return wait

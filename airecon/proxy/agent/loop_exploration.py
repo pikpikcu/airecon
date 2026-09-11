@@ -1251,8 +1251,9 @@ class _ExplorationMixin:
                 and len(engine.observation_log) % 30 == 0
             ):
                 insights = engine.distill_insights(
-                    ollama_url=cfg.ollama_url,
-                    model=cfg.ollama_model,
+                    base_url=cfg.openai_base_url,
+                    model=cfg.openai_model,
+                    api_key=cfg.openai_api_key,
                 )
                 if insights:
                     logger.info(

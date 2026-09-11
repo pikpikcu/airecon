@@ -39,9 +39,18 @@ AIRecon supports reasoning models that generate internal thoughts (`<think>`) be
 - Formulating exploit hypotheses
 - Navigating scope rules under complex context
 
-When enabled, AIRecon keeps the `<think>` stream separate from final output. The TUI can surface it for debugging or auditability.
+When enabled, AIRecon keeps the reasoning stream separate from final output. The TUI can surface it for debugging or auditability.
 
-**Controlled via config:** Set `ollama_enable_thinking: true` for reasoning-capable models, `false` for standard models.
+**Controlled via config:**
+
+- `llm_enable_thinking: true|false` — master switch for extended thinking.
+- `llm_thinking_mode: low|medium|high|adaptive` — how often the agent spends a thinking turn (low = only deep tools, high = most iterations).
+- `llm_thinking_request_mode: auto|off|reasoning_effort|enable_thinking` — how the OpenAI-compatible gateway is asked to reason:
+  - `auto` (default) detects from the model name — sends `reasoning_effort` to o-series/gpt-5/gemini-thinking/grok-reasoning/QwQ/DeepSeek-R1 and `chat_template_kwargs.enable_thinking` to Qwen3/GLM/vLLM-hosted models, and stays silent for plain models (gpt-4o, gemini-flash) that would reject reasoning params.
+  - `off` never sends reasoning params (use for non-reasoning models).
+  - `reasoning_effort` / `enable_thinking` force a specific strategy.
+
+For the documented use cases above to actually engage, point `openai_model` at a reasoning-capable model. A lightweight non-reasoning model (e.g. `gemini-*-flash`) will go straight to tool calls regardless of these settings.
 
 ---
 

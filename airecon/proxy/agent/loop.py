@@ -14,7 +14,7 @@ import aiohttp  # noqa: F401
 
 from ..config import get_config, get_workspace_root
 from ..docker import DockerEngine
-from ..ollama import OllamaClient
+from ..llm import LLMClient
 from ..system import get_system_prompt
 from .executors import _ExecutorMixin
 from .formatters import _FormatterMixin
@@ -167,12 +167,12 @@ class AgentLoop(
 
     _CTF_MAX_ITERATIONS = get_config().agent_ctf_max_iterations
 
-    def __init__(self, ollama: OllamaClient, engine: DockerEngine) -> None:
+    def __init__(self, llm: LLMClient, engine: DockerEngine) -> None:
         super().__init__()
-        self.ollama = ollama
+        self.llm = llm
         self.engine = engine
         self.state = AgentState()
-        self._tools_ollama: list[dict[str, Any]] | None = None
+        self._tools_llm: list[dict[str, Any]] | None = None
         self._last_output_file: str | None = None
         self._executed_tool_counts: dict[tuple[str, str], int] = {}
 
@@ -521,8 +521,8 @@ class AgentLoop(
                             "live_hosts": list(self._session.live_hosts),
                             "vulnerabilities": self._session.vulnerabilities,
                             "token_total": self._session.token_total,
-                            "model_used": self.ollama.model
-                            if hasattr(self, "ollama")
+                            "model_used": self.llm.model
+                            if hasattr(self, "llm")
                             else None,
                         }
                     )
@@ -1090,11 +1090,45 @@ class AgentLoop(
     def get_progress(self) -> dict[str, Any]:
         session = self._session
         quality_scores = self._compute_quality_scores()
+
+        # Timeline fields: current phase, last tool/command, and a stuck flag so
+        # the UI can show what the agent is doing and whether it's retrying.
+        try:
+            _phase = self._get_current_phase().value
+        except Exception as _e:
+            logger.debug("get_progress: phase lookup failed: %s", _e)
+            _phase = ""
+        _last_tool = ""
+        _last_command = ""
+        _last_status = ""
+        if self.state.tool_history:
+            _last = self.state.tool_history[-1]
+            _last_tool = getattr(_last, "tool_name", "") or ""
+            _last_status = getattr(_last, "status", "") or ""
+            _args = getattr(_last, "arguments", {}) or {}
+            _last_command = str(
+                _args.get("command")
+                or _args.get("url")
+                or _args.get("endpoint")
+                or ""
+            )[:200]
+        try:
+            _stuck_threshold = int(
+                getattr(get_config(), "agent_stagnation_threshold", 3)
+            )
+        except (TypeError, ValueError):
+            _stuck_threshold = 3
+
         progress = {
             "target": self.state.active_target or "none",
+            "phase": _phase,
             "iteration": self.state.iteration,
             "max_iterations": self.state.max_iterations,
             "tool_counts": self.state.tool_counts,
+            "last_tool": _last_tool,
+            "last_command": _last_command,
+            "last_tool_status": _last_status,
+            "stuck": bool(self._consecutive_failures >= _stuck_threshold),
             "consecutive_failures": self._consecutive_failures,
             "objectives": {
                 "total": len(self.state.objective_queue),

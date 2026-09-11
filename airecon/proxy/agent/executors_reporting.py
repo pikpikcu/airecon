@@ -16,6 +16,38 @@ logger = logging.getLogger("airecon.agent")
 # ── False-positive regex rules loaded once from verification_patterns.json ─
 _fp_compiled: list[tuple[str, re.Pattern[str]]] = []
 
+# Map free-text report claims → verification vuln_type keys that have a
+# deterministic runtime confirmator in verification.py. Order matters: first
+# match wins. Vuln classes NOT listed here (IDOR, auth bypass, CSRF, business
+# logic, race conditions, …) are intentionally never blocked by active replay —
+# they are validated by evidence grounding, keeping the agent free to report
+# novel/stateful findings rather than forcing a rigid, monotonous checklist.
+_RUNTIME_VERIFY_KEYWORDS: list[tuple[str, re.Pattern[str]]] = [
+    ("sql_injection", re.compile(
+        r"sql\s*injection|sqli|union\s+select|error[\s-]based|boolean[\s-]based|"
+        r"time[\s-]based\s+blind", re.IGNORECASE)),
+    ("command_injection", re.compile(
+        r"command\s*injection|\brce\b|remote\s+code\s+execution|os\s+command", re.IGNORECASE)),
+    ("ssti", re.compile(
+        r"\bssti\b|template\s+injection|\{\{\s*\d+\s*\*\s*\d+\s*\}\}", re.IGNORECASE)),
+    ("xxe", re.compile(r"\bxxe\b|xml\s+external\s+entity", re.IGNORECASE)),
+    ("ssrf", re.compile(
+        r"\bssrf\b|server[\s-]*side\s*request\s*forgery|metadata\s+endpoint", re.IGNORECASE)),
+    ("path_traversal", re.compile(
+        r"path\s*traversal|directory\s*traversal|\blfi\b|local\s+file\s+inclusion", re.IGNORECASE)),
+    ("open_redirect", re.compile(r"open\s*redirect|unvalidated\s+redirect", re.IGNORECASE)),
+    ("xss", re.compile(
+        r"\bxss\b|cross[\s-]*site\s*scripting|reflected\s+(?:script|payload)", re.IGNORECASE)),
+]
+
+# Vuln types where a stateless GET replay reliably reproduces a true positive.
+# Only these may produce an active-verification BLOCK, and only under strict
+# guards (confident extraction, GET method, live endpoint, clean negative test).
+_REPLAY_RELIABLE_TYPES: frozenset[str] = frozenset({
+    "xss", "sql_injection", "ssti", "path_traversal",
+    "command_injection", "open_redirect", "ssrf", "xxe",
+})
+
 
 def _load_fp_indicators() -> list[tuple[str, re.Pattern[str]]]:
     global _fp_compiled
@@ -60,6 +92,36 @@ class _ReportingExecutorMixin:
                     },
                     None,
                 )
+
+            # ── Active runtime verification: re-test the live target ──────────
+            _runtime = await self._runtime_verify_report(arguments)
+            if _runtime.get("blocked"):
+                logger.warning(
+                    "[Zero-FP] Report BLOCKED by active verification: %s",
+                    _runtime.get("reason"),
+                )
+                return (
+                    False,
+                    time.time() - start_time,
+                    {
+                        "success": False,
+                        "blocked_by_verifier": True,
+                        "reason": _runtime.get("reason"),
+                        "verification": _runtime,
+                    },
+                    None,
+                )
+
+            if _runtime.get("ran"):
+                _v_status = (
+                    (_runtime.get("status") or "CONFIRMED")
+                    if _runtime.get("replay_success")
+                    else "RUNTIME-INCONCLUSIVE"
+                )
+                _v_conf = float(_runtime.get("confidence", 0.0) or 0.0)
+            else:
+                _v_status = "EVIDENCE-GROUNDED"
+                _v_conf = None
             _report_params = {
                 "title",
                 "description",
@@ -80,11 +142,16 @@ class _ReportingExecutorMixin:
                 "endpoint",
                 "method",
                 "cve",
+                "cwe",
+                "owasp",
                 "suggested_fix",
                 "flag",
             }
             _report_kwargs = {k: v for k, v in arguments.items() if k in _report_params}
             _report_kwargs["_active_target"] = self.state.active_target
+            _report_kwargs["_verification_status"] = _v_status
+            _report_kwargs["_verification_confidence"] = _v_conf
+            _report_kwargs["_evidence_artifacts"] = _runtime.get("evidence") or None
             result = await asyncio.to_thread(
                 create_vulnerability_report,
                 **_report_kwargs,
@@ -175,6 +242,19 @@ class _ReportingExecutorMixin:
                         vuln["report_generated"] = True
                         if flag:
                             vuln["flag"] = flag
+                        # Stamp active-verification outcome onto the finding so
+                        # supervision/quality scoring and future report-readiness
+                        # reflect what was actually re-tested at runtime.
+                        if _runtime.get("ran"):
+                            _existing_conf = float(
+                                vuln.get("verified_confidence", 0.0) or 0.0
+                            )
+                            vuln["verified_confidence"] = max(
+                                _existing_conf, float(_runtime.get("confidence", 0.0) or 0.0)
+                            )
+                            if _runtime.get("replay_success"):
+                                vuln["verified"] = True
+                                vuln["replay_verified"] = True
                         matched = True
 
                 if success and report_title and not matched:
@@ -393,3 +473,161 @@ class _ReportingExecutorMixin:
             return readiness_block
 
         return None  # no blocking reason found
+
+    # ------------------------------------------------------------------
+    # Active runtime verification — re-tests the live target before a report
+    # is written. Corroborates true positives and stamps session findings;
+    # blocks ONLY deterministically-reproducible types that fail to reproduce.
+    # ------------------------------------------------------------------
+
+    def _infer_runtime_vuln_type(self, arguments: dict[str, Any]) -> str | None:
+        blob = "\n".join(
+            str(arguments.get(k, "") or "")
+            for k in ("title", "description", "poc_description", "poc_script_code")
+        )
+        for vuln_type, pattern in _RUNTIME_VERIFY_KEYWORDS:
+            if pattern.search(blob):
+                return vuln_type
+        return None
+
+    def _extract_http_target(self, arguments: dict[str, Any]) -> str:
+        for key in ("endpoint", "target"):
+            raw = str(arguments.get(key, "") or "").strip()
+            if raw.startswith(("http://", "https://")):
+                return raw.split()[0]
+        endpoint = str(arguments.get("endpoint", "") or "").strip()
+        active = str(getattr(self.state, "active_target", "") or "").strip()
+        if active.startswith(("http://", "https://")):
+            if endpoint.startswith("/"):
+                from urllib.parse import urljoin
+
+                return urljoin(active, endpoint.split()[0])
+            if not endpoint:
+                return active.split()[0]
+        return ""
+
+    @staticmethod
+    def _extract_injection_param(arguments: dict[str, Any], target_url: str) -> tuple[str, bool]:
+        explicit = str(arguments.get("parameter", "") or "").strip()
+        if explicit:
+            return explicit, True
+        try:
+            from urllib.parse import parse_qs, urlparse
+
+            query = parse_qs(urlparse(target_url).query)
+            if query:
+                return next(iter(query.keys())), True
+        except Exception as _e:
+            logger.debug("injection-param extraction failed for %r: %s", target_url, _e)
+        return "", False
+
+    def _verification_http_headers(self) -> dict[str, str] | None:
+        """Best-effort auth headers so authed endpoints are tested as the agent
+        sees them — prevents false 'unreproducible' blocks on protected routes."""
+        for attr in ("auth_headers", "session_headers", "http_headers"):
+            headers = getattr(self.state, attr, None)
+            if isinstance(headers, dict) and headers:
+                return {str(k): str(v) for k, v in headers.items()}
+        return None
+
+    async def _runtime_verify_report(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "ran": False,
+            "blocked": False,
+            "reason": "",
+            "status": "",
+            "confidence": 0.0,
+            "replay_success": False,
+            "tier": 0,
+        }
+        try:
+            from ..config import get_config
+
+            cfg = get_config()
+        except Exception as _e:
+            logger.debug("runtime verify: config load failed: %s", _e)
+            return out
+        if not getattr(cfg, "verification_enabled", False):
+            return out
+
+        vuln_type = self._infer_runtime_vuln_type(arguments)
+        if not vuln_type:
+            return out  # novel / stateful class — corroborate via evidence only
+
+        target_url = self._extract_http_target(arguments)
+        if not target_url:
+            return out
+
+        param, confident = self._extract_injection_param(arguments, target_url)
+        if not param:
+            return out  # no injection point to actively test
+
+        method = str(arguments.get("method", "") or "").strip().upper()
+
+        try:
+            from .verification import VerificationEngine
+
+            engine = VerificationEngine(
+                timeout=cfg.verification_timeout,
+                max_replays=cfg.verification_max_replays,
+                enable_replay=cfg.verification_enable_replay,
+                enable_cross_tool=False,
+                enable_negative_test=cfg.verification_enable_negative_test,
+                enable_fp_detection=cfg.verification_enable_fp_detection,
+            )
+            vres = await engine.verify_finding(
+                target_url=target_url,
+                param=param,
+                vuln_type=vuln_type,
+                original_payload="",
+                original_confidence=0.6,
+                http_headers=self._verification_http_headers(),
+            )
+        except Exception as e:
+            logger.debug("[Zero-FP] runtime report verification skipped: %s", e)
+            return out
+
+        out["ran"] = True
+        out["replay_success"] = bool(vres.replay_success)
+        out["confidence"] = float(vres.verified_confidence)
+        out["tier"] = int(vres.verification_tier)
+        # Machine-captured proof (payload/status/length per replay attempt) so the
+        # report can persist concrete request/response evidence, not just the
+        # model's PoC text.
+        out["evidence"] = [
+            ev for ev in vres.evidence_bundle if isinstance(ev, dict)
+        ][:25]
+        out["status"] = (
+            str(vres.details.get("status", "") or "")
+            or ("CONFIRMED" if vres.replay_success else "RUNTIME-INCONCLUSIVE")
+        )
+
+        # Only the endpoint was actually exercised by GET replay if we saw a
+        # live (<400) response. Authed/POST-only/unreachable routes must NOT
+        # be treated as disproof of the finding.
+        endpoint_live = any(
+            isinstance(ev, dict)
+            and isinstance(ev.get("status"), int)
+            and ev["status"] < 400
+            for ev in vres.evidence_bundle
+        )
+
+        allow_block = (
+            confident
+            and method in ("", "GET", "HEAD")
+            and vuln_type in _REPLAY_RELIABLE_TYPES
+            and endpoint_live
+            and vres.replay_count >= 2
+            and not vres.replay_success
+            and vres.negative_test_passed
+            and not vres.is_false_positive
+        )
+        if allow_block:
+            out["blocked"] = True
+            out["reason"] = (
+                f"Active replay verification could not reproduce the claimed {vuln_type} "
+                f"on parameter '{param}' at {target_url} across {vres.replay_count} "
+                f"independent payloads, while clean inputs produced no signal. "
+                f"Re-confirm with a working PoC before reporting."
+            )
+        return out

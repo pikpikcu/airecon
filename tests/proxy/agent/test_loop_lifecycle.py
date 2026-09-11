@@ -17,7 +17,7 @@ class TestInitialize:
         class DummyAgent(_LifecycleMixin):
             def __init__(self):
                 self.state = AgentState()
-                self._tools_ollama = []
+                self._tools_llm = []
                 self._blocked_tools = set()
                 self._ctf_mode = False
                 self._override_max_iterations = None
@@ -40,10 +40,10 @@ class TestInitialize:
                 self._watchdog_forced_calls = 0
                 self._vram_crash_count = 0
                 self._adaptive_num_predict_cap = 0
-                self._fatal_ollama_error = ""
+                self._fatal_llm_error = ""
 
             async def refresh_tool_registry(self):
-                self._tools_ollama = [
+                self._tools_llm = [
                     {"function": {"name": "execute", "description": "run"}},
                 ]
 
@@ -67,7 +67,7 @@ class TestInitialize:
             ),
         ):
             cfg = MagicMock()
-            cfg.ollama_num_ctx_small = 8192
+            cfg.llm_context_window_small = 8192
             cfg.agent_max_tool_iterations = 20
             mock_cfg.return_value = cfg
 
@@ -88,7 +88,7 @@ class TestInitialize:
             ),
         ):
             cfg = MagicMock()
-            cfg.ollama_num_ctx_small = 8192
+            cfg.llm_context_window_small = 8192
             cfg.agent_max_tool_iterations = 20
             mock_cfg.return_value = cfg
 
@@ -110,7 +110,7 @@ class TestInitialize:
             ),
         ):
             cfg = MagicMock()
-            cfg.ollama_num_ctx_small = 8192
+            cfg.llm_context_window_small = 8192
             cfg.agent_max_tool_iterations = 20
             mock_cfg.return_value = cfg
 
@@ -134,7 +134,7 @@ class TestInitialize:
             ),
         ):
             cfg = MagicMock()
-            cfg.ollama_num_ctx_small = 8192
+            cfg.llm_context_window_small = 8192
             cfg.agent_max_tool_iterations = 20
             mock_cfg.return_value = cfg
 
@@ -158,7 +158,7 @@ class TestInitialize:
             ),
         ):
             cfg = MagicMock()
-            cfg.ollama_num_ctx_small = 8192
+            cfg.llm_context_window_small = 8192
             cfg.agent_max_tool_iterations = 20
             mock_cfg.return_value = cfg
 
@@ -177,7 +177,7 @@ class TestReset:
             def __init__(self):
                 self.state = AgentState()
                 self.state.iteration = 10
-                self._tools_ollama = [{"function": {"name": "execute"}}]
+                self._tools_llm = [{"function": {"name": "execute"}}]
                 self._ctf_mode = True
                 self._initial_messages = [{"role": "system", "content": "init"}]
                 self._token_snapshot_task = None
@@ -193,7 +193,7 @@ class TestReset:
                 self._adaptive_num_ctx = 4096
                 self._vram_crash_count = 3
                 self._adaptive_num_predict_cap = 1024
-                self._fatal_ollama_error = "some error"
+                self._fatal_llm_error = "some error"
                 self._session = MagicMock()
                 self.pipeline = MagicMock()
 
@@ -209,7 +209,7 @@ class TestReset:
         assert agent._watchdog_forced_calls == 0
         assert agent._adaptive_num_ctx == 0
         assert agent._vram_crash_count == 0
-        assert agent._fatal_ollama_error == ""
+        assert agent._fatal_llm_error == ""
 
     def test_reset_preserves_initial_messages(self, agent):
         agent.reset()
@@ -229,7 +229,7 @@ class TestReset:
         assert agent._ctf_mode is True
 
 
-class TestResetOllamaContext:
+class TestResetLLMContext:
     @pytest.fixture
     def agent(self):
         from airecon.proxy.agent.loop_lifecycle import _LifecycleMixin
@@ -250,7 +250,7 @@ class TestResetOllamaContext:
                 self.state.iteration = 5
                 self.state.max_iterations = 20
                 self._ctf_mode = False
-                self.ollama = MagicMock()
+                self.llm = MagicMock()
                 self.pipeline = MagicMock()
                 self.pipeline.get_current_phase.return_value = MagicMock(value="RECON")
 
@@ -267,33 +267,33 @@ class TestResetOllamaContext:
 
     @pytest.mark.asyncio
     async def test_reset_context_succeeds(self, agent):
-        agent.ollama.reset_context = AsyncMock(return_value=True)
+        agent.llm.reset_context = AsyncMock(return_value=True)
 
-        result = await agent._reset_ollama_context()
+        result = await agent._reset_llm_context()
         assert result is True
 
     @pytest.mark.asyncio
     async def test_reset_context_retries_on_failure(self, agent):
-        agent.ollama.reset_context = AsyncMock(side_effect=RuntimeError("failed"))
+        agent.llm.reset_context = AsyncMock(side_effect=RuntimeError("failed"))
 
-        result = await agent._reset_ollama_context()
+        result = await agent._reset_llm_context()
         assert result is False
-        assert agent.ollama.reset_context.call_count == 3
+        assert agent.llm.reset_context.call_count == 3
 
     @pytest.mark.asyncio
-    async def test_reset_context_detects_fatal_ollama_error(self, agent):
-        agent.ollama.reset_context = AsyncMock(
+    async def test_reset_context_detects_fatal_llm_error(self, agent):
+        agent.llm.reset_context = AsyncMock(
             side_effect=RuntimeError("runner has unexpectedly stopped")
         )
 
-        result = await agent._reset_ollama_context()
+        result = await agent._reset_llm_context()
         assert result is False
-        assert agent._fatal_ollama_error != ""
+        assert agent._fatal_llm_error != ""
 
     @pytest.mark.asyncio
-    async def test_reset_context_returns_false_without_ollama(self, agent):
-        agent.ollama = None
-        result = await agent._reset_ollama_context()
+    async def test_reset_context_returns_false_without_llm(self, agent):
+        agent.llm = None
+        result = await agent._reset_llm_context()
         assert result is False
 
 
@@ -382,7 +382,7 @@ class TestApplyLocalContextFallback:
         assert len(agent.state.conversation) == 0
 
 
-class TestCheckOllamaContextPressure:
+class TestCheckLLMContextPressure:
     @pytest.fixture
     def agent(self):
         from airecon.proxy.agent.loop_lifecycle import _LifecycleMixin
@@ -390,7 +390,7 @@ class TestCheckOllamaContextPressure:
         class DummyAgent(_LifecycleMixin):
             def __init__(self):
                 self.state = AgentState()
-                self.ollama = MagicMock()
+                self.llm = MagicMock()
                 self._ctf_mode = False
                 self._last_context_check = 0.0
 
@@ -400,12 +400,12 @@ class TestCheckOllamaContextPressure:
         return DummyAgent()
 
     @pytest.mark.asyncio
-    async def test_creates_task_when_ollama_exists(self, agent):
-        agent._check_ollama_context_pressure()
+    async def test_creates_task_when_llm_exists(self, agent):
+        agent._check_llm_context_pressure()
 
-    def test_does_nothing_without_ollama(self, agent):
-        agent.ollama = None
-        agent._check_ollama_context_pressure()
+    def test_does_nothing_without_llm(self, agent):
+        agent.llm = None
+        agent._check_llm_context_pressure()
 
 
 class TestRefreshToolRegistry:
@@ -415,7 +415,7 @@ class TestRefreshToolRegistry:
 
         class DummyAgent(_LifecycleMixin):
             def __init__(self):
-                self._tools_ollama = []
+                self._tools_llm = []
                 self._blocked_tools = set()
                 self.engine = MagicMock()
 
@@ -426,21 +426,21 @@ class TestRefreshToolRegistry:
         agent.engine.discover_tools = AsyncMock(
             return_value=[{"function": {"name": "nmap", "description": "scan"}}]
         )
-        agent.engine.tools_to_ollama_format = MagicMock(
+        agent.engine.tools_to_llm_format = MagicMock(
             return_value=[{"function": {"name": "nmap", "description": "scan"}}]
         )
 
         await agent.refresh_tool_registry()
 
-        assert len(agent._tools_ollama) > 0
-        names = [t["function"]["name"] for t in agent._tools_ollama]
+        assert len(agent._tools_llm) > 0
+        names = [t["function"]["name"] for t in agent._tools_llm]
         assert "nmap" in names
         assert "execute" in names
 
     @pytest.mark.asyncio
     async def test_excludes_blocked_tools(self, agent):
         agent.engine.discover_tools = AsyncMock(return_value=[])
-        agent.engine.tools_to_ollama_format = MagicMock(
+        agent.engine.tools_to_llm_format = MagicMock(
             return_value=[
                 {"function": {"name": "execute", "description": "run"}},
                 {"function": {"name": "blocked_tool", "description": "blocked"}},
@@ -450,6 +450,6 @@ class TestRefreshToolRegistry:
 
         await agent.refresh_tool_registry()
 
-        names = [t["function"]["name"] for t in agent._tools_ollama]
+        names = [t["function"]["name"] for t in agent._tools_llm]
         assert "blocked_tool" not in names
         assert "execute" in names

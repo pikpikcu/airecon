@@ -1,5 +1,64 @@
 # Changelog
 
+## [v1.7.1-beta] - 2026-06-17
+
+### Backend: migrated to OpenAI-compatible (no more Ollama-only)
+- feat(llm): AIRecon now drives ANY OpenAI-compatible gateway (LiteLLM / vLLM / hosted / a local
+  gateway) via `openai_base_url` / `openai_api_key` / `openai_model`. The client speaks the OpenAI
+  /v1/chat/completions wire format directly over httpx (no `openai` SDK dependency).
+- feat(llm): reasoning is auto-detected at runtime — `auto` sends `reasoning_effort` and, on an
+  HTTP 400 "unsupported parameter", strips it and remembers per-model. No model-name hardcoding.
+- chore: removed the dead `ollama` dependency from pyproject.toml; renamed all `ollama_*` config
+  keys to `openai_*` / `llm_*`; removed every `ollama`/`9router` identifier and brand mention from
+  code, generated config.yaml, README and docs.
+
+### De-hardcoded recon/analysis/exploit
+- refactor: removed model/provider/technique name special-casing. Tech-payload augmentation,
+  url->priority-params, chain follow-ons, and the prelude expert hints are now data-driven
+  (fuzzer_data.json) or removed; context-pressure/compaction thresholds key off the effective
+  context window, not a `qwen`/`122b` name check.
+- refactor(novel_discovery): replaced random-canned tactics with target-specific, evidence-derived
+  + optional LLM-driven attack-vector generation.
+
+### Verification, evidence & reporting
+- feat(verify): VerificationEngine wired into the LLM finding path (type-aware, non-monotonous);
+  expanded confirmators (open_redirect / ssrf / xxe).
+- feat(report): persist machine-captured request/response evidence per finding (<slug>.evidence.json),
+  finding lifecycle labels (VALIDATED / SUSPECTED / INFORMATIONAL), CWE/OWASP classification, and a
+  Verification section in the .md.
+
+### Intelligence & memory (the brain)
+- feat: cross-session brain learns ONLY from verified/high-confidence findings
+  (`intelligence_learn_only_verified`) — compounds proven knowledge, not false positives.
+- feat: cold-start dataset knowledge (tech_correlations) injected from iteration 1; memory/dataset
+  recall is config-driven and more active (recall every 4 iters, correlation every 6).
+- feat(memory): compaction preserves protected context by-type; rolling-summary / compressor caps
+  scale with context window.
+
+### Platform & operability
+- feat(scope): scope guard + persistent audit log (~/.airecon/audit/audit.jsonl); enforced on the
+  agent `execute` path AND `/shell`; live management via the new `/scope` TUI command + `/api/scope`.
+- feat(config): data-driven scan profiles (quick/standard/deep/stealth/ctf/bugbounty).
+- feat(status): real sandbox tool-health probing + scope/scan-profile surfaced; progress timeline
+  (phase/last tool/last command/stuck); `/api/models` per-model reasoning capability.
+- feat(notify): completion webhook + COMPLETE.json flag.
+- feat(resume): session keeps a raw chat/tool-turn buffer so resume replays real history; `/api/history`
+  surfaces prior progress even after compaction.
+- feat(config): all new keys are now written into the generated config.yaml with sections/comments.
+
+### Fixes
+- fix(config): thread-safe `Config.load()` via atomic write (race could reset config to defaults).
+- fix(tui): quit (Ctrl+C -> yes) no longer hangs — stream worker cancelled, network calls bounded,
+  exit() always reached.
+- fix(docker): entrypoint no longer `chown -R /workspace` (which clobbered host files); only the
+  mount-point is made writable.
+- fix(startup): proxy import/startup failures now write the crash log and show the full path + reason.
+- chore: routed `distill_insights` through LLMClient; removed dead locals; fixed bare-except violations.
+
+### Validation
+- ~2200 tests passing across proxy/agent/tui suites; pyflakes 0 undefined names; package imports
+  clean; generated config.yaml free of ollama/9router.
+
 ## [v0.1.7-beta] - 2026-04-02
 
 ### Added

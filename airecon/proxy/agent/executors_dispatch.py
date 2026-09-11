@@ -587,6 +587,44 @@ class _DispatchExecutorMixin:
                     None,
                 )
 
+            # Scope guard + audit trail (config-driven). Default mode "warn" is
+            # non-blocking; only scope_enforcement=block refuses out-of-scope
+            # hosts. Every command is recorded to the persistent audit log.
+            try:
+                from ..scope import audit_log, get_scope_guard
+
+                _guard = get_scope_guard()
+                _in_scope, _scope_reason, _scope_host = _guard.check_command(cmd)
+                audit_log(
+                    {
+                        "type": "execute",
+                        "command": cmd[:500],
+                        "target": getattr(self.state, "active_target", "") or "",
+                        "in_scope": _in_scope,
+                        "host": _scope_host,
+                        "reason": _scope_reason,
+                        "mode": _guard.mode,
+                    }
+                )
+                if not _in_scope and _guard.mode == "block":
+                    return (
+                        False,
+                        0.0,
+                        {
+                            "success": False,
+                            "error": (
+                                f"Command blocked by scope guard: {_scope_reason}. "
+                                "Adjust scope_allowlist/scope_denylist, or set "
+                                "scope_enforcement=warn to allow with a warning."
+                            ),
+                        },
+                        None,
+                    )
+                if not _in_scope:
+                    logger.warning("Scope advisory (execute): %s", _scope_reason)
+            except Exception as _scope_err:
+                logger.debug("scope guard check skipped: %s", _scope_err)
+
             _cmd_stripped = cmd.strip().lower()
             _is_caido_setup = "caido-setup" in _cmd_stripped
             _has_graphql_url = (

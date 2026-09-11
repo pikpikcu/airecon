@@ -14,24 +14,24 @@ from airecon.proxy.agent.session import SessionData
 
 @pytest.fixture
 def loop(mocker):
-    ollama_mock = MagicMock()
-    ollama_mock.chat_stream = AsyncMock()
+    llm_mock = MagicMock()
+    llm_mock.chat_stream = AsyncMock()
 
     engine_mock = MagicMock()
     engine_mock.discover_tools = AsyncMock(return_value=[])
-    engine_mock.tools_to_ollama_format = MagicMock(return_value=[])
+    engine_mock.tools_to_llm_format = MagicMock(return_value=[])
 
     with patch("airecon.proxy.agent.loop.get_config") as mock_cfg:
         cfg = MagicMock()
         cfg.agent_max_tool_iterations = 10
-        cfg.ollama_num_ctx_small = 16384
+        cfg.llm_context_window_small = 16384
         cfg.agent_max_browser_visits_per_domain = 3
         cfg.agent_command_hash_cache_limit = 5000
         cfg.agent_command_hash_cache_prune_target = 2500
         cfg.agent_max_empty_retries = 4
         cfg.agent_ctf_max_iterations = 150
         mock_cfg.return_value = cfg
-        agent = AgentLoop(ollama=ollama_mock, engine=engine_mock)
+        agent = AgentLoop(llm=llm_mock, engine=engine_mock)
         return agent
 
 
@@ -40,7 +40,7 @@ def loop(mocker):
 
 class TestVRAMCrashPatterns:
     """Verify that the _is_vram_crash detection heuristics in loop.py
-    correctly identify OOM/crash errors from Ollama.
+    correctly identify OOM/crash errors from LLM.
 
     These patterns must stay in sync with loop.py lines 846-856.
     We test them via a whitebox check on the set of strings.
@@ -49,8 +49,8 @@ class TestVRAMCrashPatterns:
     # Patterns that SHOULD trigger VRAM crash recovery
     CRASH_ERRORS = [
         "invalid character '<' looking for beginning of value",
-        "failed to parse JSON response from Ollama",
-        "HTML error page returned by Ollama",
+        "failed to parse JSON response from LLM",
+        "HTML error page returned by LLM",
         "unexpected end of json input",
         "<!doctype html>",
         "<html><body>Error</body></html>",
@@ -293,9 +293,9 @@ class TestAgentLoopStopSubagent:
 # ── Mocked streaming: text response ──────────────────────────────────────────
 
 
-class TestLoopStreamingWithMockedOllama:
+class TestLoopStreamingWithMockedLLM:
     """Test that the loop correctly yields AgentEvents from a mocked streaming
-    Ollama response that returns plain text (no tool calls)."""
+    LLM response that returns plain text (no tool calls)."""
 
     @pytest.mark.asyncio
     async def test_plain_text_response_yields_text_events(self, loop, mocker):
@@ -317,7 +317,7 @@ class TestLoopStreamingWithMockedOllama:
             for chunk in chunks:
                 yield chunk
 
-        loop.ollama.chat_stream = _stream
+        loop.llm.chat_stream = _stream
 
         events = []
         async for event in loop.process_message("hello world"):
@@ -342,7 +342,7 @@ class TestLoopStreamingWithMockedOllama:
             raise Exception("connection refused")
             yield  # make it an async generator
 
-        loop.ollama.chat_stream = _failing_stream
+        loop.llm.chat_stream = _failing_stream
 
         events = []
         async for event in loop.process_message("scan target"):
@@ -353,7 +353,7 @@ class TestLoopStreamingWithMockedOllama:
         error_events = [e for e in events if e.type == "error"]
         assert len(error_events) >= 1
         assert (
-            "Ollama" in error_events[0].data.get("message", "")
+            "LLM" in error_events[0].data.get("message", "")
             or "connect" in error_events[0].data.get("message", "").lower()
         )
 
@@ -370,12 +370,12 @@ class TestLoopStreamingWithMockedOllama:
             call_count[0] += 1
             if call_count[0] == 1:
                 # First call succeeds
-                yield {"message": {"content": "Hello from Ollama"}, "done": True}
+                yield {"message": {"content": "Hello from LLM"}, "done": True}
             else:
                 # Subsequent calls fail
                 raise Exception("connection timeout")
 
-        loop.ollama.chat_stream = _flaky_stream
+        loop.llm.chat_stream = _flaky_stream
 
         events = []
         async for event in loop.process_message("continue scan"):
@@ -400,7 +400,7 @@ class TestLoopStreamingWithMockedOllama:
             raise Exception("persistent connection failure")
             yield
 
-        loop.ollama.chat_stream = _always_failing_stream
+        loop.llm.chat_stream = _always_failing_stream
 
         events = []
         async for event in loop.process_message("scan target"):
@@ -459,7 +459,7 @@ class TestLoopStreamingWithMockedOllama:
                     "done": True,
                 }
 
-        loop.ollama.chat_stream = _stream
+        loop.llm.chat_stream = _stream
 
         events = []
         async for event in loop.process_message("continue recon test.com"):
@@ -520,7 +520,7 @@ class TestLoopStreamingWithMockedOllama:
                     "done": True,
                 }
 
-        loop.ollama.chat_stream = _stream
+        loop.llm.chat_stream = _stream
 
         events = []
         async for event in loop.process_message("fuzz test.com"):
@@ -567,7 +567,7 @@ class TestLoopStreamingWithMockedOllama:
                 "done": True,
             }
 
-        loop.ollama.chat_stream = _stream
+        loop.llm.chat_stream = _stream
 
         events = []
         async for event in loop.process_message("continue recon test.com"):
@@ -643,7 +643,7 @@ class TestAdvancedStateOrchestration:
                 agent_stagnation_threshold=1,
                 agent_max_same_tool_streak=3,
                 agent_tool_diversity_window=8,
-                ollama_temperature=0.1,
+                openai_temperature=0.1,
                 agent_exploration_temperature=0.4,
             ),
         )
@@ -670,7 +670,7 @@ class TestAdvancedStateOrchestration:
     def test_iteration_temperature_raises_when_stagnant(self, loop, mocker):
         cfg = mocker.MagicMock(
             agent_exploration_mode=True,
-            ollama_temperature=0.1,
+            openai_temperature=0.1,
             agent_exploration_temperature=0.4,
             agent_stagnation_threshold=1,
         )

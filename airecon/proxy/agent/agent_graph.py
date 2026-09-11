@@ -44,9 +44,9 @@ class AgentEdge:
 
 
 class AgentGraph:
-    def __init__(self, target: str, ollama: Any = None, engine: Any = None):
+    def __init__(self, target: str, llm: Any = None, engine: Any = None):
         self.target = target
-        self.ollama = ollama
+        self.llm = llm
         self.engine = engine
         self.nodes: dict[str, AgentNode] = {}
         self.edges: list[AgentEdge] = []
@@ -106,7 +106,7 @@ class AgentGraph:
                 type="agent_state", data={"status": f"Starting {node.id}..."}
             )
 
-            agent = AgentLoop(ollama=self.ollama, engine=self.engine)
+            agent = AgentLoop(llm=self.llm, engine=self.engine)
             await agent.initialize(target=self.target)
             agent._override_max_iterations = node.max_iterations
             agent._blocked_tools = set(MINI_AGENT_BLOCKED_TOOLS)
@@ -146,7 +146,7 @@ def create_default_graph(
     target: str, prompt: str = "", recon_mode: str = "full"
 ) -> AgentGraph:
 
-    g = AgentGraph(target, ollama=None, engine=None)
+    g = AgentGraph(target, llm=None, engine=None)
     if recon_mode == "full":
         return _build_full_pipeline(g, target, prompt)
 

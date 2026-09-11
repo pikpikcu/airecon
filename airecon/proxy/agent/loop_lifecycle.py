@@ -19,11 +19,11 @@ logger = logging.getLogger("airecon.agent")
 class _LifecycleMixin:
     async def refresh_tool_registry(self) -> None:
         engine_tools = await self.engine.discover_tools()
-        tools_ollama = self.engine.tools_to_ollama_format(engine_tools)
-        tools_ollama.extend(get_tool_definitions())
+        tools_llm = self.engine.tools_to_llm_format(engine_tools)
+        tools_llm.extend(get_tool_definitions())
 
         unique: dict[str, dict] = {}
-        for t in tools_ollama:
+        for t in tools_llm:
             fn = t.get("function", {}) if isinstance(t, dict) else {}
             name = fn.get("name")
             if isinstance(name, str) and name:
@@ -37,7 +37,7 @@ class _LifecycleMixin:
                 if t.get("function", {}).get("name") not in self._blocked_tools
             ]
 
-        self._tools_ollama = rebuilt
+        self._tools_llm = rebuilt
 
     async def initialize(
         self,
@@ -62,7 +62,7 @@ class _LifecycleMixin:
 
             _ctf_cfg = get_config()
             if self._adaptive_num_ctx == 0:
-                self._adaptive_num_ctx = _ctf_cfg.ollama_num_ctx_small
+                self._adaptive_num_ctx = _ctf_cfg.llm_context_window_small
             logger.info(
                 "CTF mode activated for target=%r — ctx=%d, max_iterations=%d",
                 target,
@@ -101,9 +101,9 @@ class _LifecycleMixin:
                 "Ask user to start/login Caido externally, then verify with caido_intercept(action='status').",
             )
 
-        logger.info("Agent initialized with %d tools", len(self._tools_ollama or []))
+        logger.info("Agent initialized with %d tools", len(self._tools_llm or []))
 
-        tool_names = [t["function"]["name"] for t in self._tools_ollama]
+        tool_names = [t["function"]["name"] for t in self._tools_llm]
         self.state.add_message(
             "system", f"[SYSTEM: REGISTERED TOOLS]\n{', '.join(tool_names)}"
         )
@@ -251,7 +251,7 @@ class _LifecycleMixin:
         self._adaptive_num_ctx = 0
         self._vram_crash_count = 0
         self._adaptive_num_predict_cap = 0
-        self._fatal_ollama_error = ""
+        self._fatal_llm_error = ""
         self._context_check_task = None
 
         self._session = SessionData(target=old_target)
@@ -265,8 +265,8 @@ class _LifecycleMixin:
         if self._ctf_mode and self.pipeline:
             self.pipeline.set_ctf_mode(True)
 
-    async def _reset_ollama_context(self) -> bool:
-        if not hasattr(self, "ollama") or not self.ollama:
+    async def _reset_llm_context(self) -> bool:
+        if not hasattr(self, "llm") or not self.llm:
             return False
 
         summary = self._build_recon_summary()
@@ -278,17 +278,17 @@ class _LifecycleMixin:
             self._context_reset_failures = 0
         for attempt in range(1, 4):
             try:
-                success = await self.ollama.reset_context(full_prompt)
+                success = await self.llm.reset_context(full_prompt)
                 if success:
                     logger.info(
-                        "Ollama context reset with recon summary (tokens: ~%d, attempt=%d)",
+                        "LLM context reset with recon summary (tokens: ~%d, attempt=%d)",
                         len(full_prompt) // 4,
                         attempt,
                     )
                     self._context_reset_failures = 0
                     return True
-                status = getattr(self.ollama, "_last_reset_status", None)
-                err_text = str(getattr(self.ollama, "_last_reset_error", "") or "").lower()
+                status = getattr(self.llm, "_last_reset_status", None)
+                err_text = str(getattr(self.llm, "_last_reset_error", "") or "").lower()
                 if status == 500 or "internal server error" in err_text:
                     last_error = RuntimeError(err_text or "internal server error")
                     self._disable_context_reset_until = time.time() + 900.0
@@ -303,12 +303,12 @@ class _LifecycleMixin:
                 await asyncio.sleep(0.25 * attempt)
 
         if last_error:
-            logger.warning("Ollama context reset failed after retries: %s", last_error)
+            logger.warning("LLM context reset failed after retries: %s", last_error)
             err_text = str(last_error).lower()
             if "runner has unexpectedly stopped" in err_text:
-                self._fatal_ollama_error = str(last_error)
+                self._fatal_llm_error = str(last_error)
                 logger.error(
-                    "Fatal Ollama runner failure detected during context reset"
+                    "Fatal LLM runner failure detected during context reset"
                 )
             if "internal server error" in err_text or "500" in err_text:
                 self._disable_context_reset_until = time.time() + 900.0
@@ -317,13 +317,13 @@ class _LifecycleMixin:
                 )
         else:
             logger.warning(
-                "Ollama context reset failed after retries (no exception details)"
+                "LLM context reset failed after retries (no exception details)"
             )
 
         self._context_reset_failures += 1
         try:
             self._apply_local_context_fallback(
-                reason="ollama reset failed",
+                reason="llm reset failed",
                 target_messages=40 if not self._ctf_mode else 16,
             )
         except TypeError as exc:
@@ -331,7 +331,7 @@ class _LifecycleMixin:
                 "Fallback signature mismatch for _apply_local_context_fallback: %s",
                 exc,
             )
-            self._apply_local_context_fallback(reason="ollama reset failed")
+            self._apply_local_context_fallback(reason="llm reset failed")
         return False
 
     def _apply_local_context_fallback(
@@ -454,8 +454,8 @@ Rules:
 
 Current workflow: Follow phase transitions (RECON→ANALYSIS→EXPLOIT→REPORT)"""
 
-    def _check_ollama_context_pressure(self):
-        if not hasattr(self, "ollama") or not self.ollama:
+    def _check_llm_context_pressure(self):
+        if not hasattr(self, "llm") or not self.llm:
             return
         if (
             not hasattr(self, "_context_check_task")
@@ -497,85 +497,65 @@ Current workflow: Follow phase transitions (RECON→ANALYSIS→EXPLOIT→REPORT)
 
         self._last_context_check = now
 
-        if not hasattr(self, "ollama") or not self.ollama:
+        if not hasattr(self, "llm") or not self.llm:
             return
 
-        from ..ollama import _CONTEXT_RESET_THRESHOLD
+        from ..llm import _CONTEXT_RESET_THRESHOLD
         from . import loop as _loop_module
 
-        try:
-            async with _loop_module.aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{self.ollama._host}/api/ps",
-                    timeout=_loop_module.aiohttp.ClientTimeout(total=2),
-                ) as resp:
-                    if resp.status != 200:
-                        return
-                    ps = await resp.json()
-        except Exception as e:
-            logger.debug("Expected failure polling Ollama context state: %s", e)
+        # Remote OpenAI-compatible gateways are stateless: there is no server-side
+        # KV cache to poll (no LLM /api/ps). Drive context-pressure detection
+        # purely from our local token-usage estimate.
+        used_estimate = int(self.state.token_usage.get("used", 0) or 0)
+
+        cfg = _loop_module.get_config()
+        ctf_mode = getattr(self, "_ctf_mode", False)
+
+        if ctf_mode:
+            ctx_limit = getattr(cfg, "llm_context_window_small", 65536)
+            threshold = int(ctx_limit * 0.70)
+        else:
+            ctx_limit = _CONTEXT_RESET_THRESHOLD
+            threshold = _CONTEXT_RESET_THRESHOLD
+
+        if used_estimate < threshold:
             return
 
-        for model in ps.get("models", []):
-            if model.get("name") == self.ollama.model or self.ollama.model.split(":")[
-                0
-            ] in model.get("name", ""):
-                context_len = int(model.get("context_length", 0) or 0)
-                used_estimate = int(self.state.token_usage.get("used", 0) or 0)
-
-                cfg = _loop_module.get_config()
-                ctf_mode = getattr(self, "_ctf_mode", False)
-
-                if ctf_mode:
-                    ctx_limit = getattr(cfg, "ollama_num_ctx_small", 65536)
-                    threshold = int(ctx_limit * 0.70)  # 45875 tokens
-                else:
-                    ctx_limit = _CONTEXT_RESET_THRESHOLD
-                    threshold = _CONTEXT_RESET_THRESHOLD
-
-                if context_len <= threshold or used_estimate < threshold:
-                    return
-
-                last_reset = float(getattr(self, "_last_context_reset_ts", 0.0) or 0.0)
-                _RESET_COOLDOWN_SECONDS = (
-                    60.0
-                    if ctf_mode
-                    else float(
-                        max(
-                            0,
-                            int(
-                                getattr(
-                                    cfg, "agent_context_reset_cooldown_seconds", 300
-                                )
-                                or 0
-                            ),
-                        )
-                    )
+        last_reset = float(getattr(self, "_last_context_reset_ts", 0.0) or 0.0)
+        _RESET_COOLDOWN_SECONDS = (
+            60.0
+            if ctf_mode
+            else float(
+                max(
+                    0,
+                    int(
+                        getattr(cfg, "agent_context_reset_cooldown_seconds", 300) or 0
+                    ),
                 )
-                _failures = int(getattr(self, "_context_reset_failures", 0) or 0)
-                if _failures > 0:
-                    _RESET_COOLDOWN_SECONDS += min(600.0, _failures * 120.0)
-                if now - last_reset < _RESET_COOLDOWN_SECONDS:
-                    logger.warning(
-                        "Context reset cooldown active (ctf=%s, used=%d, ps_ctx=%d, remaining=%.0fs)",
-                        ctf_mode,
-                        used_estimate,
-                        context_len,
-                        max(0.0, _RESET_COOLDOWN_SECONDS - (now - last_reset)),
-                    )
-                    return
+            )
+        )
+        _failures = int(getattr(self, "_context_reset_failures", 0) or 0)
+        if _failures > 0:
+            _RESET_COOLDOWN_SECONDS += min(600.0, _failures * 120.0)
+        if now - last_reset < _RESET_COOLDOWN_SECONDS:
+            logger.warning(
+                "Context reset cooldown active (ctf=%s, used=%d, remaining=%.0fs)",
+                ctf_mode,
+                used_estimate,
+                max(0.0, _RESET_COOLDOWN_SECONDS - (now - last_reset)),
+            )
+            return
 
-                logger.error(
-                    "OLLAMA CONTEXT CRITICAL: ctf=%s, used=%d, ps_ctx=%d, threshold=%d - resetting with summary injection",
-                    ctf_mode,
-                    used_estimate,
-                    context_len,
-                    threshold,
-                )
-                self._last_context_reset_ts = now
-                reset_ok = await self._reset_ollama_context()
-                if not reset_ok:
-                    logger.warning(
-                        "Ollama reset unavailable; continued with local fallback compaction"
-                    )
-                return
+        logger.error(
+            "CONTEXT CRITICAL: ctf=%s, used=%d, threshold=%d - resetting with summary injection",
+            ctf_mode,
+            used_estimate,
+            threshold,
+        )
+        self._last_context_reset_ts = now
+        reset_ok = await self._reset_llm_context()
+        if not reset_ok:
+            logger.warning(
+                "Context reset unavailable; continued with local fallback compaction"
+            )
+        return

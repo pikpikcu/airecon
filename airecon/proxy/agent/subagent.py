@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any, AsyncIterator, Callable
 
 from ..config import get_config
-from ..ollama import OllamaClient
+from ..llm import LLMClient, create_llm_client
 from .constants import AgentRole
 from .models import AgentEvent
 from .session import SessionData, save_session
@@ -25,12 +25,12 @@ class SubagentConfig:
 class SubagentCoordinator:
     def __init__(
         self,
-        ollama: OllamaClient,
+        llm: LLMClient,
         engine: Any = None,
         session: SessionData | None = None,
         config: SubagentConfig | None = None,
     ):
-        self.ollama = ollama
+        self.llm = llm
         self.engine = engine
         self.session = session or SessionData(target="")
         self.config = config or SubagentConfig()
@@ -52,7 +52,7 @@ class SubagentCoordinator:
         self.session.target = target
         logger.info("Starting subagent graph on %s (recon_mode=%s)", target, recon_mode)
         graph = create_default_graph(target, prompt, recon_mode=recon_mode)
-        graph.ollama = self.ollama
+        graph.llm = self.llm
         graph.engine = self.engine
 
         # Inject parent context into the graph's shared session
@@ -98,14 +98,14 @@ class ParallelAgentRunner:
         self,
         max_concurrent: int = 3,
         engine: Any = None,
-        ollama: OllamaClient | None = None,
+        llm: LLMClient | None = None,
     ):
         self.max_concurrent = max_concurrent
         self.engine = engine
         self._active_tasks: list[asyncio.Task] = []
         self._results: dict[str, SessionData] = {}
         self._cancel_event: asyncio.Event = asyncio.Event()
-        self._ollama = ollama
+        self._llm = llm
         self._progress_callback: Any = None
         self._event_callback: Callable[[str, AgentEvent], None] | None = None
 
@@ -150,11 +150,10 @@ class ParallelAgentRunner:
         self._cancel_event.clear()
         self._results = {}
 
-        ollama = self._ollama
-        if ollama is None:
-            cfg = get_config()
-            ollama = OllamaClient(model=cfg.ollama_model)
-            await ollama._async_init()
+        llm = self._llm
+        if llm is None:
+            llm = create_llm_client()
+            await llm._async_init()
 
         semaphore = asyncio.Semaphore(self.max_concurrent)
         total = len(targets)
@@ -241,7 +240,7 @@ class ParallelAgentRunner:
         async def bounded_run(target: str) -> tuple[str, SessionData]:
             session = SessionData(target=target)
             coordinator = SubagentCoordinator(
-                ollama=ollama, engine=self.engine, session=session
+                llm=llm, engine=self.engine, session=session
             )
             async with semaphore:
                 try:

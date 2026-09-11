@@ -343,45 +343,91 @@ class _CyclePostMixin:
         "[RATE LIMIT —",
     )
 
+    # These are re-injected fresh every iteration, so older copies are pure
+    # waste — keep ONLY the latest one. Left unbounded they dominated the
+    # context (HANDOFF SUMMARY appeared 15×, ~38k tokens of duplicated system
+    # boilerplate crowding out the agent's actual recon data), which is the main
+    # reason analysis/exploit underperformed regardless of model.
+    _SINGLETON_SYSTEM_PREFIXES = (
+        "[SYSTEM: HANDOFF SUMMARY",
+        "[VISIONARY ANALYSIS",
+        "[SYSTEM: ANALYSIS —",
+        "[SYSTEM: LLM RECON VALIDATION",
+        "[SYSTEM: OUTPUT FILE MANIFEST",
+        "[SYSTEM: RESUMED SESSION",
+        "[SYSTEM: CRITICAL FINDINGS",
+        "[SYSTEM: HIGH-VALUE TARGETS",
+        "META-REASONING",
+        "<system_tool_intelligence",
+        "<target_intelligence",
+        "<system_learned_insights",
+        "<system_adaptive_recommendations",
+    )
+
     def _prune_stale_system_context(self) -> None:
-        """Remove old ephemeral system messages to control context window growth.
+        """Collapse re-injected ephemeral system messages to control context.
 
-        Keeps only the 2 most recent messages of each prunable type so the
-        LLM always has fresh context without accumulating stale snapshots.
-        Called every 10 iterations.
+        Runs EVERY iteration because the heavy families (HANDOFF SUMMARY,
+        VISIONARY ANALYSIS, EXPERT/ANALYSIS guidance, RECON VALIDATION,
+        target/tool intelligence, ...) are re-added fresh each turn — left
+        unchecked they accumulated into ~38k tokens of duplicated boilerplate
+        that crowded out the agent's actual recon data. Policy:
+          * singleton families  → keep only the latest 1 (older copies are stale)
+          * `[SKILL LOADED: X]`  → keep latest 1 PER DISTINCT skill (different
+            skills are not duplicates)
+          * snapshot families    → keep the latest 2
+        Core/registration system messages (no matched prefix) are never pruned.
         """
-        if self.state.iteration % 10 != 0:
-            return
-
-        seen: dict[str, int] = {}
+        before = len(self.state.conversation)
+        singleton_seen: set[str] = set()
+        skill_seen: set[str] = set()
+        prunable_seen: dict[str, int] = {}
         keep: list[dict] = []
 
-        # Walk in reverse so we keep the most recent entries
+        # Walk in reverse so the kept copy is always the most recent.
         for msg in reversed(self.state.conversation):
             if msg.get("role") != "system":
                 keep.append(msg)
                 continue
             content = str(msg.get("content", ""))
-            matched_prefix = next(
+
+            sp = next(
+                (p for p in self._SINGLETON_SYSTEM_PREFIXES if content.startswith(p)),
+                None,
+            )
+            if sp is not None:
+                if sp not in singleton_seen:
+                    singleton_seen.add(sp)
+                    keep.append(msg)
+                continue
+
+            if content.startswith("[SKILL LOADED"):
+                key = content.split("\n", 1)[0].strip()
+                if key not in skill_seen:
+                    skill_seen.add(key)
+                    keep.append(msg)
+                continue
+
+            mp = next(
                 (p for p in self._PRUNABLE_PREFIXES if content.startswith(p)),
                 None,
             )
-            if matched_prefix is None:
+            if mp is None:
                 keep.append(msg)
                 continue
-            count = seen.get(matched_prefix, 0)
+            count = prunable_seen.get(mp, 0)
             if count < 2:
                 keep.append(msg)
-                seen[matched_prefix] = count + 1
-            # else: drop — too old to be relevant
+                prunable_seen[mp] = count + 1
 
-        self.state.conversation = list(reversed(keep))
-        logger.debug(
-            "Context pruned at iter %d: %d → %d messages",
-            self.state.iteration,
-            len(keep) + sum(max(0, seen.get(p, 0) - 2) for p in self._PRUNABLE_PREFIXES),
-            len(self.state.conversation),
-        )
+        if len(keep) != before:
+            self.state.conversation = list(reversed(keep))
+            logger.debug(
+                "Context pruned at iter %d: %d → %d messages",
+                self.state.iteration,
+                before,
+                len(self.state.conversation),
+            )
 
     # ── Scope advisory drainer ───────────────────────────────────────────────
 

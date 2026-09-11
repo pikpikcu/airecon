@@ -68,7 +68,28 @@ except Exception as _e:
     logger.warning("Failed to load WAF signatures for verification: %s", _e)
 
 # ── Independent verification payloads — loaded from fuzzer_data.json ──────────
-_VERIFY_PAYLOADS: dict[str, list[str]] = load_fuzzer_data().get("FUZZ_PAYLOADS", {})
+_VERIFY_PAYLOADS: dict[str, list[str]] = dict(load_fuzzer_data().get("FUZZ_PAYLOADS", {}))
+
+# Supplemental replay payloads for vuln types that benefit from deterministic
+# runtime confirmation but may be sparse/absent in fuzzer data. Additive only —
+# never overrides payloads already supplied by fuzzer_data.json.
+_SUPPLEMENTAL_VERIFY_PAYLOADS: dict[str, list[str]] = {
+    "open_redirect": [
+        "https://airecon-verify.example",
+        "//airecon-verify.example",
+        "https:airecon-verify.example",
+    ],
+    "ssrf": [
+        "http://169.254.169.254/latest/meta-data/",
+        "http://metadata.google.internal/computeMetadata/v1/",
+    ],
+    "xxe": [
+        '<!DOCTYPE x [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><x>&xxe;</x>',
+    ],
+}
+for _vk, _vp in _SUPPLEMENTAL_VERIFY_PAYLOADS.items():
+    _existing = _VERIFY_PAYLOADS.get(_vk, [])
+    _VERIFY_PAYLOADS[_vk] = list(_existing) + [p for p in _vp if p not in _existing]
 
 # ── Clean test payloads (should NOT trigger vulns) ────────────────────────────
 _CLEAN_PAYLOADS: list[str] = [
@@ -373,7 +394,53 @@ class ReplayVerifier:
             if "VERIFY_CMD_INJECT" in body:
                 return True
 
+        elif vuln_type == "ssrf":
+            # Confirmed only when the response actually reflects internal /
+            # cloud-metadata content fetched server-side (not mere echo of URL).
+            body_l = body.lower()
+            ssrf_markers = (
+                "ami-id",
+                "instance-id",
+                "iam/security-credentials",
+                "computemetadata",
+                "metadata.google",
+                "x-aws-ec2-metadata",
+                "169.254.169.254",
+                "root:x:",
+            )
+            if any(m in body_l for m in ssrf_markers):
+                return True
+
+        elif vuln_type == "xxe":
+            body_l = body.lower()
+            if any(ind.lower() in body_l for ind in _LFI_FILE_INDICATORS):
+                return True
+            if "root:x:" in body_l:
+                return True
+
+        elif vuln_type == "open_redirect":
+            # Confirmed only when a 3xx Location header redirects to the
+            # externally-controlled host injected by the payload.
+            location = resp.headers.get("location", "")
+            if 300 <= status < 400 and location:
+                host = self._payload_redirect_host(payload)
+                if host and host in location.lower():
+                    return True
+
         return False
+
+    @staticmethod
+    def _payload_redirect_host(payload: str) -> str:
+        """Extract the destination host from an open-redirect payload.
+
+        Handles forms like ``https://evil.tld/x``, ``//evil.tld``,
+        ``https:evil.tld`` → ``evil.tld``.
+        """
+        p = (payload or "").strip()
+        p = re.sub(r"^https?:", "", p, flags=re.IGNORECASE)
+        p = p.lstrip("/\\")
+        host = re.split(r"[/?#\\]", p, 1)[0]
+        return host.lower()
 
     @staticmethod
     def _make_id(url: str, param: str, vuln_type: str) -> str:

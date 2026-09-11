@@ -352,7 +352,7 @@ def test_load_redirect_path_indicators_returns_nonempty():
 def test_extract_injection_points_ssrf_reclassified_to_open_redirect():
     """?url= on /api/frontendweb.aredirurl → OPEN_REDIRECT, not SSRF.
 
-    This is the real-world bug: Ollama tested cloud metadata IPs instead of
+    This is the real-world bug: LLM tested cloud metadata IPs instead of
     javascript: protocol because the param was typed as SSRF.
     """
     pts = _extract_injection_points(

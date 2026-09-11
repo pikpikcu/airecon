@@ -128,7 +128,7 @@ async def test_status_bar_updates():
     async with StatusWidgetTestApp().run_test() as pilot:
         status_bar = pilot.app.query_one("#status", StatusBar)
 
-        status_bar.set_status(ollama="online", docker="offline", exec_used=5)
+        status_bar.set_status(llm="online", docker="offline", exec_used=5)
         await pilot.pause()
 
         metrics_content = str(status_bar.query_one("#status-metrics").render())

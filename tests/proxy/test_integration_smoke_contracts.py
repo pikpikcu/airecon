@@ -1,4 +1,4 @@
-"""Lightweight integration smoke/contract tests for server, browser, and Ollama."""
+"""Lightweight integration smoke/contract tests for server, browser, and LLM."""
 
 from __future__ import annotations
 
@@ -11,21 +11,22 @@ import pytest
 
 import airecon.proxy.server as srv
 from airecon.proxy.browser import browser_action
-from airecon.proxy.ollama import OllamaClient
+from airecon.proxy.llm import LLMClient
 
 
 @pytest.mark.asyncio
 async def test_server_status_smoke_contract() -> None:
     mock_agent = MagicMock()
     mock_agent.get_stats.return_value = {"phase": "RECON"}
-    mock_ollama = MagicMock()
-    mock_ollama.health_check = AsyncMock(return_value=True)
+    mock_llm = MagicMock()
+    mock_llm.model = "test-model"
+    mock_llm.health_check = AsyncMock(return_value=True)
     mock_engine = MagicMock()
     mock_engine.is_connected = True
 
     with (
         patch.object(srv, "agent", mock_agent),
-        patch.object(srv, "ollama_client", mock_ollama),
+        patch.object(srv, "llm_client", mock_llm),
         patch.object(srv, "engine", mock_engine),
     ):
         transport = httpx.ASGITransport(app=srv.app, raise_app_exceptions=True)
@@ -37,7 +38,7 @@ async def test_server_status_smoke_contract() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "ok"
-    assert payload["ollama"]["connected"] is True
+    assert payload["llm"]["connected"] is True
     assert payload["docker"]["connected"] is True
     assert payload["agent"]["phase"] == "RECON"
 
@@ -72,75 +73,76 @@ def test_browser_execute_js_parallel_smoke_contract(mocker) -> None:
     assert result["ok"] is True
 
 
+def _contract_cfg() -> SimpleNamespace:
+    return SimpleNamespace(
+        openai_max_tokens=4096,
+        openai_temperature=0.15,
+        llm_timeout=120.0,
+        llm_chunk_timeout=30.0,
+        llm_context_window=65536,
+    )
+
+
 @pytest.mark.asyncio
-async def test_ollama_complete_contract_accepts_dict_message_content() -> None:
-    """Test OllamaClient complete() accepts dict message content."""
-    client = OllamaClient.__new__(OllamaClient)
+async def test_llm_complete_contract_accepts_openai_message_content() -> None:
+    """LLMClient.complete() parses OpenAI choices[0].message.content."""
+    client = LLMClient.__new__(LLMClient)
     client.model = "test-model"
-    client._host = "http://127.0.0.1:11434"
-    # Mock the HTTP response directly
+    client._host = "http://127.0.0.1:20128/v1"
+    client._api_key = ""
+    client._backend_name = "9router/OpenAI-compatible"
+    # Mock the OpenAI-shaped HTTP response.
     mock_response = MagicMock()
-    mock_response.json.return_value = {"message": {"content": "ok"}}
-    # Mock the httpx AsyncClient and request
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "choices": [{"message": {"content": "ok"}}]
+    }
     mock_httpx_client = AsyncMock()
     mock_httpx_client.request = AsyncMock(return_value=mock_response)
-    # Set httpx client as class-level
-    OllamaClient._httpx_client = mock_httpx_client
-    OllamaClient._initialized = True
-    OllamaClient._global_semaphore = asyncio.Semaphore(1)
+    LLMClient._httpx_client = mock_httpx_client
+    LLMClient._initialized = True
+    LLMClient._global_semaphore = asyncio.Semaphore(1)
     client._request_semaphore = asyncio.Semaphore(1)
 
     with patch(
-        "airecon.proxy.ollama.get_config",
-        return_value=SimpleNamespace(
-            ollama_keep_alive="5m",
-            ollama_timeout=120.0,
-            ollama_chunk_timeout=30.0,
-            ollama_num_ctx=65536,
-        ),
-    ), patch("airecon.proxy.ollama.get_memory_manager", return_value=MagicMock()):
+        "airecon.proxy.llm.get_config", return_value=_contract_cfg()
+    ), patch("airecon.proxy.llm.get_memory_manager", return_value=MagicMock()):
         result = await client.complete(
             messages=[{"role": "user", "content": "ping"}], max_retries=0
         )
 
     assert result == "ok"
     # Clean up
-    OllamaClient._httpx_client = None
-    OllamaClient._initialized = False
+    LLMClient._httpx_client = None
+    LLMClient._initialized = False
 
 
 @pytest.mark.asyncio
-async def test_ollama_complete_contract_rejects_invalid_response_format() -> None:
-    """Test OllamaClient complete() rejects invalid response format."""
-    client = OllamaClient.__new__(OllamaClient)
+async def test_llm_complete_contract_rejects_invalid_response_format() -> None:
+    """LLMClient.complete() rejects a response missing choices/message/content."""
+    client = LLMClient.__new__(LLMClient)
     client.model = "test-model"
-    client._host = "http://127.0.0.1:11434"
-    # Mock the HTTP response with invalid format
+    client._host = "http://127.0.0.1:20128/v1"
+    client._api_key = ""
+    client._backend_name = "9router/OpenAI-compatible"
     mock_response = MagicMock()
+    mock_response.status_code = 200
     mock_response.json.return_value = {"unexpected": "shape"}
-    # Mock the httpx AsyncClient and request
     mock_httpx_client = AsyncMock()
     mock_httpx_client.request = AsyncMock(return_value=mock_response)
-    # Set httpx client as class-level
-    OllamaClient._httpx_client = mock_httpx_client
-    OllamaClient._initialized = True
-    OllamaClient._global_semaphore = asyncio.Semaphore(1)
+    LLMClient._httpx_client = mock_httpx_client
+    LLMClient._initialized = True
+    LLMClient._global_semaphore = asyncio.Semaphore(1)
     client._request_semaphore = asyncio.Semaphore(1)
 
     with patch(
-        "airecon.proxy.ollama.get_config",
-        return_value=SimpleNamespace(
-            ollama_keep_alive="5m",
-            ollama_timeout=120.0,
-            ollama_chunk_timeout=30.0,
-            ollama_num_ctx=65536,
-        ),
-    ), patch("airecon.proxy.ollama.get_memory_manager", return_value=MagicMock()):
-        with pytest.raises(RuntimeError, match="Invalid Ollama response format"):
+        "airecon.proxy.llm.get_config", return_value=_contract_cfg()
+    ), patch("airecon.proxy.llm.get_memory_manager", return_value=MagicMock()):
+        with pytest.raises(RuntimeError, match="Invalid LLM response"):
             await client.complete(
                 messages=[{"role": "user", "content": "ping"}], max_retries=0
             )
 
     # Clean up
-    OllamaClient._httpx_client = None
-    OllamaClient._initialized = False
+    LLMClient._httpx_client = None
+    LLMClient._initialized = False

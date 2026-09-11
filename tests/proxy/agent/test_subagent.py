@@ -36,9 +36,9 @@ class TestSubagentConfig:
 
 class TestSubagentCoordinator:
     def test_init_default(self) -> None:
-        mock_ollama = MagicMock()
-        coordinator = SubagentCoordinator(ollama=mock_ollama)
-        assert coordinator.ollama is mock_ollama
+        mock_llm = MagicMock()
+        coordinator = SubagentCoordinator(llm=mock_llm)
+        assert coordinator.llm is mock_llm
         assert coordinator.engine is None
         assert coordinator.session is not None
         assert coordinator.config.max_concurrent_agents == 3
@@ -47,33 +47,33 @@ class TestSubagentCoordinator:
         assert coordinator._stop_requested is False
 
     def test_init_with_session(self) -> None:
-        mock_ollama = MagicMock()
+        mock_llm = MagicMock()
         mock_session = MagicMock()
-        coordinator = SubagentCoordinator(ollama=mock_ollama, session=mock_session)
+        coordinator = SubagentCoordinator(llm=mock_llm, session=mock_session)
         assert coordinator.session == mock_session
 
     def test_init_with_config(self) -> None:
-        mock_ollama = MagicMock()
+        mock_llm = MagicMock()
         custom_config = SubagentConfig(max_concurrent_agents=10)
-        coordinator = SubagentCoordinator(ollama=mock_ollama, config=custom_config)
+        coordinator = SubagentCoordinator(llm=mock_llm, config=custom_config)
         assert coordinator.config.max_concurrent_agents == 10
 
     def test_exploit_queue_created(self) -> None:
-        mock_ollama = MagicMock()
-        coordinator = SubagentCoordinator(ollama=mock_ollama)
+        mock_llm = MagicMock()
+        coordinator = SubagentCoordinator(llm=mock_llm)
         assert isinstance(coordinator._exploit_queue, asyncio.Queue)
 
     @pytest.mark.asyncio
     async def test_start_recon_initializes_session(self) -> None:
-        mock_ollama = MagicMock()
-        coordinator = SubagentCoordinator(ollama=mock_ollama)
+        mock_llm = MagicMock()
+        coordinator = SubagentCoordinator(llm=mock_llm)
         coordinator.session.target = "test.com"
         assert coordinator.session.target == "test.com"
 
     @pytest.mark.asyncio
     async def test_start_recon_creates_graph(self) -> None:
-        mock_ollama = MagicMock()
-        coordinator = SubagentCoordinator(ollama=mock_ollama)
+        mock_llm = MagicMock()
+        coordinator = SubagentCoordinator(llm=mock_llm)
 
         with patch(
             "airecon.proxy.agent.agent_graph.create_default_graph"
@@ -90,8 +90,8 @@ class TestSubagentCoordinator:
 
     @pytest.mark.asyncio
     async def test_start_recon_stops_on_request(self) -> None:
-        mock_ollama = MagicMock()
-        coordinator = SubagentCoordinator(ollama=mock_ollama)
+        mock_llm = MagicMock()
+        coordinator = SubagentCoordinator(llm=mock_llm)
         coordinator._stop_requested = True
 
         with patch("airecon.proxy.agent.agent_graph.create_default_graph"):
@@ -103,22 +103,22 @@ class TestSubagentCoordinator:
         assert events[0].type == "task_complete"
 
     def test_stop_sets_flag(self) -> None:
-        mock_ollama = MagicMock()
-        coordinator = SubagentCoordinator(ollama=mock_ollama)
+        mock_llm = MagicMock()
+        coordinator = SubagentCoordinator(llm=mock_llm)
         coordinator.stop()
         assert coordinator._stop_requested is True
 
     def test_session_persistence(self) -> None:
         from airecon.proxy.agent.session import SessionData
 
-        mock_ollama = MagicMock()
-        coordinator = SubagentCoordinator(ollama=mock_ollama)
+        mock_llm = MagicMock()
+        coordinator = SubagentCoordinator(llm=mock_llm)
         assert isinstance(coordinator.session, SessionData)
         assert coordinator.session.target == ""
 
     def test_session_target_update(self) -> None:
-        mock_ollama = MagicMock()
-        coordinator = SubagentCoordinator(ollama=mock_ollama)
+        mock_llm = MagicMock()
+        coordinator = SubagentCoordinator(llm=mock_llm)
         coordinator.session.target = "new-target.com"
         assert coordinator.session.target == "new-target.com"
 
@@ -126,8 +126,8 @@ class TestSubagentCoordinator:
 class TestSubagentIntegration:
     @pytest.mark.asyncio
     async def test_full_recon_flow(self) -> None:
-        mock_ollama = MagicMock()
-        coordinator = SubagentCoordinator(ollama=mock_ollama)
+        mock_llm = MagicMock()
+        coordinator = SubagentCoordinator(llm=mock_llm)
 
         with patch(
             "airecon.proxy.agent.agent_graph.create_default_graph"

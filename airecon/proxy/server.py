@@ -7,6 +7,7 @@ import ipaddress
 import json
 import logging
 import os
+import tempfile
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -15,6 +16,7 @@ from typing import Any, AsyncIterator
 from urllib.parse import urlparse
 
 import aiohttp
+import yaml
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,10 +30,10 @@ from airecon._version import __version__ as _version
 from .agent import AgentLoop
 from .agent.command_parse import extract_primary_binary
 from .agent.constants import CAIDO_BLOCKED_TOOLS
-from .config import get_config
+from .config import APP_DIR_NAME, CONFIG_FILENAME, get_config, reload_config
 from .docker import DockerEngine
 from .mcp import add_mcp_sse_server, list_mcp_servers, mcp_list_tools, set_mcp_enabled
-from .ollama import OllamaClient
+from .llm import LLMClient, create_llm_client
 
 try:
     import orjson
@@ -98,7 +100,7 @@ def _is_local_or_unspecified_host(hostname: str) -> bool:
     return bool(addr.is_loopback or addr.is_unspecified)
 
 
-ollama_client: OllamaClient | None = None
+llm_client: LLMClient | None = None
 engine: DockerEngine | None = None
 agent: AgentLoop | None = None
 
@@ -110,21 +112,23 @@ _agent_task: asyncio.Task | None = None
 _agent_failure_count: int = 0
 _agent_failure_cooldown_until: float = 0.0
 
-_HIGH_PRIORITY_PATHS = {"/api/status", "/api/progress"}
+_HIGH_PRIORITY_PATHS = {"/api/health", "/api/status", "/api/progress"}
 _request_start_time: dict[str, float] = {}
 
-_ollama_health_failures: list[bool] = []
-_ollama_health_cooldown_until: float = 0.0
-_ollama_last_ok_at: float = 0.0
-_ollama_last_known_ok: bool = False
+_llm_health_failures: list[bool] = []
+_llm_health_cooldown_until: float = 0.0
+_llm_last_ok_at: float = 0.0
+_llm_last_known_ok: bool = False
+
+_MODEL_LIST_TIMEOUT_SECONDS = 10.0
 
 
-def _ollama_status_timeout() -> float:
-    return get_config().ollama_status_timeout
+def _llm_status_timeout() -> float:
+    return get_config().llm_status_timeout
 
 
-def _ollama_sticky_ok_seconds() -> float:
-    return get_config().ollama_status_sticky_ok_seconds
+def _llm_sticky_ok_seconds() -> float:
+    return get_config().llm_status_sticky_ok_seconds
 
 
 _skills_cache: list[dict] | None = None
@@ -150,6 +154,140 @@ async def _refresh_agent_tool_registry() -> None:
             await result
     except Exception as e:
         logger.debug("Agent tool registry refresh skipped: %s", e)
+
+
+def _config_file_path() -> Path:
+    return Path.home() / APP_DIR_NAME / CONFIG_FILENAME
+
+
+def _write_runtime_config_value(key: str, value: Any) -> None:
+    config_file = _config_file_path()
+    config_file.parent.mkdir(parents=True, exist_ok=True)
+
+    current: dict[str, Any] = {}
+    if config_file.exists():
+        with config_file.open("r", encoding="utf-8") as f:
+            loaded = yaml.safe_load(f)
+            if isinstance(loaded, dict):
+                current = loaded
+
+    current[key] = value
+
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=str(config_file.parent),
+            delete=False,
+        ) as f:
+            yaml.safe_dump(current, f, indent=2, sort_keys=False)
+            temp_path = Path(f.name)
+        temp_path.replace(config_file)
+    finally:
+        if temp_path and temp_path.exists():
+            with contextlib.suppress(OSError):
+                temp_path.unlink()
+
+    reload_config()
+
+
+def _normalize_model_name(model: str) -> str:
+    value = str(model or "").strip()
+    if not value:
+        raise ValueError("Model name cannot be empty")
+    if any(ch in value for ch in ("\x00", "\r", "\n")):
+        raise ValueError("Model name cannot contain control characters")
+    return value
+
+
+def _extract_model_ids(payload: Any) -> list[str]:
+    raw_items: Any
+    if isinstance(payload, dict):
+        raw_items = payload.get("data")
+        if raw_items is None:
+            raw_items = payload.get("models")
+    else:
+        raw_items = payload
+
+    if not isinstance(raw_items, list):
+        return []
+
+    models: list[str] = []
+    seen: set[str] = set()
+    for item in raw_items:
+        model_id: Any
+        if isinstance(item, dict):
+            model_id = item.get("id") or item.get("name")
+        else:
+            model_id = item
+        model = str(model_id or "").strip()
+        if not model or model in seen:
+            continue
+        models.append(model)
+        seen.add(model)
+    return models
+
+
+async def _fetch_openai_models() -> list[str]:
+    cfg = get_config()
+    base_url = str(cfg.openai_base_url or "").rstrip("/")
+    if not base_url:
+        raise RuntimeError("openai_base_url is not configured")
+
+    headers: dict[str, str] = {}
+    api_key = str(getattr(cfg, "openai_api_key", "") or "").strip()
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    url = f"{base_url}/models"
+    timeout = aiohttp.ClientTimeout(total=_MODEL_LIST_TIMEOUT_SECONDS)
+    async with aiohttp.ClientSession(headers=headers) as session:
+        async with session.get(url, timeout=timeout) as resp:
+            text = await resp.text()
+            if resp.status >= 400:
+                detail = text.strip().replace("\n", " ")[:300]
+                raise RuntimeError(
+                    f"Model list request failed ({resp.status})"
+                    + (f": {detail}" if detail else "")
+                )
+            try:
+                payload = await resp.json(content_type=None)
+            except Exception:
+                payload = json.loads(text)
+
+    return _extract_model_ids(payload)
+
+
+async def _reload_llm_runtime(model: str | None = None) -> None:
+    global llm_client, agent
+
+    new_client = create_llm_client(model=model)
+    await new_client._async_init()
+    llm_client = new_client
+    if agent is not None:
+        setattr(agent, "llm", new_client)
+
+
+def _runtime_llm_payload() -> dict[str, Any]:
+    cfg = get_config()
+    active_model = getattr(llm_client, "model", None) or cfg.openai_model
+    supports_thinking: bool | None = None
+    if llm_client is not None:
+        supports = getattr(llm_client, "supports_thinking", None)
+        if isinstance(supports, bool):
+            supports_thinking = supports
+
+    return {
+        "current_model": active_model,
+        "openai_base_url": cfg.openai_base_url,
+        "thinking": {
+            "enabled": bool(cfg.llm_enable_thinking),
+            "mode": cfg.llm_thinking_mode,
+            "request_mode": cfg.llm_thinking_request_mode,
+            "supports_thinking": supports_thinking,
+        },
+    }
 
 
 def _get_agent_busy_lock() -> asyncio.Lock:
@@ -394,7 +532,7 @@ async def _get_skills_cache() -> list[dict]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global ollama_client, engine, agent, _mcp_prewarm_task
+    global llm_client, engine, agent, _mcp_prewarm_task
 
     if os.getenv("AIRECON_TEST_MODE") == "1":
         yield
@@ -417,20 +555,22 @@ async def lifespan(app: FastAPI):
 
     cfg = get_config()
     logger.info(f"Starting AIRecon Proxy on {cfg.proxy_host}:{cfg.proxy_port}")
-    logger.info(f"  Ollama: {cfg.ollama_url} (model: {cfg.ollama_model})")
+    logger.info(
+        f"  LLM backend: OpenAI-compatible {cfg.openai_base_url} (model: {cfg.openai_model})"
+    )
     logger.info(f"  Docker image: {cfg.docker_image}")
 
     startup_failed = False
 
     try:
-        ollama_client = OllamaClient()
-        await ollama_client._async_init()
+        llm_client = create_llm_client()
+        await llm_client._async_init()
         engine = DockerEngine()
-        agent = AgentLoop(ollama=ollama_client, engine=engine)
+        agent = AgentLoop(llm=llm_client, engine=engine)
 
-        ollama_ok = await ollama_client.health_check()
+        llm_ok = await llm_client.health_check()
         logger.info(
-            f"  Ollama status: {'✓ connected' if ollama_ok else '✗ unavailable'}"
+            f"  LLM status: {'✓ connected' if llm_ok else '✗ unavailable'}"
         )
 
         if cfg.docker_auto_build:
@@ -477,8 +617,8 @@ async def lifespan(app: FastAPI):
             with contextlib.suppress(asyncio.CancelledError):
                 await _mcp_prewarm_task
 
-        if ollama_client:
-            await ollama_client.close()
+        if llm_client:
+            await llm_client.close()
         if engine:
             await engine.close()
         logger.info("AIRecon Proxy shutdown complete")
@@ -487,7 +627,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AIRecon Proxy",
     version=_version,
-    description="Ollama + Docker Sandbox Bridge",
+    description="LLM + Docker Sandbox Bridge",
     lifespan=lifespan,
 )
 
@@ -545,6 +685,20 @@ class ShellRequest(BaseModel):
     timeout: float | None = Field(default=None, ge=1, le=7200)
 
 
+class ScopeUpdateRequest(BaseModel):
+    action: str = Field(..., min_length=1, max_length=16)  # allow|deny|mode|clear|show
+    hosts: list[str] = Field(default_factory=list)
+    mode: str | None = Field(default=None, max_length=16)
+
+
+class ModelSelectRequest(BaseModel):
+    model: str = Field(..., min_length=1, max_length=300)
+
+
+class ThinkToggleRequest(BaseModel):
+    enabled: bool
+
+
 class FileAnalyzeRequest(BaseModel):
     file_path: str = Field(..., max_length=500)
     file_content: str = Field(..., max_length=10_000_000)
@@ -570,85 +724,134 @@ class MCPToggleRequest(BaseModel):
 
 class StatusResponse(BaseModel):
     status: str
-    ollama: dict[str, Any]
+    llm: dict[str, Any]
     docker: dict[str, Any]
     agent: dict[str, Any]
+
+
+_tool_probe_cache: dict[str, Any] = {"ts": 0.0, "result": {}}
+
+
+async def _probe_sandbox_tools() -> dict[str, bool]:
+    """Probe actual CLI tool availability inside the sandbox via `which`, cached.
+
+    Returns {tool: present}. Falls back to an empty dict when the sandbox is not
+    reachable so the caller can degrade to the docker-readiness proxy.
+    """
+    import time as _time
+
+    cfg = get_config()
+    bins = [
+        b.strip()
+        for b in str(getattr(cfg, "tool_health_probe_binaries", "") or "").split(",")
+        if b.strip()
+    ]
+    if not bins or not engine:
+        return {}
+    try:
+        ttl = float(getattr(cfg, "tool_health_probe_ttl", 300.0) or 300.0)
+    except (TypeError, ValueError):
+        ttl = 300.0
+    now = _time.time()
+    if (now - float(_tool_probe_cache.get("ts", 0.0))) < ttl and _tool_probe_cache.get(
+        "result"
+    ):
+        return dict(_tool_probe_cache["result"])
+
+    result: dict[str, bool] = {}
+    try:
+        cmd = "for b in " + " ".join(bins) + "; do command -v \"$b\" >/dev/null 2>&1 && echo \"$b\"; done"
+        out = await asyncio.wait_for(
+            engine.execute_tool("execute", {"command": cmd, "timeout": 15}),
+            timeout=18,
+        )
+        stdout = ""
+        if isinstance(out, dict):
+            stdout = str(out.get("stdout", "") or "")
+        present = {line.strip() for line in stdout.splitlines() if line.strip()}
+        result = {b: (b in present) for b in bins}
+        _tool_probe_cache["ts"] = now
+        _tool_probe_cache["result"] = dict(result)
+    except Exception as e:
+        logger.debug("sandbox tool probe failed: %s", e)
+        return {}
+    return result
 
 
 @app.get("/api/status")
 @_cache_or_noop(expire=5)
 async def get_status() -> ORJSONResponse:
-    global _ollama_health_failures, _ollama_health_cooldown_until
-    global _ollama_last_ok_at, _ollama_last_known_ok
+    global _llm_health_failures, _llm_health_cooldown_until
+    global _llm_last_ok_at, _llm_last_known_ok
 
-    ollama_ok = False
+    llm_ok = False
     docker_ok = False
     searxng_ok = False
     import time
 
     current_time = time.time()
-    in_cooldown = current_time < _ollama_health_cooldown_until
-    ollama_probe_soft_fail = False
+    in_cooldown = current_time < _llm_health_cooldown_until
+    llm_probe_soft_fail = False
 
-    if not in_cooldown and ollama_client:
+    if not in_cooldown and llm_client:
         try:
-            ollama_ok = bool(
+            llm_ok = bool(
                 await asyncio.wait_for(
-                    ollama_client.health_check(),
-                    timeout=_ollama_status_timeout(),
+                    llm_client.health_check(),
+                    timeout=_llm_status_timeout(),
                 )
             )
 
-            _ollama_health_failures.append(not ollama_ok)
-            if len(_ollama_health_failures) > 10:
-                _ollama_health_failures.pop(0)
+            _llm_health_failures.append(not llm_ok)
+            if len(_llm_health_failures) > 10:
+                _llm_health_failures.pop(0)
 
-            if ollama_ok:
-                _ollama_last_ok_at = current_time
-                _ollama_last_known_ok = True
+            if llm_ok:
+                _llm_last_ok_at = current_time
+                _llm_last_known_ok = True
         except asyncio.TimeoutError:
-            ollama_probe_soft_fail = True
+            llm_probe_soft_fail = True
             logger.debug(
-                "Ollama health check timed out (%.1fs) — using sticky status fallback when available",
-                _ollama_status_timeout(),
+                "LLM health check timed out (%.1fs) — using sticky status fallback when available",
+                _llm_status_timeout(),
             )
-            _ollama_health_failures.append(True)
-            if len(_ollama_health_failures) > 10:
-                _ollama_health_failures.pop(0)
+            _llm_health_failures.append(True)
+            if len(_llm_health_failures) > 10:
+                _llm_health_failures.pop(0)
 
-            if sum(_ollama_health_failures[-10:]) >= 3:
-                _ollama_health_cooldown_until = current_time + 30.0
+            if sum(_llm_health_failures[-10:]) >= 3:
+                _llm_health_cooldown_until = current_time + 30.0
                 logger.warning(
-                    "Ollama health check circuit breaker tripped (%d/10 failures) — skipping for 30s",
-                    sum(_ollama_health_failures[-10:]),
+                    "LLM health check circuit breaker tripped (%d/10 failures) — skipping for 30s",
+                    sum(_llm_health_failures[-10:]),
                 )
         except Exception as e:
-            ollama_probe_soft_fail = True
-            logger.debug("Ollama health check failed: %s", e)
-            _ollama_health_failures.append(True)
-            if len(_ollama_health_failures) > 10:
-                _ollama_health_failures.pop(0)
+            llm_probe_soft_fail = True
+            logger.debug("LLM health check failed: %s", e)
+            _llm_health_failures.append(True)
+            if len(_llm_health_failures) > 10:
+                _llm_health_failures.pop(0)
 
-            if sum(_ollama_health_failures[-10:]) >= 3:
-                _ollama_health_cooldown_until = current_time + 30.0
+            if sum(_llm_health_failures[-10:]) >= 3:
+                _llm_health_cooldown_until = current_time + 30.0
                 logger.warning(
-                    "Ollama health check circuit breaker tripped (%d/10 failures) — skipping for 30s",
-                    sum(_ollama_health_failures[-10:]),
+                    "LLM health check circuit breaker tripped (%d/10 failures) — skipping for 30s",
+                    sum(_llm_health_failures[-10:]),
                 )
     elif in_cooldown:
-        ollama_probe_soft_fail = True
-        logger.debug("Ollama health check skipped (circuit breaker cooldown)")
+        llm_probe_soft_fail = True
+        logger.debug("LLM health check skipped (circuit breaker cooldown)")
 
     if (
-        not ollama_ok
-        and ollama_probe_soft_fail
-        and _ollama_last_known_ok
-        and (current_time - _ollama_last_ok_at) <= _ollama_sticky_ok_seconds()
+        not llm_ok
+        and llm_probe_soft_fail
+        and _llm_last_known_ok
+        and (current_time - _llm_last_ok_at) <= _llm_sticky_ok_seconds()
     ):
-        ollama_ok = True
+        llm_ok = True
         logger.debug(
-            "Using sticky Ollama online status (last_success=%.1fs ago)",
-            current_time - _ollama_last_ok_at,
+            "Using sticky LLM online status (last_success=%.1fs ago)",
+            current_time - _llm_last_ok_at,
         )
 
     try:
@@ -722,13 +925,54 @@ async def get_status() -> ORJSONResponse:
         )
         caido_stats["findings_count"] = int(caido_stats.get("findings_count", 0) or 0)
 
+    _active_model = getattr(llm_client, "model", None) or cfg.openai_model
+    _active_url = cfg.openai_base_url
+    _backend_label = "OpenAI"
+
+    # Tool/service readiness dashboard. The Docker sandbox is where the CLI tools
+    # (nuclei/nmap/ffuf/…) live, so docker_ok is their readiness proxy; browser
+    # and MCP readiness are reported from agent stats when present.
+    _browser_ready = False
+    _mcp_ready = False
+    if isinstance(agent_stats, dict):
+        _browser_ready = bool(
+            (agent_stats.get("browser") or {}).get("connected")
+            if isinstance(agent_stats.get("browser"), dict)
+            else agent_stats.get("browser_connected", False)
+        )
+        _mcp_info = agent_stats.get("mcp")
+        if isinstance(_mcp_info, dict):
+            _mcp_ready = bool(_mcp_info.get("connected") or _mcp_info.get("servers"))
+
+    # Real per-binary tool availability (cached). All-present => True; any missing
+    # => False (with per-tool detail in tools_detail). Empty dict => probe couldn't
+    # run, caller falls back to docker_ok.
+    _tool_detail = await _probe_sandbox_tools() if docker_ok else {}
+    _cli_probe = all(_tool_detail.values()) if _tool_detail else None
+
+    # Scope guard + scan profile surfaced so the operator can see active posture.
+    try:
+        from .scope import get_scope_guard
+
+        _guard = get_scope_guard()
+        _scope_block = {
+            "mode": _guard.mode,
+            "allowlist": _guard.allow,
+            "denylist": _guard.deny,
+            "audit_log_enabled": bool(getattr(cfg, "audit_log_enabled", True)),
+        }
+    except Exception as e:
+        logger.debug("scope status unavailable: %s", e)
+        _scope_block = {"mode": "unknown"}
+
     return ORJSONResponse(
         {
-            "status": "ok" if (ollama_ok and docker_ok) else "degraded",
-            "ollama": {
-                "connected": ollama_ok,
-                "url": cfg.ollama_url,
-                "model": cfg.ollama_model,
+            "status": "ok" if (llm_ok and docker_ok) else "degraded",
+            "llm": {
+                "connected": llm_ok,
+                "url": _active_url,
+                "model": _active_model,
+                "backend": _backend_label,
             },
             "docker": {
                 "connected": docker_ok,
@@ -739,7 +983,46 @@ async def get_status() -> ORJSONResponse:
                 "container": "airecon-searxng",
                 "url": cfg.searxng_url if cfg.searxng_url else "http://localhost:8080",
             },
+            "tools": {
+                "sandbox": docker_ok,
+                # Real per-binary availability probed in the sandbox (cached);
+                # falls back to the docker-readiness proxy when the probe can't run.
+                "cli_tools": (_cli_probe if _cli_probe else docker_ok),
+                "browser": _browser_ready,
+                "mcp": _mcp_ready,
+                "caido": caido_connected,
+                "searxng": searxng_ok,
+            },
+            "tools_detail": _tool_detail,
+            "scope": _scope_block,
+            "scan_profile": getattr(cfg, "scan_profile", "standard"),
             "agent": agent_stats,
+        }
+    )
+
+
+@app.get("/api/health")
+async def get_health() -> ORJSONResponse:
+    docker_ok = False
+    try:
+        if engine:
+            docker_ok = bool(engine.is_connected)
+    except Exception as e:
+        logger.debug("Docker liveness check failed: %s", e)
+
+    return ORJSONResponse(
+        {
+            "status": "ok",
+            "proxy": {"connected": True},
+            "docker": {
+                "connected": docker_ok,
+                "image": get_config().docker_image,
+            },
+            "agent": {
+                "initialized": agent is not None,
+                "busy": bool(_agent_busy),
+                "task_running": bool(_agent_task and not _agent_task.done()),
+            },
         }
     )
 
@@ -751,36 +1034,40 @@ async def get_progress():
     return JSONResponse(agent.get_progress())
 
 
-@app.get("/api/health")
-async def get_health() -> JSONResponse:
+@app.get("/api/diagnostics")
+async def get_diagnostics() -> JSONResponse:
     cfg = get_config()
+    _backend = "openai"
+    _active_model = getattr(llm_client, "model", None) or cfg.openai_model
     health_status: dict[str, Any] = {
         "status": "ok",
         "timestamp": time.time(),
         "components": {
-            "ollama": {"status": "disconnected", "details": {}},
+            "llm": {"status": "disconnected", "details": {}},
             "docker": {"status": "disconnected", "details": {}},
             "agent": {"status": "inactive", "details": {}},
         },
     }
 
-    if ollama_client:
+    if llm_client:
         try:
-            ok = await asyncio.wait_for(ollama_client.health_check(), timeout=10.0)
-            health_status["components"]["ollama"]["status"] = (
+            ok = await asyncio.wait_for(llm_client.health_check(), timeout=10.0)
+            health_status["components"]["llm"]["status"] = (
                 "connected" if ok else "error"
             )
-            health_status["components"]["ollama"]["details"] = {
-                "model": cfg.ollama_model
+            health_status["components"]["llm"]["details"] = {
+                "model": _active_model,
+                "backend": _backend,
             }
         except asyncio.TimeoutError:
-            health_status["components"]["ollama"]["status"] = "timeout"
-            health_status["components"]["ollama"]["details"] = {
-                "model": cfg.ollama_model
+            health_status["components"]["llm"]["status"] = "timeout"
+            health_status["components"]["llm"]["details"] = {
+                "model": _active_model,
+                "backend": _backend,
             }
         except Exception as e:
-            health_status["components"]["ollama"]["status"] = "error"
-            health_status["components"]["ollama"]["details"] = {"error": str(e)}
+            health_status["components"]["llm"]["status"] = "error"
+            health_status["components"]["llm"]["details"] = {"error": str(e)}
 
     if engine:
         try:
@@ -810,10 +1097,104 @@ async def get_health() -> JSONResponse:
     return JSONResponse(health_status)
 
 
+@app.get("/api/models")
+async def list_models() -> ORJSONResponse:
+    cfg = get_config()
+    try:
+        models = await _fetch_openai_models()
+    except Exception as e:
+        return ORJSONResponse(
+            {
+                "error": str(e),
+                "models": [],
+                "count": 0,
+                **_runtime_llm_payload(),
+            },
+            status_code=502,
+        )
+
+    # Cheap, no-network capability hint per model: how AIRecon would request
+    # reasoning for it in the current request_mode (auto/off/reasoning_effort/
+    # enable_thinking). Lets the UI show which models are reasoning-capable.
+    capabilities: dict[str, str] = {}
+    try:
+        from .llm import LLMClient
+
+        _req_mode = str(getattr(cfg, "llm_thinking_request_mode", "auto") or "auto")
+        _probed_unsupported = getattr(LLMClient, "_reasoning_unsupported", set()) or set()
+        for _m in models:
+            _name = str(_m)
+            # Models the runtime probe has already learned to reject reasoning
+            # params are reported as "off" regardless of the optimistic strategy.
+            if _name in _probed_unsupported:
+                capabilities[_name] = "off"
+            else:
+                capabilities[_name] = LLMClient._resolve_thinking_strategy(_name, _req_mode)
+    except Exception as e:
+        logger.debug("model capability resolution skipped: %s", e)
+
+    return ORJSONResponse(
+        {
+            "models": models,
+            "count": len(models),
+            "capabilities": capabilities,
+            "source_url": f"{str(cfg.openai_base_url or '').rstrip('/')}/models",
+            **_runtime_llm_payload(),
+        }
+    )
+
+
+@app.post("/api/models")
+async def select_model(request: ModelSelectRequest) -> ORJSONResponse:
+    try:
+        model = _normalize_model_name(request.model)
+    except ValueError as e:
+        return ORJSONResponse({"error": str(e)}, status_code=400)
+
+    try:
+        _write_runtime_config_value("openai_model", model)
+        await _reload_llm_runtime(model=model)
+    except Exception as e:
+        logger.exception("Failed to switch runtime model to %s", model)
+        return ORJSONResponse({"error": f"Failed to switch model: {e}"}, status_code=500)
+
+    return ORJSONResponse(
+        {
+            "status": "ok",
+            "model": model,
+            **_runtime_llm_payload(),
+        }
+    )
+
+
+@app.get("/api/think")
+async def get_thinking() -> ORJSONResponse:
+    return ORJSONResponse(_runtime_llm_payload()["thinking"])
+
+
+@app.post("/api/think")
+async def set_thinking(request: ThinkToggleRequest) -> ORJSONResponse:
+    try:
+        _write_runtime_config_value("llm_enable_thinking", bool(request.enabled))
+        await _reload_llm_runtime()
+    except Exception as e:
+        logger.exception("Failed to set thinking mode to %s", request.enabled)
+        return ORJSONResponse(
+            {"error": f"Failed to update thinking mode: {e}"}, status_code=500
+        )
+
+    return ORJSONResponse(
+        {
+            "status": "ok",
+            **_runtime_llm_payload()["thinking"],
+        }
+    )
+
+
 @app.get("/api/tools")
 @_cache_or_noop(expire=30)
 async def list_tools() -> ORJSONResponse:
-    if not agent or not agent._tools_ollama:
+    if not agent or not agent._tools_llm:
         if not engine:
             return ORJSONResponse(
                 {"tools": [], "error": "Agent not initialized"}, status_code=503
@@ -822,13 +1203,85 @@ async def list_tools() -> ORJSONResponse:
         return ORJSONResponse({"count": len(tools), "tools": tools})
 
     await _refresh_agent_tool_registry()
-    tools = agent._tools_ollama or []
+    tools = agent._tools_llm or []
     return ORJSONResponse(
         {
             "count": len(tools),
             "tools": tools,
         }
     )
+
+
+def _scope_state() -> dict[str, Any]:
+    cfg = get_config()
+
+    def _split(v: Any) -> list[str]:
+        return [s.strip() for s in str(v or "").split(",") if s.strip()]
+
+    return {
+        "mode": str(getattr(cfg, "scope_enforcement", "warn") or "warn"),
+        "allowlist": _split(getattr(cfg, "scope_allowlist", "")),
+        "denylist": _split(getattr(cfg, "scope_denylist", "")),
+        "audit_log_enabled": bool(getattr(cfg, "audit_log_enabled", True)),
+    }
+
+
+@app.post("/api/scope")
+async def update_scope(request: ScopeUpdateRequest) -> ORJSONResponse:
+    """Add/remove scope allow/deny hosts, set enforcement mode, clear, or show.
+
+    Persists to config.yaml and reloads so the running scope guard picks it up.
+    """
+    from .config import update_config_values
+
+    action = (request.action or "").strip().lower()
+    state = _scope_state()
+    allow = list(state["allowlist"])
+    deny = list(state["denylist"])
+    updates: dict[str, Any] = {}
+
+    if action == "allow":
+        for h in request.hosts:
+            h = str(h).strip()
+            if h and h not in allow:
+                allow.append(h)
+        updates["scope_allowlist"] = ",".join(allow)
+    elif action == "deny":
+        for h in request.hosts:
+            h = str(h).strip()
+            if h and h not in deny:
+                deny.append(h)
+        updates["scope_denylist"] = ",".join(deny)
+    elif action == "remove":
+        rm = {str(h).strip() for h in request.hosts}
+        updates["scope_allowlist"] = ",".join(h for h in allow if h not in rm)
+        updates["scope_denylist"] = ",".join(h for h in deny if h not in rm)
+    elif action == "mode":
+        mode = str(request.mode or "").strip().lower()
+        if mode not in ("off", "warn", "block"):
+            return ORJSONResponse(
+                {"success": False, "error": "mode must be off|warn|block"},
+                status_code=400,
+            )
+        updates["scope_enforcement"] = mode
+    elif action == "clear":
+        updates["scope_allowlist"] = ""
+        updates["scope_denylist"] = ""
+    elif action == "show":
+        return ORJSONResponse({"success": True, **state})
+    else:
+        return ORJSONResponse(
+            {"success": False, "error": f"unknown action '{action}' (allow|deny|remove|mode|clear|show)"},
+            status_code=400,
+        )
+
+    try:
+        await asyncio.to_thread(update_config_values, updates)
+    except Exception as e:
+        logger.error("scope update failed: %s", e)
+        return ORJSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+    return ORJSONResponse({"success": True, **_scope_state()})
 
 
 @app.post("/api/shell")
@@ -849,6 +1302,40 @@ async def shell_execute(request: ShellRequest) -> ORJSONResponse:
             },
             status_code=400,
         )
+
+    # Manual /shell commands go through the SAME scope guard + audit log as the
+    # agent's execute path, so the audit trail is complete and out-of-scope hosts
+    # are refused under scope_enforcement=block (default "warn" is non-blocking).
+    try:
+        from .scope import audit_log, get_scope_guard
+
+        _guard = get_scope_guard()
+        _in_scope, _scope_reason, _scope_host = _guard.check_command(command)
+        audit_log(
+            {
+                "type": "shell",
+                "command": command[:500],
+                "in_scope": _in_scope,
+                "host": _scope_host,
+                "reason": _scope_reason,
+                "mode": _guard.mode,
+            }
+        )
+        if not _in_scope and _guard.mode == "block":
+            return ORJSONResponse(
+                {
+                    "success": False,
+                    "blocked": True,
+                    "error": (
+                        f"Command blocked by scope guard: {_scope_reason}. "
+                        "Adjust scope_allowlist/scope_denylist or set "
+                        "scope_enforcement=warn."
+                    ),
+                },
+                status_code=400,
+            )
+    except Exception as _scope_err:
+        logger.debug("scope guard skipped for /shell: %s", _scope_err)
 
     args: dict[str, Any] = {"command": command}
     if request.timeout is not None:
@@ -1202,7 +1689,7 @@ async def _stream_agent_events(message: str, trace_id: str) -> AsyncIterator[dic
                         if idle_for >= hard_timeout:
                             raise asyncio.TimeoutError(
                                 f"agent idle {idle_for:.1f}s exceeded hard timeout {hard_timeout:.1f}s (phase={phase})"
-                            )
+                            ) from None
 
                         if (
                             idle_for >= _IDLE_SOFT_SECONDS
@@ -1323,13 +1810,13 @@ async def _stream_agent_events(message: str, trace_id: str) -> AsyncIterator[dic
                 "queue_size": queue.qsize(),
                 "agent_task_done": _agent_task.done() if _agent_task else False,
                 "engine_connected": bool(engine.is_connected) if engine else False,
-                "ollama_initialized": bool(ollama_client),
+                "llm_initialized": bool(llm_client),
                 "active_tool_count": _active_tool_count,
                 "active_tool": _last_tool_name,
                 "waiting_user_input": _waiting_user_input,
             }
             logger.error(
-                "Agent idle hard-timeout triggered: %s. This usually means Ollama/tool execution is hung with no new events.",
+                "Agent idle hard-timeout triggered: %s. This usually means LLM/tool execution is hung with no new events.",
                 _timeout_err,
             )
             _trace_chat_event(
@@ -1346,7 +1833,7 @@ async def _stream_agent_events(message: str, trace_id: str) -> AsyncIterator[dic
                         "data": json.dumps(
                             {
                                 "type": "error",
-                                "message": "Agent idle hard-timeout — check Ollama connectivity and long-running tool execution",
+                                "message": "Agent idle hard-timeout — check LLM connectivity and long-running tool execution",
                                 "reason": "agent_idle_hard_timeout",
                                 "request_id": trace_id,
                                 "snapshot": snapshot,
@@ -1480,7 +1967,10 @@ async def _stream_agent_events(message: str, trace_id: str) -> AsyncIterator[dic
                     _last_stuck_warn = now
 
                 if now - _last_heartbeat >= _SSE_HEARTBEAT_INTERVAL:
-                    yield {"event": "ping", "data": "{}"}
+                    yield {
+                        "event": "ping",
+                        "data": json.dumps({"type": "ping", "request_id": trace_id}),
+                    }
                     _last_heartbeat = now
             except StopAsyncIteration:
                 logger.debug(
@@ -1518,7 +2008,7 @@ async def _stream_agent_events(message: str, trace_id: str) -> AsyncIterator[dic
 async def file_analyze(
     request: FileAnalyzeRequest,
 ) -> EventSourceResponse | JSONResponse:
-    if not ollama_client or not engine:
+    if not llm_client or not engine:
         return ORJSONResponse({"error": "Services not ready"}, status_code=503)
 
     return EventSourceResponse(
@@ -1530,7 +2020,7 @@ async def file_analyze(
 async def _stream_file_agent_events(
     request: FileAnalyzeRequest,
 ) -> AsyncIterator[dict]:
-    mini_agent = AgentLoop(ollama_client, engine)  # type: ignore[arg-type]
+    mini_agent = AgentLoop(llm_client, engine)  # type: ignore[arg-type]
     mini_agent._is_subagent = True
     mini_agent._override_max_iterations = request.max_iterations
 
@@ -1608,6 +2098,49 @@ async def reset_conversation() -> JSONResponse:
     return ORJSONResponse({"status": "ok", "message": "Conversation reset"})
 
 
+def _build_session_recap(session: Any) -> str:
+    """Synthesize a 'previous progress' recap from durable session state so a
+    resumed session shows what was done even after the chat was compacted."""
+    try:
+        parts: list[str] = []
+        target = str(getattr(session, "target", "") or "").strip()
+        if target:
+            parts.append(f"Target: {target}")
+        phases = list(getattr(session, "completed_phases", []) or [])
+        if phases:
+            parts.append(f"Completed phases: {', '.join(str(p) for p in phases)}")
+        tools_run = list(getattr(session, "tools_run", []) or [])
+        if tools_run:
+            uniq = list(dict.fromkeys(str(t) for t in tools_run))
+            shown = ", ".join(uniq[:20])
+            more = f" (+{len(uniq) - 20} more)" if len(uniq) > 20 else ""
+            parts.append(f"Tools run ({len(uniq)}): {shown}{more}")
+        vulns = list(getattr(session, "vulnerabilities", []) or [])
+        if vulns:
+            parts.append(f"Findings recorded: {len(vulns)}")
+            for v in vulns[:8]:
+                if not isinstance(v, dict):
+                    continue
+                title = str(
+                    v.get("title") or v.get("finding") or v.get("type") or "finding"
+                )[:90]
+                sev = str(v.get("severity", "") or "").strip()
+                url = str(v.get("url") or v.get("endpoint") or "").strip()
+                line = f"  - [{sev}] {title}" if sev else f"  - {title}"
+                if url:
+                    line += f" — {url}"
+                parts.append(line)
+        scan_count = getattr(session, "scan_count", None)
+        if scan_count:
+            parts.append(f"Scans: {scan_count}")
+        if not parts:
+            return ""
+        return "↺ Previous progress (restored):\n" + "\n".join(parts)
+    except Exception as e:
+        logger.debug("session recap build failed: %s", e)
+        return ""
+
+
 @app.get("/api/history")
 async def get_history() -> JSONResponse:
     if not agent:
@@ -1624,9 +2157,38 @@ async def get_history() -> JSONResponse:
             and hasattr(saved_session, "conversation")
             and saved_session.conversation
         ):
-            messages = [
-                msg for msg in saved_session.conversation if msg.get("role") != "system"
+            # Keep chat (user/assistant/tool) messages AND the progress-bearing
+            # system messages (compression summary, pinned findings, phase
+            # context). Dropping ALL system messages made resume show almost
+            # nothing once the conversation had been compacted into summaries.
+            _progress_system_prefixes = (
+                "[SYSTEM: COMPRESSION SUMMARY",
+                "[SYSTEM: PINNED CONTEXT",
+                "[SYSTEM: CRITICAL FINDINGS",
+                "[SYSTEM: EXPLOIT PHASE",
+                "[SYSTEM: REPORT PHASE",
+            )
+            # Prefer the persistent raw-turn buffer (survives compaction) for the
+            # chat replay; fall back to whatever survived in the conversation.
+            recent_turns = list(getattr(saved_session, "recent_turns", []) or [])
+            chat_source = recent_turns if recent_turns else [
+                m for m in saved_session.conversation if m.get("role") != "system"
             ]
+            messages = list(chat_source)
+            # Always keep progress-bearing system messages from the conversation.
+            for msg in saved_session.conversation:
+                if msg.get("role") == "system" and str(
+                    msg.get("content", "")
+                ).startswith(_progress_system_prefixes):
+                    messages.append(msg)
+
+            # Prepend a recap synthesized from the durable structured state so the
+            # operator always sees prior progress (tools run, phases, findings)
+            # even when the raw chat/tool turns were compacted away.
+            recap = _build_session_recap(saved_session)
+            if recap:
+                messages = [{"role": "system", "content": recap}] + messages
+
             logger.debug(
                 f"Loaded {len(messages)} history messages from session {session_id}"
             )
@@ -1642,11 +2204,11 @@ async def get_history() -> JSONResponse:
 
 @app.post("/api/unload")
 async def unload_model_endpoint() -> JSONResponse:
-    if ollama_client:
-        await ollama_client.unload_model()
+    if llm_client:
+        await llm_client.unload_model()
         return ORJSONResponse({"status": "ok", "message": "Model unloaded"})
     return JSONResponse(
-        {"status": "error", "message": "Ollama client not initialized"}, status_code=503
+        {"status": "error", "message": "LLM client not initialized"}, status_code=503
     )
 
 

@@ -12,12 +12,12 @@ pytestmark = pytest.mark.skip(reason="output merge feature not yet implemented")
 @pytest.fixture
 def loop_for_merge(mocker, tmp_path):
     """Create AgentLoop instance with mocked dependencies for merge testing."""
-    ollama_mock = MagicMock()
-    ollama_mock.chat_stream = MagicMock()
+    llm_mock = MagicMock()
+    llm_mock.chat_stream = MagicMock()
 
     engine_mock = MagicMock()
     engine_mock.discover_tools = MagicMock(return_value=[])
-    engine_mock.tools_to_ollama_format = MagicMock(return_value=[])
+    engine_mock.tools_to_llm_format = MagicMock(return_value=[])
 
     # Mock workspace
     workspace = tmp_path / "workspace"
@@ -26,10 +26,10 @@ def loop_for_merge(mocker, tmp_path):
     with mocker.patch("airecon.proxy.agent.loop.get_config") as mock_cfg:
         cfg = MagicMock()
         cfg.agent_max_tool_iterations = 10
-        cfg.ollama_num_ctx_small = 16384
+        cfg.llm_context_window_small = 16384
         mock_cfg.return_value = cfg
 
-        agent = AgentLoop(ollama=ollama_mock, engine=engine_mock)
+        agent = AgentLoop(llm=llm_mock, engine=engine_mock)
         agent.state = MagicMock()
         agent.state.active_target = "test-target"
 

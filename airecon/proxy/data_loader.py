@@ -122,6 +122,31 @@ def load_verification_patterns() -> dict[str, Any]:
     return _load_json("verification_patterns.json")
 
 
+# ── Model refusal markers ────────────────────────────────────────────────────
+
+
+def load_refusal_markers() -> list[str]:
+    """Load lowercase substrings that flag an LLM-side refusal (declined task).
+
+    Used only to label a model refusal clearly to the user — refusals are an
+    LLM/provider behaviour, not an AIRecon bug.
+    """
+    data = _load_json("refusal_markers.json")
+    markers = data.get("markers", []) if isinstance(data, dict) else []
+    return [str(m).lower() for m in markers if str(m).strip()]
+
+
+def load_awaiting_input_markers() -> list[str]:
+    """Load lowercase substrings that flag the model asking for a new objective.
+
+    Used only to end a text-only watchdog abort gracefully (model considers the
+    step finished and is awaiting operator input) instead of erroring out.
+    """
+    data = _load_json("awaiting_input_markers.json")
+    markers = data.get("markers", []) if isinstance(data, dict) else []
+    return [str(m).lower() for m in markers if str(m).strip()]
+
+
 # ── File extensions ──────────────────────────────────────────────────────────
 
 

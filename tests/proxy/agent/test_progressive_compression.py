@@ -15,12 +15,12 @@ from airecon.proxy.agent.models import AgentState
 
 
 def _make_loop() -> "AgentLoop":  # type: ignore[name-defined]  # noqa: F821
-    """Create a minimal AgentLoop with mocked engine and ollama."""
+    """Create a minimal AgentLoop with mocked engine and llm."""
     from airecon.proxy.agent.loop import AgentLoop
 
     loop = AgentLoop.__new__(AgentLoop)
     loop.state = AgentState()
-    loop.ollama = AsyncMock()
+    loop.llm = AsyncMock()
     loop.engine = MagicMock()
     loop._session = None
     loop._ctf_mode = False
@@ -187,19 +187,19 @@ class TestAgentStateCompressionMemory:
             {"role": "user", "content": "Continue."},
         ]
 
-        ollama = AsyncMock()
-        ollama.model = "qwen3.5:122b"
-        ollama.complete = AsyncMock(
+        llm = AsyncMock()
+        llm.model = "qwen3.5:122b"
+        llm.complete = AsyncMock(
             return_value="Preserved api.example.com, /admin auth gate, pending tenant checkout comparison, ffuf auth failure noted."
         )
 
         await state.compress_with_llm(
-            ollama,
+            llm,
             keep_recent=2,
             phase="ANALYSIS",
         )
 
-        call = ollama.complete.await_args.kwargs
+        call = llm.complete.await_args.kwargs
         user_prompt = call["messages"][1]["content"]
         assert "PREVIOUS SUMMARY TO PRESERVE" in user_prompt
         assert "RECENT MISTAKES / FAILURES TO REMEMBER" in user_prompt

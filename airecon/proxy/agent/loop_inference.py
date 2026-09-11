@@ -37,7 +37,7 @@ class _InferenceMixin:
 
     @staticmethod
     def _get_thinking_mode(cfg: Any) -> str:
-        raw_mode = getattr(cfg, "ollama_thinking_mode", "adaptive")
+        raw_mode = getattr(cfg, "llm_thinking_mode", "adaptive")
         if not isinstance(raw_mode, str):
             logger.warning(
                 f"Invalid thinking mode type ({type(raw_mode)}), using 'adaptive'"
@@ -93,8 +93,8 @@ class _InferenceMixin:
         return self._fit_num_predict_to_ctx(_requested, num_ctx)
 
     def _should_use_thinking(self, cfg: Any, current_phase: Any) -> bool:
-        thinking_enabled = self._cfg_bool(cfg, "ollama_enable_thinking", True)
-        model_supports_thinking = self.ollama.supports_thinking
+        thinking_enabled = self._cfg_bool(cfg, "llm_enable_thinking", True)
+        model_supports_thinking = self.llm.supports_thinking
 
         if not (thinking_enabled and model_supports_thinking):
             logger.debug(
@@ -204,7 +204,7 @@ class _InferenceMixin:
         return should_think
 
     def _get_adaptive_num_predict(self, cfg: Any, phase: str) -> int:
-        base = self._cfg_int(cfg, "ollama_num_predict", 32768)
+        base = self._cfg_int(cfg, "openai_max_tokens", 32768)
         last_tool = self._recent_tool_names[-1] if self._recent_tool_names else ""
         stagnation_threshold = self._cfg_int(cfg, "agent_stagnation_threshold", 2)
 
@@ -229,7 +229,7 @@ class _InferenceMixin:
         return min(base, 8192)
 
     def _get_iteration_temperature(self, cfg: Any, phase: str = "") -> float:
-        base_temp = self._cfg_float(cfg, "ollama_temperature", 0.15)
+        base_temp = self._cfg_float(cfg, "openai_temperature", 0.15)
         if not self._cfg_bool(cfg, "agent_exploration_mode", True):
             return base_temp
         exploration_temp = self._cfg_float(cfg, "agent_exploration_temperature", 0.35)

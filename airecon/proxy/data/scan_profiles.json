@@ -1,0 +1,40 @@
+{
+  "_comment": [
+    "Named scan profiles. Each profile is a bundle of config-key overrides applied",
+    "as a baseline BETWEEN defaults and the user's config.yaml (user keys still win).",
+    "Only real config keys are used. 'standard' is intentionally empty so the default",
+    "behavior is unchanged. Edit/extend here without touching code."
+  ],
+  "quick": {
+    "agent_max_tool_iterations": 200,
+    "agent_exploration_mode": false,
+    "agent_recon_mode": "standard"
+  },
+  "standard": {},
+  "deep": {
+    "agent_max_tool_iterations": 1200,
+    "agent_exploration_mode": true,
+    "agent_exploration_intensity": 0.95,
+    "agent_recon_mode": "full"
+  },
+  "stealth": {
+    "agent_exploration_mode": true,
+    "agent_exploration_intensity": 0.5,
+    "llm_max_concurrent_requests": 1,
+    "allow_destructive_testing": false,
+    "agent_recon_mode": "standard"
+  },
+  "ctf": {
+    "agent_max_tool_iterations": 800,
+    "agent_exploration_mode": true,
+    "agent_exploration_intensity": 0.85,
+    "agent_recon_mode": "standard"
+  },
+  "bugbounty": {
+    "agent_max_tool_iterations": 1000,
+    "agent_exploration_mode": true,
+    "agent_exploration_intensity": 0.9,
+    "allow_destructive_testing": false,
+    "agent_recon_mode": "full"
+  }
+}

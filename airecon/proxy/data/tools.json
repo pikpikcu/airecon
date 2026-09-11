@@ -1,1277 +1,1292 @@
 [
-    {
-        "type": "function",
-        "function": {
-            "name": "execute",
-            "description": "Execute a shell command inside the Kali Linux sandbox. Common recon tools are pre-installed (nmap, sqlmap, nuclei, ffuf, subfinder, httpx, etc.). Use this for any external binary. Examples: {\"command\": \"subfinder -d example.com -o output/subdomains.txt\"} or {\"command\": \"nmap -sV -p 1-1000 target\"}. Avoid interactive tools; prefer one-shot commands. Long-running tools may be terminated if they exceed per_tool_timeout_seconds.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "command": {
-                        "type": "string",
-                        "description": "Shell command to run inside sandbox (executed via bash -c). Pipes are allowed; avoid interactive prompts."
-                    },
-                    "timeout": {
-                        "type": "number",
-                        "description": "Optional timeout in seconds (default 600). Maximum allowed is 3600."
-                    }
-                },
-                "required": [
-                    "command"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "advanced_fuzz",
-            "description": "Parameter fuzzing for web vulnerabilities. Tests for SQL injection, XSS, SSRF, IDOR, SSTI, mass assignment, and more. Can run Phase 2 advanced tests (cloud SSRF probes, GraphQL introspection, race conditions) when enabled. Target URL and parameters should be provided for meaningful results. Example: target=\"https://api.example.com/v1/users\", parameters=[\"id\",\"user_id\"], vuln_types=[\"sql_injection\",\"xss\"], method=\"GET\". Returns findings with severity, confidence, and evidence.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "target": {
-                        "type": "string",
-                        "description": "Full URL including endpoint (e.g. https://target.com/api/v1/update)"
-                    },
-                    "parameters": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "List of parameters to fuzz (e.g. ['id', 'user_id'])"
-                    },
-                    "method": {
-                        "type": "string",
-                        "description": "HTTP method (GET, POST)"
-                    },
-                    "vuln_types": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "Vuln classes: sql_injection, xss, ssrf,idor,ssti,mass_assignment,lfi,rfi,command_injection,xpath_injection,ldap_injection,log_injection,response_splitting,host_header_injection,cached_objects,csrf"
-                    },
-                    "phase2": {
-                        "type": "boolean",
-                        "description": "Enable Phase 2 advanced tests (default true). Includes SSRF to 169.254.169.254, GraphQL introspection, race condition probing."
-                    },
-                    "ssrf_params": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "List of parameters to test for SSRF with cloud metadata probes."
-                    },
-                    "graphql_endpoints": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "GraphQL endpoint paths to test (e.g., ['/graphql', '/api/graphql'])."
-                    },
-                    "race_params": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Parameters to test for race conditions."
-                    }
-                },
-                "required": [
-                    "target",
-                    "parameters"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "run_parallel_agents",
-            "description": "Launch multiple parallel AIRecon scout agents on multiple targets simultaneously, bounded by a concurrency semaphore.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "targets": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "List of targets/domains to scan in parallel."
-                    },
-                    "prompt": {
-                        "type": "string",
-                        "description": "The exact prompt/directive for the parallel agents to execute on each target."
-                    }
-                },
-                "required": [
-                    "targets",
-                    "prompt"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "browser_action",
-            "description": "Control a Playwright-powered headless Chromium browser for navigation, DOM interaction, auth flows, logs, and evidence capture. Actions: launch, goto, click, type, scroll_down/up, back/forward, new_tab/switch_tab/close_tab/list_tabs, wait, execute_js (optional parallel across open tabs), double_click, hover, press_key, save_pdf, screenshot, view_source, get_console_logs, get_network_logs, login_form, handle_totp, save_auth_state, inject_cookies, oauth_authorize, check_auth_status, wait_for_element, solve_captcha. Notes: screenshot saves a PNG under workspace_root/screenshots and returns screenshot_path; save_pdf returns pdf_saved; execute_js returns js_result (truncated to ~5000 chars) with page state.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "action": {
-                        "type": "string",
-                        "enum": [
-                            "launch",
-                            "goto",
-                            "click",
-                            "type",
-                            "scroll_down",
-                            "scroll_up",
-                            "back",
-                            "forward",
-                            "new_tab",
-                            "switch_tab",
-                            "close_tab",
-                            "wait",
-                            "execute_js",
-                            "double_click",
-                            "hover",
-                            "press_key",
-                            "save_pdf",
-                            "get_console_logs",
-                            "get_network_logs",
-                            "view_source",
-                            "close",
-                            "list_tabs",
-                            "screenshot",
-                            "login_form",
-                            "handle_totp",
-                            "save_auth_state",
-                            "inject_cookies",
-                            "oauth_authorize",
-                            "check_auth_status",
-                            "wait_for_element",
-                            "solve_captcha"
-                        ],
-                        "description": "The action to perform. Key actions: execute_js — run JS in page; use js_code; returns js_result + state; parallel=true runs across open tabs. save_pdf — export page as PDF to file_path (workspace-relative). screenshot — capture PNG to workspace_root/screenshots; returns screenshot_path. login_form — authenticate; handle_totp — TOTP; solve_captcha — auto-solve (captcha_type + sitekey). wait_for_element — dynamic wait. get_console_logs / get_network_logs — fetch logs. Full list: launch, goto, click, type, scroll_*, navigation, tab management (new_tab/switch_tab/close_tab/list_tabs), execute_js, save_pdf, screenshot, view_source, console/network logs, auth actions, wait_for_element, solve_captcha."
-                    },
-                    "url": {
-                        "type": "string",
-                        "description": "URL for launch/goto/new_tab/login_form/oauth_authorize."
-                    },
-                    "coordinate": {
-                        "type": "string",
-                        "description": "x,y coordinates for click/hover."
-                    },
-                    "text": {
-                        "type": "string",
-                        "description": "Text to type."
-                    },
-                    "tab_id": {
-                        "type": "string",
-                        "description": "Tab ID to target."
-                    },
-                    "js_code": {
-                        "type": "string",
-                        "description": "JavaScript code to execute (REQUIRED for execute_js action). Result is truncated to ~5000 chars. Examples: 'document.querySelectorAll(\"a\").length', 'localStorage.getItem(\"token\")', 'JSON.stringify(performance.getEntries())'. Result includes page state (url, title) and js_result field."
-                    },
-                    "parallel": {
-                        "type": "boolean",
-                        "description": "For execute_js only: when true, run the same JS code concurrently across ALL open tabs. Useful for gathering comparative data or extracting same info from multiple pages. Do not set tab_id when using parallel=true. Returns parallel_results dict mapping tab_id to individual results."
-                    },
-                    "duration": {
-                        "type": "number",
-                        "description": "Duration to wait in seconds."
-                    },
-                    "wait": {
-                        "type": "number",
-                        "description": "Alias for duration (seconds)."
-                    },
-                    "key": {
-                        "type": "string",
-                        "description": "Key to press."
-                    },
-                    "file_path": {
-                        "type": "string",
-                        "description": "Path to save PDF (REQUIRED for save_pdf action, should end with .pdf). Path is relative to workspace root. Saves rendered page to PDF. Returns pdf_saved path in response state."
-                    },
-                    "clear": {
-                        "type": "boolean",
-                        "description": "Clear logs after fetching."
-                    },
-                    "username": {
-                        "type": "string",
-                        "description": "Username or email for login_form action."
-                    },
-                    "password": {
-                        "type": "string",
-                        "description": "Password for login_form action."
-                    },
-                    "username_selector": {
-                        "type": "string",
-                        "description": "CSS selector for username/email field in login_form (comma-separated fallbacks). Default covers: input[type=email], input[name=username/user/email/login/mail], input[autocomplete=username/email], #username/#email/#user/#login. Override when default fails — first call view_source to find the correct selector."
-                    },
-                    "password_selector": {
-                        "type": "string",
-                        "description": "CSS selector for password field in login_form. Default: input[type='password']. Override for non-standard forms."
-                    },
-                    "submit_selector": {
-                        "type": "string",
-                        "description": "CSS selector for submit button in login_form (comma-separated fallbacks). Default tries: button[type=submit], input[type=submit], button:has-text('Log in/Login/Sign in/Continue/Next/Submit'). Override when default fails."
-                    },
-                    "totp_secret": {
-                        "type": "string",
-                        "description": "Base32 TOTP secret for handle_totp action. Generates a fresh RFC 6238 code automatically. Example: 'JBSWY3DPEHPK3PXP'. If rejected, call handle_totp again immediately (new 30s window). For 8-digit codes use totp_digits=8. For 60s period use totp_period=60."
-                    },
-                    "multi_step": {
-                        "type": "boolean",
-                        "description": "For login_form: set true for username-first flows (Google, GitHub, Microsoft, enterprise SSO) where password field only appears AFTER submitting the username. Workflow: fill username → click Next → wait for password field → fill password → submit."
-                    },
-                    "totp_digits": {
-                        "type": "integer",
-                        "description": "For handle_totp: number of digits in the TOTP code. Default: 6 (standard RFC 6238). Use 8 for enterprise apps that require 8-digit codes."
-                    },
-                    "totp_period": {
-                        "type": "integer",
-                        "description": "For handle_totp: TOTP time step in seconds. Default: 30 (standard). Use 60 for older/non-standard apps with 60-second windows."
-                    },
-                    "wait_selector": {
-                        "type": "string",
-                        "description": "For wait_for_element: CSS selector to wait for. Example: 'div.dashboard', '#logout-button', '.error-message'."
-                    },
-                    "wait_timeout": {
-                        "type": "number",
-                        "description": "For wait_for_element: timeout in seconds. Default: 10."
-                    },
-                    "wait_state": {
-                        "type": "string",
-                        "enum": [
-                            "visible",
-                            "hidden",
-                            "attached",
-                            "detached"
-                        ],
-                        "description": "For wait_for_element: element state to wait for. Default: 'visible'."
-                    },
-                    "captcha_type": {
-                        "type": "string",
-                        "enum": [
-                            "recaptcha",
-                            "hcaptcha",
-                            "cloudflare_turnstile",
-                            "unknown"
-                        ],
-                        "description": "For solve_captcha: type of CAPTCHA. Choose 'recaptcha' for Google reCAPTCHA, 'hcaptcha' for hCaptcha, 'cloudflare_turnstile' for Cloudflare Turnstile, or 'unknown' if undetermined."
-                    },
-                    "sitekey": {
-                        "type": "string",
-                        "description": "For solve_captcha: the sitekey (public key) identifier for the CAPTCHA challenge. Usually found in data-sitekey attribute or challenge parameters."
-                    },
-                    "cookies": {
-                        "type": "array",
-                        "items": {
-                            "type": "object"
-                        },
-                        "description": "Array of cookie objects [{name, value, domain, path}] for inject_cookies action."
-                    },
-                    "oauth_url": {
-                        "type": "string",
-                        "description": "Alias for url (legacy). If provided, treated as url for oauth_authorize."
-                    },
-                    "callback_prefix": {
-                        "type": "string",
-                        "description": "Expected callback URL prefix for oauth_authorize to detect redirect completion."
-                    }
-                },
-                "required": [
-                    "action"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "request_user_input",
-            "description": "Pause the agent and request user-provided input (e.g., CAPTCHA, TOTP/OTP, password, or manual confirmation) before continuing.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "prompt": {
-                        "type": "string",
-                        "description": "Clear instruction to the user explaining exactly what to enter. Example: 'Please enter the 6-digit TOTP code from your authenticator app for target.com' or 'Solve the CAPTCHA shown in screenshot_20240101_120000.png and enter the text here'."
-                    },
-                    "input_type": {
-                        "type": "string",
-                        "enum": [
-                            "text",
-                            "totp",
-                            "captcha",
-                            "password",
-                            "otp"
-                        ],
-                        "description": "Type of expected input. 'totp' = 6-digit time-based code, 'captcha' = CAPTCHA solution text, 'otp' = one-time password (SMS/email), 'password' = sensitive credential, 'text' = anything else."
-                    },
-                    "timeout_seconds": {
-                        "type": "number",
-                        "description": "How long to wait for user input in seconds. Default: 300 (5 minutes). Use shorter timeout for time-sensitive inputs like TOTP."
-                    }
-                },
-                "required": [
-                    "prompt"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "create_file",
-            "description": "Create a new file in the workspace. Overwrites if exists.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "File path relative to the workspace root (e.g. 'output/results.txt'). Do NOT include a leading 'workspace/' prefix — it is stripped automatically."
-                    },
-                    "content": {
-                        "type": "string",
-                        "description": "Content to write to the file."
-                    }
-                },
-                "required": [
-                    "path",
-                    "content"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "read_file",
-            "description": "Read a file from the workspace with optional offset/limit pagination for large outputs.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "File path relative to the workspace root (e.g. 'output/nmap.txt'). Do NOT include a leading 'workspace/' prefix — it is stripped automatically."
-                    },
-                    "offset": {
-                        "type": "integer",
-                        "description": "Line number to start reading from (0-indexed). Default: 0 (start of file)."
-                    },
-                    "limit": {
-                        "type": "integer",
-                        "description": "Maximum number of lines to return. Default: 500. Use smaller values for very large files."
-                    }
-                },
-                "required": [
-                    "path"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "list_files",
-            "description": "List files and directories in the workspace with metadata; prefer this over execute ls.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Directory path to list (relative to workspace, e.g. 'output/', 'tools/', or leave empty for the target root). Default: target root."
-                    }
-                },
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "web_search",
-            "description": "Search the web via SearXNG (DuckDuckGo fallback). Supports full Google dork operators when SearXNG is configured: site:, filetype:, inurl:, intitle:, ext:, -inurl:, cache:. Use for: (1) CVE/PoC research — 'CVE-2024-1234 exploit PoC github'; (2) Google dorking for sensitive exposure — 'site:target.com filetype:env', 'site:target.com inurl:admin', 'site:target.com ext:sql', 'intitle:index.of target.com backup'; (3) technology fingerprinting — 'site:target.com powered by X'; (4) credential/config leaks — 'site:target.com ext:yaml password', 'site:target.com filetype:log'. Combine operators for precision: 'site:target.com (filetype:pdf OR filetype:xls) confidential'. DuckDuckGo fallback supports basic operators but not wildcard site:*.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Search query. Supports dork operators: site:, filetype:, inurl:, intitle:, ext:, -inurl:. Examples: 'site:target.com filetype:env', 'inurl:admin site:target.com', 'CVE-2024-1234 PoC exploit'."
-                    },
-                    "max_results": {
-                        "type": "integer",
-                        "description": "Maximum results to return (default: 10, max: 50). Use 20-30 for thorough dorking campaigns."
-                    }
-                },
-                "required": [
-                    "query"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "create_vulnerability_report",
-            "description": "Create a FINAL confirmed vulnerability report under the active target's vulnerabilities/ directory. Call this only after you have reproducible PoC evidence and concrete impact. Never use it for hypotheses, raw observations, methodology, or todo items; use create_note for those. Required fields are: title, description, target, poc_description, and poc_script_code. The target can be a URL/host or a local file/folder reference tied to the active workspace target. Optional fields include impact, technical_analysis, remediation_steps, endpoint, method, flag, cve, suggested_fix, and the 8 CVSS base metrics.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "title": {
-                        "type": "string",
-                        "description": "Concise finding title, e.g. 'SQL Injection in /login' or 'Path Traversal in archive extractor'."
-                    },
-                    "target": {
-                        "type": "string",
-                        "description": "Affected target. Use URL/host for remote findings, or a local file/folder/workspace path when analyzing code or uploaded artifacts."
-                    },
-                    "description": {
-                        "type": "string",
-                        "description": "Clear vulnerability summary tied to observed behavior and evidence."
-                    },
-                    "poc_description": {
-                        "type": "string",
-                        "description": "How the proof of concept works and what behavior confirmed the issue."
-                    },
-                    "poc_script_code": {
-                        "type": "string",
-                        "description": "Actual exploit, payload, code snippet, or reproduction command. This is mandatory."
-                    },
-                    "impact": {
-                        "type": "string",
-                        "description": "Concrete attacker outcome: unauthorized data access, privilege change, code execution, service impact, etc."
-                    },
-                    "technical_analysis": {
-                        "type": "string",
-                        "description": "Deeper root-cause or exploitability analysis."
-                    },
-                    "remediation_steps": {
-                        "type": "string",
-                        "description": "Specific remediation guidance."
-                    },
-                    "attack_vector": {
-                        "type": "string",
-                        "description": "Optional CVSS AV metric: N, A, L, or P."
-                    },
-                    "attack_complexity": {
-                        "type": "string",
-                        "description": "Optional CVSS AC metric: L or H."
-                    },
-                    "privileges_required": {
-                        "type": "string",
-                        "description": "Optional CVSS PR metric: N, L, or H."
-                    },
-                    "user_interaction": {
-                        "type": "string",
-                        "description": "Optional CVSS UI metric: N or R."
-                    },
-                    "scope": {
-                        "type": "string",
-                        "description": "Optional CVSS S metric: U or C."
-                    },
-                    "confidentiality": {
-                        "type": "string",
-                        "description": "Optional CVSS C metric: N, L, or H."
-                    },
-                    "integrity": {
-                        "type": "string",
-                        "description": "Optional CVSS I metric: N, L, or H."
-                    },
-                    "availability": {
-                        "type": "string",
-                        "description": "Optional CVSS A metric: N, L, or H."
-                    },
-                    "endpoint": {
-                        "type": "string",
-                        "description": "Optional affected endpoint, route, or file path."
-                    },
-                    "method": {
-                        "type": "string",
-                        "description": "Optional HTTP method or protocol used in the PoC."
-                    },
-                    "cve": {
-                        "type": "string",
-                        "description": "Optional CVE ID if directly applicable."
-                    },
-                    "suggested_fix": {
-                        "type": "string",
-                        "description": "Optional code/config patch or exact fix snippet."
-                    },
-                    "flag": {
-                        "type": "string",
-                        "description": "Optional flag value if captured during CTF/exercise."
-                    }
-                },
-                "required": [
-                    "title",
-                    "target",
-                    "description",
-                    "poc_description",
-                    "poc_script_code"
-                ]
-            }
-        }
-    },
-
-    {
-        "type": "function",
-        "function": {
-            "name": "quick_fuzz",
-            "description": "Run a fast fuzz scan on a URL using common payloads (SQLi, XSS, traversal, SSTI). If params are omitted, it uses a small default list (q, search, id, page).",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "target": {
-                        "type": "string",
-                        "description": "Full URL to fuzz (e.g. https://target.com/search?q=test)"
-                    },
-                    "params": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "Optional list of parameters to fuzz. If omitted, defaults to common params: q, search, id, page."
-                    }
-                },
-                "required": [
-                    "target"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "deep_fuzz",
-            "description": "Run thorough interactive fuzzing with chain discovery after initial hints from quick_fuzz or advanced_fuzz.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "target": {
-                        "type": "string",
-                        "description": "Full URL to fuzz (e.g. https://target.com/api/v1/search)"
-                    },
-                    "params": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "Optional list of parameters to fuzz. If omitted, auto-discovers high-priority targets."
-                    },
-                    "vuln_types": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "Optional vulnerability types to test. If omitted, tests all available types."
-                    }
-                },
-                "required": [
-                    "target"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "generate_wordlist",
-            "description": "Generate a targeted payload/parameter wordlist from internal data and save it to the workspace for ffuf/feroxbuster.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "output_file": {
-                        "type": "string",
-                        "description": "Filename to save the wordlist (e.g. 'sqli_payloads.txt'). Saved inside output/ folder."
-                    },
-                    "vuln_types": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "Filter payload categories to include. Available: sql_injection, xss, command_injection, path_traversal, ssti, xxe, ssrf, idor, mass_assignment, parameter_pollution, jwt, graphql, race_condition. Omit to include ALL categories."
-                    },
-                    "max_combinations": {
-                        "type": "integer",
-                        "description": "Cap on parameter name mutation variants appended after payloads (default: 300, max: 1000)."
-                    }
-                },
-                "required": [
-                    "output_file"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "caido_list_requests",
-            "description": "Query Caido history with HTTPQL filters and return request IDs, methods, paths, and statuses.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "filter": {
-                        "type": "string",
-                        "description": "HTTPQL filter expression (e.g. 'host.eq:\"target.com\" and method.eq:\"POST\"')"
-                    },
-                    "limit": {
-                        "type": "integer",
-                        "description": "Max results to return (default 50, max 200)"
-                    }
-                },
-                "required": [
-                    "filter"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "caido_send_request",
-            "description": "Replay or modify HTTP requests through Caido using a request_id or raw HTTP payload.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "request_id": {
-                        "type": "string",
-                        "description": "Caido request ID to replay (from caido_list_requests). Optional if raw_http provided."
-                    },
-                    "raw_http": {
-                        "type": "string",
-                        "description": "Full plain-text raw HTTP request to send (e.g. 'GET /api/user?id=2 HTTP/1.1\\r\\nHost: target.com\\r\\n\\r\\n'). Do NOT base64-encode — executor handles encoding."
-                    },
-                    "host": {
-                        "type": "string",
-                        "description": "Target host (e.g. 'target.com')"
-                    },
-                    "port": {
-                        "type": "integer",
-                        "description": "Target port (default: 443 for TLS, 80 for plain)"
-                    },
-                    "is_tls": {
-                        "type": "boolean",
-                        "description": "Use TLS/HTTPS (default: true)"
-                    }
-                },
-                "required": [
-                    "host"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "caido_automate",
-            "description": "Start a Caido Automate fuzzing session using §FUZZ§ markers to define injection points.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "raw_http": {
-                        "type": "string",
-                        "description": "Full raw HTTP request with §FUZZ§ markers at injection points (e.g. 'POST /login HTTP/1.1\\r\\nHost: target.com\\r\\n\\r\\n{\"user\":\"admin\",\"pass\":\"§FUZZ§\"}')"
-                    },
-                    "host": {
-                        "type": "string",
-                        "description": "Target host (e.g. 'target.com')"
-                    },
-                    "port": {
-                        "type": "integer",
-                        "description": "Target port (default: 443)"
-                    },
-                    "is_tls": {
-                        "type": "boolean",
-                        "description": "Use TLS/HTTPS (default: true)"
-                    },
-                    "payloads": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "minItems": 1,
-                        "maxItems": 10000,
-                        "description": "List of payloads to inject at §FUZZ§ positions (e.g. [\"' OR 1=1--\", \"admin\", \"<script>alert(1)</script>\"])"
-                    },
-                    "workers": {
-                        "type": "integer",
-                        "description": "Concurrent workers for fuzzing (default: 10)"
-                    }
-                },
-                "required": [
-                    "raw_http",
-                    "host",
-                    "payloads"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "caido_get_findings",
-            "description": "Fetch findings/annotations stored in Caido, including title, description, reporter, and related request data.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "limit": {
-                        "type": "integer",
-                        "description": "Max findings to return (default: 50)"
-                    }
-                },
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "caido_intercept",
-            "description": "Control Caido intercept: check status, pause/resume capture, list queued messages, forward (optionally modified), or drop.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "action": {
-                        "type": "string",
-                        "enum": [
-                            "status",
-                            "pause",
-                            "resume",
-                            "list",
-                            "forward",
-                            "drop"
-                        ],
-                        "description": "Action to perform: status (get intercept state: RUNNING/PAUSED), pause (stop capturing), resume (start capturing), list (show queued messages), forward (forward a queued message), drop (discard a queued message)"
-                    },
-                    "message_id": {
-                        "type": "string",
-                        "description": "ID of the intercept message to forward or drop (from list action)"
-                    },
-                    "raw_http": {
-                        "type": "string",
-                        "description": "Modified raw HTTP request to send when forwarding (optional — omit to forward unchanged)"
-                    }
-                },
-                "required": [
-                    "action"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "caido_sitemap",
-            "description": "Browse Caido sitemap nodes (hosts/directories/endpoints); pass parent_id to drill into child nodes.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "parent_id": {
-                        "type": "string",
-                        "description": "Node ID to list children for (from a previous caido_sitemap call). Omit to list root hosts."
-                    }
-                },
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "caido_set_scope",
-            "description": "Set Caido proxy scope to focus capture and testing on specific hosts. Allowlisted hosts are captured; denylisted hosts are excluded.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "allowlist": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "Hosts to include in scope (e.g. ['target.com', '*.target.com', 'api.target.com'])"
-                    },
-                    "denylist": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "Hosts to exclude from scope (optional)"
-                    }
-                },
-                "required": [
-                    "allowlist"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "spawn_agent",
-            "description": "Spawn a specialist subagent for deep investigation of a specific finding/endpoint and merge results back to the session.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "task": {
-                        "type": "string",
-                        "description": "Specific investigation task for the subagent (e.g. 'Test /api/login for SQL injection, parameter: username')"
-                    },
-                    "target": {
-                        "type": "string",
-                        "description": "Target URL or domain for the subagent (e.g. 'https://target.com/api/login')"
-                    },
-                    "specialist": {
-                        "type": "string",
-                        "enum": [
-                            "sqli",
-                            "xss",
-                            "ssrf",
-                            "lfi",
-                            "recon",
-                            "exploit",
-                            "analyzer",
-                            "reporter"
-                        ],
-                        "description": "Type of specialist: sqli (SQL injection), xss (Cross-site scripting), ssrf (Server-side request forgery), lfi (Local file inclusion/path traversal), recon (Reconnaissance only), exploit (General exploitation), analyzer (Code/config analysis), reporter (Report generation)"
-                    }
-                },
-                "required": [
-                    "task",
-                    "target",
-                    "specialist"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "schemathesis_fuzz",
-            "description": "Run schema-aware API fuzzing with Schemathesis against OpenAPI/Swagger specs to detect crashes, auth bypasses, and injections.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "schema_url": {
-                        "type": "string",
-                        "description": "URL or file path to the OpenAPI/Swagger spec (e.g. 'https://target.com/openapi.json', 'https://target.com/swagger.yaml', '/workspace/target/output/api-spec.json'). Common paths to try: /openapi.json, /swagger.json, /api/docs, /api-docs, /v1/openapi.json."
-                    },
-                    "base_url": {
-                        "type": "string",
-                        "description": "Base URL of the API to test against (e.g. 'https://target.com/api/v1'). If omitted, uses the server URL from the schema."
-                    },
-                    "auth_header": {
-                        "type": "string",
-                        "description": "Authorization header value to include in every request (e.g. 'Bearer eyJhbGc...' or 'Basic dXNlcjpwYXNz'). Use session auth_tokens if available."
-                    },
-                    "checks": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "Schemathesis checks to run. Available: not_a_server_error, status_code_conformance, content_type_conformance, response_schema_conformance, negative_data_rejection. Omit for all checks."
-                    },
-                    "max_examples": {
-                        "type": "integer",
-                        "description": "Max test cases per endpoint (default: 30). Increase for deeper coverage, decrease for speed."
-                    }
-                },
-                "required": [
-                    "schema_url"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "code_analysis",
-            "description": "Run Semgrep static analysis on source code in the sandbox to detect security issues (OWASP/CWE patterns).",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "target_path": {
-                        "type": "string",
-                        "description": "Path to scan inside the workspace (e.g. 'output/repo-clone', '.' for current target root). Relative to the target workspace directory."
-                    },
-                    "rules": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "Semgrep rule sets to use (e.g. ['p/security-audit', 'p/owasp-top-ten']). If omitted, uses all default security rules."
-                    },
-                    "languages": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "Filter to specific languages (e.g. ['python', 'javascript', 'java']). If omitted, scans all detected languages."
-                    }
-                },
-                "required": [
-                    "target_path"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "http_observe",
-            "description": "Send raw HTTP requests from the sandbox and return full response details; supports baseline save and response diffing.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "url": {
-                        "type": "string",
-                        "description": "Full URL to request (e.g. https://example.com/api/user?id=1)"
-                    },
-                    "method": {
-                        "type": "string",
-                        "description": "HTTP method: GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS. Default: GET"
-                    },
-                    "headers": {
-                        "type": "object",
-                        "description": "Additional request headers as key-value pairs (e.g. {\"Authorization\": \"Bearer token\", \"Content-Type\": \"application/json\"})"
-                    },
-                    "body": {
-                        "type": "string",
-                        "description": "Request body for POST/PUT/PATCH requests"
-                    },
-                    "save_as": {
-                        "type": "string",
-                        "description": "Name to store this response as a baseline (e.g. 'baseline_normal', 'baseline_auth'). Stored in session for later diffing."
-                    },
-                    "compare_to": {
-                        "type": "string",
-                        "description": "Name of a previously saved baseline to diff against. Shows what changed between the baseline and this response."
-                    },
-                    "follow_redirects": {
-                        "type": "boolean",
-                        "description": "Whether to follow redirects. Default: false — keep false to observe Location header for redirect-based vulnerabilities (open redirect, SSRF via redirect)."
-                    },
-                    "timeout": {
-                        "type": "integer",
-                        "description": "Request timeout in seconds. Default: 15"
-                    }
-                },
-                "required": [
-                    "url"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "record_hypothesis",
-            "description": "Create or update a security hypothesis with status (pending/testing/confirmed/refuted) and optional evidence.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "claim": {
-                        "type": "string",
-                        "description": "The security hypothesis claim. E.g. 'The /api/user endpoint is vulnerable to IDOR via user_id parameter' or 'Login form is vulnerable to SQLi in username field'."
-                    },
-                    "test_plan": {
-                        "type": "string",
-                        "description": "What specific test/payload to run to verify or refute this hypothesis. E.g. 'Send GET /api/user?user_id=2 while authenticated as user 1. If response returns user 2 data, IDOR is confirmed.'"
-                    },
-                    "status": {
-                        "type": "string",
-                        "enum": [
-                            "pending",
-                            "testing",
-                            "confirmed",
-                            "refuted"
-                        ],
-                        "description": "Current status: 'pending'=not yet tested, 'testing'=currently verifying, 'confirmed'=vulnerability proven, 'refuted'=tested and not vulnerable."
-                    },
-                    "hypothesis_id": {
-                        "type": "string",
-                        "description": "ID of an existing hypothesis to update (e.g. 'h_5_2'). If omitted, a new hypothesis is created."
-                    },
-                    "evidence": {
-                        "type": "string",
-                        "description": "Evidence supporting or refuting the hypothesis. Include HTTP response snippets, diff results, or tool output that proves/disproves the claim."
-                    },
-                    "phase": {
-                        "type": "string",
-                        "description": "Pipeline phase where this hypothesis was formed (RECON/ANALYSIS/EXPLOIT). Default: current phase."
-                    }
-                },
-                "required": [
-                    "claim",
-                    "status"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "load_skill",
-            "description": "Dynamically load a skill file (vulnerability methodology, technology guide, or protocol deep-dive) into the current session. Skills enhance analysis capabilities for specific contexts. Use when you discover a new technology or vulnerability type that requires specialized knowledge.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "skills": {
-                        "type": "string",
-                        "description": "Comma-separated list of skill file paths relative to the skills/ directory. Examples: 'vulnerabilities/sql_injection.md', 'technologies/react.md', 'vulnerabilities/xss.md'. Use read_file to explore available skills if uncertain. Paths are case-sensitive."
-                    },
-                    "replace_skills": {
-                        "type": "boolean",
-                        "description": "If true, replace currently loaded skills with these ones. If false (default), add to existing skills. Use replace=true when switching to a completely different assessment type."
-                    }
-                },
-                "required": [
-                    "skills"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "python_session",
-            "description": "Start or continue a lightweight Python exec/eval session with state persistence. Variables, functions, and imports persist across calls. Pre-imports: os, sys, json, re, base64, hashlib, random, datetime, pathlib.Path, urllib.parse helpers; requests is available only if installed. Session auto-terminates after 300s of inactivity. Parameters: session_id (optional, defaults to 'default'), code (required). Returns: output (stdout/stderr), result (last expression if any), session_state (variables dict), error (if any).",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "session_id": {
-                        "type": "string",
-                        "description": "Optional session identifier. Use named sessions to maintain separate contexts. Default: 'default'."
-                    },
-                    "code": {
-                        "type": "string",
-                        "description": "Python code to execute. Can be multiple lines. Use print() for output. Last expression's value is returned in 'result'. Example: \"import requests; resp = requests.get('https://example.com'); print(resp.status_code); resp.text[:200]\""
-                    }
-                },
-                "required": [
-                    "code"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "edit_file",
-            "description": "Perform a surgical text replacement in a file using exact string matching. More precise than create_file for code modifications. Specify old_str to replace exactly that content with new_str. The match must be exact (including whitespace). If multiple matches exist, only the first is replaced. Returns: success, lines_modified, total_occurrences, preview. Use read_file first to get exact content. Parameters: path (required, workspace-relative), old_str (required), new_str (required). Example: {\"path\": \"output/exploit.py\", \"old_str\": \"def exploit():\\n    return 0\", \"new_str\": \"def exploit():\\n    # Fixed\\n    return 1\"}",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Path to file (workspace-relative, e.g., \"output/script.py\"). Must exist."
-                    },
-                    "old_str": {
-                        "type": "string",
-                        "description": "Exact text to find and replace. Must match exactly including newlines and indentation. Get the exact string by reading the file first."
-                    },
-                    "new_str": {
-                        "type": "string",
-                        "description": "Replacement text. Should maintain consistent formatting."
-                    }
-                },
-                "required": [
-                    "path",
-                    "old_str",
-                    "new_str"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "think",
-            "description": "Explicitly record a reasoning step, hypothesis, or analytical thought. This captures your thinking process for later review, debugging, and transparency. Thoughts are saved to the session and written to output/thoughts_<phase>.log. Use this before critical decisions, when forming hypotheses, or when analyzing complex evidence. Parameters: thought (required) - your reasoning, hypothesis, or analysis. Optional: category (\"hypothesis\", \"analysis\", \"decision\", \"question\", \"insight\"), confidence (0.0-1.0 if supported). Example: {\"thought\": \"The SQL error suggests a MySQL backend. Union-based injection likely works. Testing with '1' UNION SELECT NULL--\"}",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "thought": {
-                        "type": "string",
-                        "description": "Your reasoning, hypothesis, or analytical observation. Be specific and actionable."
-                    },
-                    "category": {
-                        "type": "string",
-                        "enum": [
-                            "hypothesis",
-                            "analysis",
-                            "decision",
-                            "question",
-                            "insight",
-                            "observation"
-                        ],
-                        "description": "Type of thought. Helps organize thinking trace."
-                    },
-                    "confidence": {
-                        "type": "number",
-                        "description": "Confidence level 0.0-1.0 if your thought is a hypothesis or analysis. Optional."
-                    }
-                },
-                "required": [
-                    "thought"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "create_note",
-            "description": "Create a structured WORKING note with category, tags, and optional metadata. Notes persist across the session and can be searched later. Categories: vulnerability, methodology, finding, question, plan, observation, todo. Use notes for hypotheses, raw observations, task tracking, methodology, and draft evidence. Notes are NOT final vulnerability reports and do NOT write to vulnerabilities/; use create_vulnerability_report for confirmed findings. Parameters: category (required), title (required), content (required), tags (optional array). Returns note_id and status. Example: {\"category\": \"vulnerability\", \"title\": \"SQL Injection in login\", \"content\": \"Union-based SQLi on username field...\", \"tags\": [\"sqli\", \"critical\", \"auth\"]}",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "category": {
-                        "type": "string",
-                        "enum": [
-                            "vulnerability",
-                            "methodology",
-                            "finding",
-                            "question",
-                            "plan",
-                            "observation",
-                            "todo"
-                        ],
-                        "description": "Note category for organization."
-                    },
-                    "title": {
-                        "type": "string",
-                        "description": "Concise title summarizing the note."
-                    },
-                    "content": {
-                        "type": "string",
-                        "description": "Full note content. Supports markdown formatting."
-                    },
-                    "tags": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "Optional tags for filtering (e.g., [\"sqli\", \"critical\", \"auth\"])."
-                    }
-                },
-                "required": [
-                    "category",
-                    "title",
-                    "content"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "list_notes",
-            "description": "List all notes with optional filtering by category or tag. Returns note metadata (id, title, category, tags, created_at) without full content. Use to browse or find notes. Parameters: category (optional filter), tag (optional filter), limit (default 50). Example: {\"category\": \"vulnerability\"} or {\"tag\": \"critical\"}",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "category": {
-                        "type": "string",
-                        "description": "Filter by category."
-                    },
-                    "tag": {
-                        "type": "string",
-                        "description": "Filter by tag."
-                    },
-                    "limit": {
-                        "type": "integer",
-                        "description": "Maximum number of notes to return (default 50)."
-                    }
-                }
-           }
-       }
-   },
-    {
-        "type": "function",
-        "function": {
-            "name": "export_notes_wiki",
-            "description": "Export all notes to a single wiki markdown file for documentation. Useful at the end of engagement to generate organized report appendix. Parameters: output_path (optional, default: current target's \"notes/wiki.md\"). Returns export status and path. Example: {\"output_path\": \"output/wiki_notes.md\"}",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "output_path": {
-                        "type": "string",
-                        "description": "Output file path (workspace-relative). Default: current target's notes/wiki.md"
-                    }
-                }
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "search_notes",
-            "description": "Full-text search across all notes. Returns matching notes with snippets showing context. Parameters: query (required string), category (optional filter), limit (default 20). Use to find specific information previously documented. Example: {\"query\": \"SQL injection\", \"category\": \"vulnerability\"}",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Search query (case-insensitive substring match)."
-                    },
-                    "category": {
-                        "type": "string",
-                        "description": "Optional category filter."
-                    },
-                    "limit": {
-                        "type": "integer",
-                        "description": "Maximum results (default 20)."
-                    }
-                },
-                "required": [
-                    "query"
-                ]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "dataset_search",
-            "description": "Search the local security knowledge base (installed via airecon-dataset). Retrieves relevant Q&A pairs, techniques, payloads, and CVE knowledge from locally indexed HuggingFace datasets. Use when you need reference knowledge about: specific vulnerability classes, exploit techniques, CVE details, CTF techniques, bug bounty methodology, or payload examples. Example: {\"query\": \"SQL injection bypass WAF\", \"limit\": 3} or {\"query\": \"SSRF cloud metadata\", \"category\": \"vulnerability\"}. Returns matching knowledge entries from the local dataset index.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Search query — use specific technical terms for best results (e.g. 'XSS filter bypass', 'IDOR privilege escalation', 'CVE-2021-44228 log4j')."
-                    },
-                    "category": {
-                        "type": "string",
-                        "description": "Optional filter by category: 'vulnerability', 'bug-bounty', 'ctf', 'pentest', 'general', 'custom'."
-                    },
-                    "limit": {
-                        "type": "integer",
-                        "description": "Maximum results to return (default 5, max 20)."
-                    }
-                },
-                "required": ["query"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "read_note",
-            "description": "Retrieve the full content of a specific note by ID. Use after listing or searching notes to view complete details. Parameters: note_id (required). Returns the full note object with title, category, content, tags, timestamps. Example: {\"note_id\": \"note_20260406_143022_a1b2c3d4\"}",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "note_id": {
-                        "type": "string",
-                        "description": "Unique note identifier (from create_note, list_notes, or search_notes results)."
-                    }
-                },
-                "required": [
-                    "note_id"
-                ]
-            }
-        }
+  {
+    "type": "function",
+    "function": {
+      "name": "execute",
+      "description": "Execute a shell command inside the Kali Linux sandbox. Common recon tools are pre-installed (nmap, sqlmap, nuclei, ffuf, subfinder, httpx, etc.). Use this for any external binary. Examples: {\"command\": \"subfinder -d example.com -o output/subdomains.txt\"} or {\"command\": \"nmap -sV -p 1-1000 target\"}. Avoid interactive tools; prefer one-shot commands. Long-running tools may be terminated if they exceed per_tool_timeout_seconds.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "Shell command to run inside sandbox (executed via bash -c). Pipes are allowed; avoid interactive prompts."
+          },
+          "timeout": {
+            "type": "number",
+            "description": "Optional timeout in seconds (default 600). Maximum allowed is 3600."
+          }
+        },
+        "required": [
+          "command"
+        ]
+      }
     }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "advanced_fuzz",
+      "description": "Parameter fuzzing for web vulnerabilities. Tests for SQL injection, XSS, SSRF, IDOR, SSTI, mass assignment, and more. Can run Phase 2 advanced tests (cloud SSRF probes, GraphQL introspection, race conditions) when enabled. Target URL and parameters should be provided for meaningful results. Example: target=\"https://api.example.com/v1/users\", parameters=[\"id\",\"user_id\"], vuln_types=[\"sql_injection\",\"xss\"], method=\"GET\". Returns findings with severity, confidence, and evidence.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Full URL including endpoint (e.g. https://target.com/api/v1/update)"
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of parameters to fuzz (e.g. ['id', 'user_id'])"
+          },
+          "method": {
+            "type": "string",
+            "description": "HTTP method (GET, POST)"
+          },
+          "vuln_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Vuln classes: sql_injection, xss, ssrf,idor,ssti,mass_assignment,lfi,rfi,command_injection,xpath_injection,ldap_injection,log_injection,response_splitting,host_header_injection,cached_objects,csrf"
+          },
+          "phase2": {
+            "type": "boolean",
+            "description": "Enable Phase 2 advanced tests (default true). Includes SSRF to 169.254.169.254, GraphQL introspection, race condition probing."
+          },
+          "ssrf_params": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of parameters to test for SSRF with cloud metadata probes."
+          },
+          "graphql_endpoints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "GraphQL endpoint paths to test (e.g., ['/graphql', '/api/graphql'])."
+          },
+          "race_params": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Parameters to test for race conditions."
+          }
+        },
+        "required": [
+          "target",
+          "parameters"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "run_parallel_agents",
+      "description": "Launch multiple parallel AIRecon scout agents on multiple targets simultaneously, bounded by a concurrency semaphore.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of targets/domains to scan in parallel."
+          },
+          "prompt": {
+            "type": "string",
+            "description": "The exact prompt/directive for the parallel agents to execute on each target."
+          }
+        },
+        "required": [
+          "targets",
+          "prompt"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "browser_action",
+      "description": "Control a Playwright-powered headless Chromium browser for navigation, DOM interaction, auth flows, logs, and evidence capture. Actions: launch, goto, click, type, scroll_down/up, back/forward, new_tab/switch_tab/close_tab/list_tabs, wait, execute_js (optional parallel across open tabs), double_click, hover, press_key, save_pdf, screenshot, view_source, get_console_logs, get_network_logs, login_form, handle_totp, save_auth_state, inject_cookies, oauth_authorize, check_auth_status, wait_for_element, solve_captcha. Notes: screenshot saves a PNG under workspace_root/screenshots and returns screenshot_path; save_pdf returns pdf_saved; execute_js returns js_result (truncated to ~5000 chars) with page state.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "launch",
+              "goto",
+              "click",
+              "type",
+              "scroll_down",
+              "scroll_up",
+              "back",
+              "forward",
+              "new_tab",
+              "switch_tab",
+              "close_tab",
+              "wait",
+              "execute_js",
+              "double_click",
+              "hover",
+              "press_key",
+              "save_pdf",
+              "get_console_logs",
+              "get_network_logs",
+              "view_source",
+              "close",
+              "list_tabs",
+              "screenshot",
+              "login_form",
+              "handle_totp",
+              "save_auth_state",
+              "inject_cookies",
+              "oauth_authorize",
+              "check_auth_status",
+              "wait_for_element",
+              "solve_captcha"
+            ],
+            "description": "The action to perform. Key actions: execute_js — run JS in page; use js_code; returns js_result + state; parallel=true runs across open tabs. save_pdf — export page as PDF to file_path (workspace-relative). screenshot — capture PNG to workspace_root/screenshots; returns screenshot_path. login_form — authenticate; handle_totp — TOTP; solve_captcha — auto-solve (captcha_type + sitekey). wait_for_element — dynamic wait. get_console_logs / get_network_logs — fetch logs. Full list: launch, goto, click, type, scroll_*, navigation, tab management (new_tab/switch_tab/close_tab/list_tabs), execute_js, save_pdf, screenshot, view_source, console/network logs, auth actions, wait_for_element, solve_captcha."
+          },
+          "url": {
+            "type": "string",
+            "description": "URL for launch/goto/new_tab/login_form/oauth_authorize."
+          },
+          "coordinate": {
+            "type": "string",
+            "description": "x,y coordinates for click/hover."
+          },
+          "text": {
+            "type": "string",
+            "description": "Text to type."
+          },
+          "tab_id": {
+            "type": "string",
+            "description": "Tab ID to target."
+          },
+          "js_code": {
+            "type": "string",
+            "description": "JavaScript code to execute (REQUIRED for execute_js action). Result is truncated to ~5000 chars. Examples: 'document.querySelectorAll(\"a\").length', 'localStorage.getItem(\"token\")', 'JSON.stringify(performance.getEntries())'. Result includes page state (url, title) and js_result field."
+          },
+          "parallel": {
+            "type": "boolean",
+            "description": "For execute_js only: when true, run the same JS code concurrently across ALL open tabs. Useful for gathering comparative data or extracting same info from multiple pages. Do not set tab_id when using parallel=true. Returns parallel_results dict mapping tab_id to individual results."
+          },
+          "duration": {
+            "type": "number",
+            "description": "Duration to wait in seconds."
+          },
+          "wait": {
+            "type": "number",
+            "description": "Alias for duration (seconds)."
+          },
+          "key": {
+            "type": "string",
+            "description": "Key to press."
+          },
+          "file_path": {
+            "type": "string",
+            "description": "Path to save PDF (REQUIRED for save_pdf action, should end with .pdf). Path is relative to workspace root. Saves rendered page to PDF. Returns pdf_saved path in response state."
+          },
+          "clear": {
+            "type": "boolean",
+            "description": "Clear logs after fetching."
+          },
+          "username": {
+            "type": "string",
+            "description": "Username or email for login_form action."
+          },
+          "password": {
+            "type": "string",
+            "description": "Password for login_form action."
+          },
+          "username_selector": {
+            "type": "string",
+            "description": "CSS selector for username/email field in login_form (comma-separated fallbacks). Default covers: input[type=email], input[name=username/user/email/login/mail], input[autocomplete=username/email], #username/#email/#user/#login. Override when default fails — first call view_source to find the correct selector."
+          },
+          "password_selector": {
+            "type": "string",
+            "description": "CSS selector for password field in login_form. Default: input[type='password']. Override for non-standard forms."
+          },
+          "submit_selector": {
+            "type": "string",
+            "description": "CSS selector for submit button in login_form (comma-separated fallbacks). Default tries: button[type=submit], input[type=submit], button:has-text('Log in/Login/Sign in/Continue/Next/Submit'). Override when default fails."
+          },
+          "totp_secret": {
+            "type": "string",
+            "description": "Base32 TOTP secret for handle_totp action. Generates a fresh RFC 6238 code automatically. Example: 'JBSWY3DPEHPK3PXP'. If rejected, call handle_totp again immediately (new 30s window). For 8-digit codes use totp_digits=8. For 60s period use totp_period=60."
+          },
+          "multi_step": {
+            "type": "boolean",
+            "description": "For login_form: set true for username-first flows (Google, GitHub, Microsoft, enterprise SSO) where password field only appears AFTER submitting the username. Workflow: fill username → click Next → wait for password field → fill password → submit."
+          },
+          "totp_digits": {
+            "type": "integer",
+            "description": "For handle_totp: number of digits in the TOTP code. Default: 6 (standard RFC 6238). Use 8 for enterprise apps that require 8-digit codes."
+          },
+          "totp_period": {
+            "type": "integer",
+            "description": "For handle_totp: TOTP time step in seconds. Default: 30 (standard). Use 60 for older/non-standard apps with 60-second windows."
+          },
+          "wait_selector": {
+            "type": "string",
+            "description": "For wait_for_element: CSS selector to wait for. Example: 'div.dashboard', '#logout-button', '.error-message'."
+          },
+          "wait_timeout": {
+            "type": "number",
+            "description": "For wait_for_element: timeout in seconds. Default: 10."
+          },
+          "wait_state": {
+            "type": "string",
+            "enum": [
+              "visible",
+              "hidden",
+              "attached",
+              "detached"
+            ],
+            "description": "For wait_for_element: element state to wait for. Default: 'visible'."
+          },
+          "captcha_type": {
+            "type": "string",
+            "enum": [
+              "recaptcha",
+              "hcaptcha",
+              "cloudflare_turnstile",
+              "unknown"
+            ],
+            "description": "For solve_captcha: type of CAPTCHA. Choose 'recaptcha' for Google reCAPTCHA, 'hcaptcha' for hCaptcha, 'cloudflare_turnstile' for Cloudflare Turnstile, or 'unknown' if undetermined."
+          },
+          "sitekey": {
+            "type": "string",
+            "description": "For solve_captcha: the sitekey (public key) identifier for the CAPTCHA challenge. Usually found in data-sitekey attribute or challenge parameters."
+          },
+          "cookies": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Array of cookie objects [{name, value, domain, path}] for inject_cookies action."
+          },
+          "oauth_url": {
+            "type": "string",
+            "description": "Alias for url (legacy). If provided, treated as url for oauth_authorize."
+          },
+          "callback_prefix": {
+            "type": "string",
+            "description": "Expected callback URL prefix for oauth_authorize to detect redirect completion."
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "request_user_input",
+      "description": "Pause the agent and request user-provided input (e.g., CAPTCHA, TOTP/OTP, password, or manual confirmation) before continuing.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "description": "Clear instruction to the user explaining exactly what to enter. Example: 'Please enter the 6-digit TOTP code from your authenticator app for target.com' or 'Solve the CAPTCHA shown in screenshot_20240101_120000.png and enter the text here'."
+          },
+          "input_type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "totp",
+              "captcha",
+              "password",
+              "otp"
+            ],
+            "description": "Type of expected input. 'totp' = 6-digit time-based code, 'captcha' = CAPTCHA solution text, 'otp' = one-time password (SMS/email), 'password' = sensitive credential, 'text' = anything else."
+          },
+          "timeout_seconds": {
+            "type": "number",
+            "description": "How long to wait for user input in seconds. Default: 300 (5 minutes). Use shorter timeout for time-sensitive inputs like TOTP."
+          }
+        },
+        "required": [
+          "prompt"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "create_file",
+      "description": "Create a new file in the workspace. Overwrites if exists.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "File path relative to the workspace root (e.g. 'output/results.txt'). Do NOT include a leading 'workspace/' prefix — it is stripped automatically."
+          },
+          "content": {
+            "type": "string",
+            "description": "Content to write to the file."
+          }
+        },
+        "required": [
+          "path",
+          "content"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "read_file",
+      "description": "Read a file from the workspace with optional offset/limit pagination for large outputs.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "File path relative to the workspace root (e.g. 'output/nmap.txt'). Do NOT include a leading 'workspace/' prefix — it is stripped automatically."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Line number to start reading from (0-indexed). Default: 0 (start of file)."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of lines to return. Default: 500. Use smaller values for very large files."
+          }
+        },
+        "required": [
+          "path"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_files",
+      "description": "List files and directories in the workspace with metadata; prefer this over execute ls.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Directory path to list (relative to workspace, e.g. 'output/', 'tools/', or leave empty for the target root). Default: target root."
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "web_search",
+      "description": "Search the web via SearXNG (DuckDuckGo fallback). Supports full Google dork operators when SearXNG is configured: site:, filetype:, inurl:, intitle:, ext:, -inurl:, cache:. Use for: (1) CVE/PoC research — 'CVE-2024-1234 exploit PoC github'; (2) Google dorking for sensitive exposure — 'site:target.com filetype:env', 'site:target.com inurl:admin', 'site:target.com ext:sql', 'intitle:index.of target.com backup'; (3) technology fingerprinting — 'site:target.com powered by X'; (4) credential/config leaks — 'site:target.com ext:yaml password', 'site:target.com filetype:log'. Combine operators for precision: 'site:target.com (filetype:pdf OR filetype:xls) confidential'. DuckDuckGo fallback supports basic operators but not wildcard site:*.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query. Supports dork operators: site:, filetype:, inurl:, intitle:, ext:, -inurl:. Examples: 'site:target.com filetype:env', 'inurl:admin site:target.com', 'CVE-2024-1234 PoC exploit'."
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Maximum results to return (default: 10, max: 50). Use 20-30 for thorough dorking campaigns."
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "create_vulnerability_report",
+      "description": "Create a FINAL confirmed vulnerability report under the active target's vulnerabilities/ directory. Call this only after you have reproducible PoC evidence and concrete impact. Never use it for hypotheses, raw observations, methodology, or todo items; use create_note for those. Required fields are: title, description, target, poc_description, and poc_script_code. The target can be a URL/host or a local file/folder reference tied to the active workspace target. Optional fields include impact, technical_analysis, remediation_steps, endpoint, method, flag, cve, suggested_fix, and the 8 CVSS base metrics.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Concise finding title, e.g. 'SQL Injection in /login' or 'Path Traversal in archive extractor'."
+          },
+          "target": {
+            "type": "string",
+            "description": "Affected target. Use URL/host for remote findings, or a local file/folder/workspace path when analyzing code or uploaded artifacts."
+          },
+          "description": {
+            "type": "string",
+            "description": "Clear vulnerability summary tied to observed behavior and evidence."
+          },
+          "poc_description": {
+            "type": "string",
+            "description": "How the proof of concept works and what behavior confirmed the issue."
+          },
+          "poc_script_code": {
+            "type": "string",
+            "description": "Actual exploit, payload, code snippet, or reproduction command. This is mandatory."
+          },
+          "impact": {
+            "type": "string",
+            "description": "Concrete attacker outcome: unauthorized data access, privilege change, code execution, service impact, etc."
+          },
+          "technical_analysis": {
+            "type": "string",
+            "description": "Deeper root-cause or exploitability analysis."
+          },
+          "remediation_steps": {
+            "type": "string",
+            "description": "Specific remediation guidance."
+          },
+          "attack_vector": {
+            "type": "string",
+            "description": "Optional CVSS AV metric: N, A, L, or P."
+          },
+          "attack_complexity": {
+            "type": "string",
+            "description": "Optional CVSS AC metric: L or H."
+          },
+          "privileges_required": {
+            "type": "string",
+            "description": "Optional CVSS PR metric: N, L, or H."
+          },
+          "user_interaction": {
+            "type": "string",
+            "description": "Optional CVSS UI metric: N or R."
+          },
+          "scope": {
+            "type": "string",
+            "description": "Optional CVSS S metric: U or C."
+          },
+          "confidentiality": {
+            "type": "string",
+            "description": "Optional CVSS C metric: N, L, or H."
+          },
+          "integrity": {
+            "type": "string",
+            "description": "Optional CVSS I metric: N, L, or H."
+          },
+          "availability": {
+            "type": "string",
+            "description": "Optional CVSS A metric: N, L, or H."
+          },
+          "endpoint": {
+            "type": "string",
+            "description": "Optional affected endpoint, route, or file path."
+          },
+          "method": {
+            "type": "string",
+            "description": "Optional HTTP method or protocol used in the PoC."
+          },
+          "cve": {
+            "type": "string",
+            "description": "Optional CVE ID if directly applicable."
+          },
+          "suggested_fix": {
+            "type": "string",
+            "description": "Optional code/config patch or exact fix snippet."
+          },
+          "flag": {
+            "type": "string",
+            "description": "Optional flag value if captured during CTF/exercise."
+          },
+          "cwe": {
+            "type": "string",
+            "description": "Optional CWE identifier(s) for the weakness class, e.g. 'CWE-79' or 'CWE-89'."
+          },
+          "owasp": {
+            "type": "string",
+            "description": "Optional OWASP category, e.g. 'A03:2021-Injection' or 'API1:2023 - BOLA'."
+          }
+        },
+        "required": [
+          "title",
+          "target",
+          "description",
+          "poc_description",
+          "poc_script_code"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "quick_fuzz",
+      "description": "Run a fast fuzz scan on a URL using common payloads (SQLi, XSS, traversal, SSTI). If params are omitted, it uses a small default list (q, search, id, page).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Full URL to fuzz (e.g. https://target.com/search?q=test)"
+          },
+          "params": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of parameters to fuzz. If omitted, defaults to common params: q, search, id, page."
+          }
+        },
+        "required": [
+          "target"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "deep_fuzz",
+      "description": "Run thorough interactive fuzzing with chain discovery after initial hints from quick_fuzz or advanced_fuzz.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Full URL to fuzz (e.g. https://target.com/api/v1/search)"
+          },
+          "params": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of parameters to fuzz. If omitted, auto-discovers high-priority targets."
+          },
+          "vuln_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional vulnerability types to test. If omitted, tests all available types."
+          }
+        },
+        "required": [
+          "target"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "generate_wordlist",
+      "description": "Generate a targeted payload/parameter wordlist from internal data and save it to the workspace for ffuf/feroxbuster.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "output_file": {
+            "type": "string",
+            "description": "Filename to save the wordlist (e.g. 'sqli_payloads.txt'). Saved inside output/ folder."
+          },
+          "vuln_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter payload categories to include. Available: sql_injection, xss, command_injection, path_traversal, ssti, xxe, ssrf, idor, mass_assignment, parameter_pollution, jwt, graphql, race_condition. Omit to include ALL categories."
+          },
+          "max_combinations": {
+            "type": "integer",
+            "description": "Cap on parameter name mutation variants appended after payloads (default: 300, max: 1000)."
+          }
+        },
+        "required": [
+          "output_file"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "caido_list_requests",
+      "description": "Query Caido history with HTTPQL filters and return request IDs, methods, paths, and statuses.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "filter": {
+            "type": "string",
+            "description": "HTTPQL filter expression (e.g. 'host.eq:\"target.com\" and method.eq:\"POST\"')"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Max results to return (default 50, max 200)"
+          }
+        },
+        "required": [
+          "filter"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "caido_send_request",
+      "description": "Replay or modify HTTP requests through Caido using a request_id or raw HTTP payload.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "description": "Caido request ID to replay (from caido_list_requests). Optional if raw_http provided."
+          },
+          "raw_http": {
+            "type": "string",
+            "description": "Full plain-text raw HTTP request to send (e.g. 'GET /api/user?id=2 HTTP/1.1\\r\\nHost: target.com\\r\\n\\r\\n'). Do NOT base64-encode — executor handles encoding."
+          },
+          "host": {
+            "type": "string",
+            "description": "Target host (e.g. 'target.com')"
+          },
+          "port": {
+            "type": "integer",
+            "description": "Target port (default: 443 for TLS, 80 for plain)"
+          },
+          "is_tls": {
+            "type": "boolean",
+            "description": "Use TLS/HTTPS (default: true)"
+          }
+        },
+        "required": [
+          "host"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "caido_automate",
+      "description": "Start a Caido Automate fuzzing session using §FUZZ§ markers to define injection points.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "raw_http": {
+            "type": "string",
+            "description": "Full raw HTTP request with §FUZZ§ markers at injection points (e.g. 'POST /login HTTP/1.1\\r\\nHost: target.com\\r\\n\\r\\n{\"user\":\"admin\",\"pass\":\"§FUZZ§\"}')"
+          },
+          "host": {
+            "type": "string",
+            "description": "Target host (e.g. 'target.com')"
+          },
+          "port": {
+            "type": "integer",
+            "description": "Target port (default: 443)"
+          },
+          "is_tls": {
+            "type": "boolean",
+            "description": "Use TLS/HTTPS (default: true)"
+          },
+          "payloads": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 10000,
+            "description": "List of payloads to inject at §FUZZ§ positions (e.g. [\"' OR 1=1--\", \"admin\", \"<script>alert(1)</script>\"])"
+          },
+          "workers": {
+            "type": "integer",
+            "description": "Concurrent workers for fuzzing (default: 10)"
+          }
+        },
+        "required": [
+          "raw_http",
+          "host",
+          "payloads"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "caido_get_findings",
+      "description": "Fetch findings/annotations stored in Caido, including title, description, reporter, and related request data.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Max findings to return (default: 50)"
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "caido_intercept",
+      "description": "Control Caido intercept: check status, pause/resume capture, list queued messages, forward (optionally modified), or drop.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "status",
+              "pause",
+              "resume",
+              "list",
+              "forward",
+              "drop"
+            ],
+            "description": "Action to perform: status (get intercept state: RUNNING/PAUSED), pause (stop capturing), resume (start capturing), list (show queued messages), forward (forward a queued message), drop (discard a queued message)"
+          },
+          "message_id": {
+            "type": "string",
+            "description": "ID of the intercept message to forward or drop (from list action)"
+          },
+          "raw_http": {
+            "type": "string",
+            "description": "Modified raw HTTP request to send when forwarding (optional — omit to forward unchanged)"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "caido_sitemap",
+      "description": "Browse Caido sitemap nodes (hosts/directories/endpoints); pass parent_id to drill into child nodes.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "parent_id": {
+            "type": "string",
+            "description": "Node ID to list children for (from a previous caido_sitemap call). Omit to list root hosts."
+          }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "caido_set_scope",
+      "description": "Set Caido proxy scope to focus capture and testing on specific hosts. Allowlisted hosts are captured; denylisted hosts are excluded.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "allowlist": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Hosts to include in scope (e.g. ['target.com', '*.target.com', 'api.target.com'])"
+          },
+          "denylist": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Hosts to exclude from scope (optional)"
+          }
+        },
+        "required": [
+          "allowlist"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "spawn_agent",
+      "description": "Spawn a specialist subagent for deep investigation of a specific finding/endpoint and merge results back to the session.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "Specific investigation task for the subagent (e.g. 'Test /api/login for SQL injection, parameter: username')"
+          },
+          "target": {
+            "type": "string",
+            "description": "Target URL or domain for the subagent (e.g. 'https://target.com/api/login')"
+          },
+          "specialist": {
+            "type": "string",
+            "enum": [
+              "sqli",
+              "xss",
+              "ssrf",
+              "lfi",
+              "recon",
+              "exploit",
+              "analyzer",
+              "reporter"
+            ],
+            "description": "Type of specialist: sqli (SQL injection), xss (Cross-site scripting), ssrf (Server-side request forgery), lfi (Local file inclusion/path traversal), recon (Reconnaissance only), exploit (General exploitation), analyzer (Code/config analysis), reporter (Report generation)"
+          }
+        },
+        "required": [
+          "task",
+          "target",
+          "specialist"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "schemathesis_fuzz",
+      "description": "Run schema-aware API fuzzing with Schemathesis against OpenAPI/Swagger specs to detect crashes, auth bypasses, and injections.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "schema_url": {
+            "type": "string",
+            "description": "URL or file path to the OpenAPI/Swagger spec (e.g. 'https://target.com/openapi.json', 'https://target.com/swagger.yaml', '/workspace/target/output/api-spec.json'). Common paths to try: /openapi.json, /swagger.json, /api/docs, /api-docs, /v1/openapi.json."
+          },
+          "base_url": {
+            "type": "string",
+            "description": "Base URL of the API to test against (e.g. 'https://target.com/api/v1'). If omitted, uses the server URL from the schema."
+          },
+          "auth_header": {
+            "type": "string",
+            "description": "Authorization header value to include in every request (e.g. 'Bearer eyJhbGc...' or 'Basic dXNlcjpwYXNz'). Use session auth_tokens if available."
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Schemathesis checks to run. Available: not_a_server_error, status_code_conformance, content_type_conformance, response_schema_conformance, negative_data_rejection. Omit for all checks."
+          },
+          "max_examples": {
+            "type": "integer",
+            "description": "Max test cases per endpoint (default: 30). Increase for deeper coverage, decrease for speed."
+          }
+        },
+        "required": [
+          "schema_url"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "code_analysis",
+      "description": "Run Semgrep static analysis on source code in the sandbox to detect security issues (OWASP/CWE patterns).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target_path": {
+            "type": "string",
+            "description": "Path to scan inside the workspace (e.g. 'output/repo-clone', '.' for current target root). Relative to the target workspace directory."
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Semgrep rule sets to use (e.g. ['p/security-audit', 'p/owasp-top-ten']). If omitted, uses all default security rules."
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter to specific languages (e.g. ['python', 'javascript', 'java']). If omitted, scans all detected languages."
+          }
+        },
+        "required": [
+          "target_path"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "http_observe",
+      "description": "Send raw HTTP requests from the sandbox and return full response details; supports baseline save and response diffing.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Full URL to request (e.g. https://example.com/api/user?id=1)"
+          },
+          "method": {
+            "type": "string",
+            "description": "HTTP method: GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS. Default: GET"
+          },
+          "headers": {
+            "type": "object",
+            "description": "Additional request headers as key-value pairs (e.g. {\"Authorization\": \"Bearer token\", \"Content-Type\": \"application/json\"})"
+          },
+          "body": {
+            "type": "string",
+            "description": "Request body for POST/PUT/PATCH requests"
+          },
+          "save_as": {
+            "type": "string",
+            "description": "Name to store this response as a baseline (e.g. 'baseline_normal', 'baseline_auth'). Stored in session for later diffing."
+          },
+          "compare_to": {
+            "type": "string",
+            "description": "Name of a previously saved baseline to diff against. Shows what changed between the baseline and this response."
+          },
+          "follow_redirects": {
+            "type": "boolean",
+            "description": "Whether to follow redirects. Default: false — keep false to observe Location header for redirect-based vulnerabilities (open redirect, SSRF via redirect)."
+          },
+          "timeout": {
+            "type": "integer",
+            "description": "Request timeout in seconds. Default: 15"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "record_hypothesis",
+      "description": "Create or update a security hypothesis with status (pending/testing/confirmed/refuted) and optional evidence.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "claim": {
+            "type": "string",
+            "description": "The security hypothesis claim. E.g. 'The /api/user endpoint is vulnerable to IDOR via user_id parameter' or 'Login form is vulnerable to SQLi in username field'."
+          },
+          "test_plan": {
+            "type": "string",
+            "description": "What specific test/payload to run to verify or refute this hypothesis. E.g. 'Send GET /api/user?user_id=2 while authenticated as user 1. If response returns user 2 data, IDOR is confirmed.'"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "testing",
+              "confirmed",
+              "refuted"
+            ],
+            "description": "Current status: 'pending'=not yet tested, 'testing'=currently verifying, 'confirmed'=vulnerability proven, 'refuted'=tested and not vulnerable."
+          },
+          "hypothesis_id": {
+            "type": "string",
+            "description": "ID of an existing hypothesis to update (e.g. 'h_5_2'). If omitted, a new hypothesis is created."
+          },
+          "evidence": {
+            "type": "string",
+            "description": "Evidence supporting or refuting the hypothesis. Include HTTP response snippets, diff results, or tool output that proves/disproves the claim."
+          },
+          "phase": {
+            "type": "string",
+            "description": "Pipeline phase where this hypothesis was formed (RECON/ANALYSIS/EXPLOIT). Default: current phase."
+          }
+        },
+        "required": [
+          "claim",
+          "status"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "load_skill",
+      "description": "Dynamically load a skill file (vulnerability methodology, technology guide, or protocol deep-dive) into the current session. Skills enhance analysis capabilities for specific contexts. Use when you discover a new technology or vulnerability type that requires specialized knowledge.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "skills": {
+            "type": "string",
+            "description": "Comma-separated list of skill file paths relative to the skills/ directory. Examples: 'vulnerabilities/sql_injection.md', 'technologies/react.md', 'vulnerabilities/xss.md'. Use read_file to explore available skills if uncertain. Paths are case-sensitive."
+          },
+          "replace_skills": {
+            "type": "boolean",
+            "description": "If true, replace currently loaded skills with these ones. If false (default), add to existing skills. Use replace=true when switching to a completely different assessment type."
+          }
+        },
+        "required": [
+          "skills"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "python_session",
+      "description": "Start or continue a lightweight Python exec/eval session with state persistence. Variables, functions, and imports persist across calls. Pre-imports: os, sys, json, re, base64, hashlib, random, datetime, pathlib.Path, urllib.parse helpers; requests is available only if installed. Session auto-terminates after 300s of inactivity. Parameters: session_id (optional, defaults to 'default'), code (required). Returns: output (stdout/stderr), result (last expression if any), session_state (variables dict), error (if any).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Optional session identifier. Use named sessions to maintain separate contexts. Default: 'default'."
+          },
+          "code": {
+            "type": "string",
+            "description": "Python code to execute. Can be multiple lines. Use print() for output. Last expression's value is returned in 'result'. Example: \"import requests; resp = requests.get('https://example.com'); print(resp.status_code); resp.text[:200]\""
+          }
+        },
+        "required": [
+          "code"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "edit_file",
+      "description": "Perform a surgical text replacement in a file using exact string matching. More precise than create_file for code modifications. Specify old_str to replace exactly that content with new_str. The match must be exact (including whitespace). If multiple matches exist, only the first is replaced. Returns: success, lines_modified, total_occurrences, preview. Use read_file first to get exact content. Parameters: path (required, workspace-relative), old_str (required), new_str (required). Example: {\"path\": \"output/exploit.py\", \"old_str\": \"def exploit():\\n    return 0\", \"new_str\": \"def exploit():\\n    # Fixed\\n    return 1\"}",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path to file (workspace-relative, e.g., \"output/script.py\"). Must exist."
+          },
+          "old_str": {
+            "type": "string",
+            "description": "Exact text to find and replace. Must match exactly including newlines and indentation. Get the exact string by reading the file first."
+          },
+          "new_str": {
+            "type": "string",
+            "description": "Replacement text. Should maintain consistent formatting."
+          }
+        },
+        "required": [
+          "path",
+          "old_str",
+          "new_str"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "think",
+      "description": "Explicitly record a reasoning step, hypothesis, or analytical thought. This captures your thinking process for later review, debugging, and transparency. Thoughts are saved to the session and written to output/thoughts_<phase>.log. Use this before critical decisions, when forming hypotheses, or when analyzing complex evidence. Parameters: thought (required) - your reasoning, hypothesis, or analysis. Optional: category (\"hypothesis\", \"analysis\", \"decision\", \"question\", \"insight\"), confidence (0.0-1.0 if supported). Example: {\"thought\": \"The SQL error suggests a MySQL backend. Union-based injection likely works. Testing with '1' UNION SELECT NULL--\"}",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "thought": {
+            "type": "string",
+            "description": "Your reasoning, hypothesis, or analytical observation. Be specific and actionable."
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "hypothesis",
+              "analysis",
+              "decision",
+              "question",
+              "insight",
+              "observation"
+            ],
+            "description": "Type of thought. Helps organize thinking trace."
+          },
+          "confidence": {
+            "type": "number",
+            "description": "Confidence level 0.0-1.0 if your thought is a hypothesis or analysis. Optional."
+          }
+        },
+        "required": [
+          "thought"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "create_note",
+      "description": "Create a structured WORKING note with category, tags, and optional metadata. Notes persist across the session and can be searched later. Categories: vulnerability, methodology, finding, question, plan, observation, todo. Use notes for hypotheses, raw observations, task tracking, methodology, and draft evidence. Notes are NOT final vulnerability reports and do NOT write to vulnerabilities/; use create_vulnerability_report for confirmed findings. Parameters: category (required), title (required), content (required), tags (optional array). Returns note_id and status. Example: {\"category\": \"vulnerability\", \"title\": \"SQL Injection in login\", \"content\": \"Union-based SQLi on username field...\", \"tags\": [\"sqli\", \"critical\", \"auth\"]}",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "vulnerability",
+              "methodology",
+              "finding",
+              "question",
+              "plan",
+              "observation",
+              "todo"
+            ],
+            "description": "Note category for organization."
+          },
+          "title": {
+            "type": "string",
+            "description": "Concise title summarizing the note."
+          },
+          "content": {
+            "type": "string",
+            "description": "Full note content. Supports markdown formatting."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional tags for filtering (e.g., [\"sqli\", \"critical\", \"auth\"])."
+          }
+        },
+        "required": [
+          "category",
+          "title",
+          "content"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "list_notes",
+      "description": "List all notes with optional filtering by category or tag. Returns note metadata (id, title, category, tags, created_at) without full content. Use to browse or find notes. Parameters: category (optional filter), tag (optional filter), limit (default 50). Example: {\"category\": \"vulnerability\"} or {\"tag\": \"critical\"}",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "description": "Filter by category."
+          },
+          "tag": {
+            "type": "string",
+            "description": "Filter by tag."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of notes to return (default 50)."
+          }
+        }
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "export_notes_wiki",
+      "description": "Export all notes to a single wiki markdown file for documentation. Useful at the end of engagement to generate organized report appendix. Parameters: output_path (optional, default: current target's \"notes/wiki.md\"). Returns export status and path. Example: {\"output_path\": \"output/wiki_notes.md\"}",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "output_path": {
+            "type": "string",
+            "description": "Output file path (workspace-relative). Default: current target's notes/wiki.md"
+          }
+        }
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "search_notes",
+      "description": "Full-text search across all notes. Returns matching notes with snippets showing context. Parameters: query (required string), category (optional filter), limit (default 20). Use to find specific information previously documented. Example: {\"query\": \"SQL injection\", \"category\": \"vulnerability\"}",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query (case-insensitive substring match)."
+          },
+          "category": {
+            "type": "string",
+            "description": "Optional category filter."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum results (default 20)."
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "dataset_search",
+      "description": "Search the local security knowledge base (installed via airecon-dataset). Retrieves relevant Q&A pairs, techniques, payloads, and CVE knowledge from locally indexed HuggingFace datasets. Use when you need reference knowledge about: specific vulnerability classes, exploit techniques, CVE details, CTF techniques, bug bounty methodology, or payload examples. Example: {\"query\": \"SQL injection bypass WAF\", \"limit\": 3} or {\"query\": \"SSRF cloud metadata\", \"category\": \"vulnerability\"}. Returns matching knowledge entries from the local dataset index.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query — use specific technical terms for best results (e.g. 'XSS filter bypass', 'IDOR privilege escalation', 'CVE-2021-44228 log4j')."
+          },
+          "category": {
+            "type": "string",
+            "description": "Optional filter by category: 'vulnerability', 'bug-bounty', 'ctf', 'pentest', 'general', 'custom'."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum results to return (default 5, max 20)."
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "read_note",
+      "description": "Retrieve the full content of a specific note by ID. Use after listing or searching notes to view complete details. Parameters: note_id (required). Returns the full note object with title, category, content, tags, timestamps. Example: {\"note_id\": \"note_20260406_143022_a1b2c3d4\"}",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "note_id": {
+            "type": "string",
+            "description": "Unique note identifier (from create_note, list_notes, or search_notes results)."
+          }
+        },
+        "required": [
+          "note_id"
+        ]
+      }
+    }
+  }
 ]

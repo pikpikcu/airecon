@@ -12,12 +12,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
-class TestE2EAgentLoopWithMockedOllama:
-    """Full agent loop with mocked Ollama but real AgentLoop, Session, Pipeline."""
+class TestE2EAgentLoopWithMockedLLM:
+    """Full agent loop with mocked LLM but real AgentLoop, Session, Pipeline."""
 
     @pytest.mark.asyncio
     async def test_agent_loop_runs_and_completes(self):
-        """Agent should complete a full iteration cycle with mocked Ollama."""
+        """Agent should complete a full iteration cycle with mocked LLM."""
         from airecon.proxy.agent.pipeline import PipelineEngine
         from airecon.proxy.agent.session import SessionData
 
@@ -25,7 +25,7 @@ class TestE2EAgentLoopWithMockedOllama:
         PipelineEngine(session)  # Verify engine initializes without error
 
         # Build a minimal mock agent with real state/session/pipeline
-        mock_ollama = MagicMock()
+        mock_llm = MagicMock()
 
         async def mock_stream(**kwargs):
             yield json.dumps(
@@ -35,15 +35,15 @@ class TestE2EAgentLoopWithMockedOllama:
                 {"message": {"content": "Found open ports."}, "done": True}
             )
 
-        mock_ollama.chat_stream = mock_stream
-        mock_ollama.model = "llama3"
-        mock_ollama._supports_thinking = False
-        mock_ollama._supports_native_tools = False
+        mock_llm.chat_stream = mock_stream
+        mock_llm.model = "llama3"
+        mock_llm._supports_thinking = False
+        mock_llm._supports_native_tools = False
 
         mock_engine = MagicMock()
         mock_engine.discover_tools = asyncio.Future()
         mock_engine.discover_tools.set_result([])
-        mock_engine.tools_to_ollama_format = MagicMock(return_value=[])
+        mock_engine.tools_to_llm_format = MagicMock(return_value=[])
 
         # Verify session persists data
         from airecon.proxy.agent.session import save_session, load_session
@@ -87,16 +87,16 @@ class TestE2EConfigHotReload:
         from airecon.proxy.config import Config
 
         config_file = tmp_path / "config.yaml"
-        config_file.write_text("ollama_model: llama3\n")
+        config_file.write_text("openai_model: llama3\n")
 
         cfg1 = Config.load(str(config_file))
-        assert cfg1.ollama_model == "llama3"
+        assert cfg1.openai_model == "llama3"
 
         time.sleep(0.05)
-        config_file.write_text("ollama_model: qwen2.5\n")
+        config_file.write_text("openai_model: qwen2.5\n")
 
         cfg2 = Config.load(str(config_file))
-        assert cfg2.ollama_model == "qwen2.5"
+        assert cfg2.openai_model == "qwen2.5"
 
     def test_config_survives_concurrent_reads(self, tmp_path):
         """Multiple concurrent config reads should not corrupt state."""
@@ -104,10 +104,10 @@ class TestE2EConfigHotReload:
         import concurrent.futures
 
         config_file = tmp_path / "config.yaml"
-        config_file.write_text("ollama_model: llama3\n")
+        config_file.write_text("openai_model: llama3\n")
 
         def read_config(_):
-            return Config.load(str(config_file)).ollama_model
+            return Config.load(str(config_file)).openai_model
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             results = list(executor.map(read_config, range(20)))

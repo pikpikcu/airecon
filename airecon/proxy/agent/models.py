@@ -106,7 +106,7 @@ def _truncate_tool_result(result: dict[str, Any]) -> dict[str, Any]:
 def _get_context_limits():
     try:
         config = get_config()
-        dynamic_default = max(100, min(10000, int(config.ollama_num_ctx) // 128))
+        dynamic_default = max(100, min(10000, int(config.llm_context_window) // 128))
         configured_max = int(config.agent_max_conversation_messages or 0)
         max_conversation_messages = (
             configured_max if configured_max > 0 else dynamic_default
@@ -1618,8 +1618,24 @@ class AgentState:
         if ephemeral_system:
             ephemeral_system = [ephemeral_system[-1]]
 
-        if len(protected_system) > 2:
-            protected_system = protected_system[-2:]
+        # Keep the FRESHEST message of each protected type rather than blindly the
+        # last two — so scope, pinned findings, recovery state and the compression
+        # summary all survive even when several protected messages accumulated.
+        if protected_system:
+            try:
+                _max_protected = int(
+                    getattr(get_config(), "memory_protected_context_max", 6)
+                )
+            except (TypeError, ValueError):
+                _max_protected = 6
+            _latest_by_type: dict[str, dict] = {}
+            for _msg in protected_system:
+                _c = str(_msg.get("content", ""))
+                _key = next(
+                    (p for p in PROTECTED_PREFIXES if _c.startswith(p)), "_other"
+                )
+                _latest_by_type[_key] = _msg  # latest of each type wins
+            protected_system = list(_latest_by_type.values())[-max(1, _max_protected):]
 
         limits = _get_context_limits()
         compress_boundary = max(
@@ -1694,6 +1710,7 @@ class AgentState:
 
             start_idx = len(can_trim) - tail_budget
             while start_idx > 0:
+                previous_start_idx = start_idx
                 found_orphan = False
                 for i in range(start_idx, len(can_trim)):
                     if can_trim[i].get("role") == "tool":
@@ -1709,13 +1726,15 @@ class AgentState:
                                 if can_trim[j].get("role") == "assistant" and can_trim[
                                     j
                                 ].get("tool_calls"):
-                                    start_idx = j + 1
+                                    start_idx = j
                                     break
                             else:
                                 start_idx -= 1
                             break
                 if not found_orphan:
                     break
+                if start_idx >= previous_start_idx:
+                    start_idx = previous_start_idx - 1
                 tail = can_trim[start_idx:]
             trimmed = tail
             dropped_count = len(can_trim) - len(trimmed)
@@ -2001,7 +2020,7 @@ class AgentState:
 
     async def compress_with_llm(
         self,
-        ollama: Any,
+        llm: Any,
         keep_recent: int | None = None,
         num_ctx: int | None = None,
         num_predict: int | None = None,
@@ -2255,9 +2274,17 @@ class AgentState:
                     },
                 ]
 
-                _timeout = 30.0 if "122b" in ollama.model.lower() else 20.0
+                # Model-agnostic compression cap: scale from the configured
+                # gateway timeout (slow models/gateways get more headroom),
+                # bounded to a sane 20–45s band. No model-name hardcoding —
+                # llm.complete already applies its own per-op dynamic timeout.
+                try:
+                    _cfg_timeout = float(getattr(get_config(), "llm_timeout", 120.0) or 120.0)
+                except (TypeError, ValueError):
+                    _cfg_timeout = 120.0
+                _timeout = max(20.0, min(45.0, _cfg_timeout * 0.25))
                 summary_text = await asyncio.wait_for(
-                    ollama.complete(
+                    llm.complete(
                         messages=compression_prompt,
                         options={
                             "num_ctx": num_ctx,

@@ -5,4 +5,4 @@ try:
 
     __version__ = version("airecon")
 except Exception:
-    __version__ = "0.1.7-beta"
+    __version__ = "1.7.1-beta"

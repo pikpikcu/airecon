@@ -131,15 +131,15 @@ if HAS_HYPOTHESIS:
 
         @given(val=st.integers(min_value=-1000000, max_value=1000000))
         @settings(max_examples=50)
-        def test_ollama_num_ctx_bounds(self, val):
+        def test_llm_context_window_bounds(self, val):
             """Config should handle extreme num_ctx values."""
             from airecon.proxy.config import Config, DEFAULT_CONFIG
 
             cfg = Config(
-                ollama_num_ctx=val,
-                **{k: v for k, v in DEFAULT_CONFIG.items() if k != "ollama_num_ctx"},
+                llm_context_window=val,
+                **{k: v for k, v in DEFAULT_CONFIG.items() if k != "llm_context_window"},
             )
-            assert cfg.ollama_num_ctx == val
+            assert cfg.llm_context_window == val
 
         @given(val=st.integers(min_value=-100, max_value=10000))
         @settings(max_examples=50)

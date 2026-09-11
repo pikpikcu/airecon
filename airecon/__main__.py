@@ -249,27 +249,27 @@ def _run_status(args) -> None:
         print(_row(f"  {D}v{version} — AI-Powered Security Reconnaissance{X}"))
         print(f"  {C}╠{'═' * W}╣{X}")
 
-        ollama_status = OFF
+        llm_status = OFF
         model_names: list[str] = []
-        active_model = cfg.ollama_model
+        active_model = cfg.openai_model
         try:
+            _headers = {}
+            if cfg.openai_api_key:
+                _headers["Authorization"] = f"Bearer {cfg.openai_api_key}"
             async with httpx.AsyncClient(timeout=5.0) as client:
-                try:
-                    resp = await client.get(f"{cfg.ollama_url}/api/tags")
-                    resp.raise_for_status()
-                except Exception:
-                    resp = await client.get(f"{cfg.ollama_url}/api-tags")
-                    resp.raise_for_status()
-
-                models = resp.json().get("models", [])
-                model_names = [m.get("name", "") for m in models if isinstance(m, dict)]
-                ollama_status = ON
+                resp = await client.get(
+                    f"{cfg.openai_base_url.rstrip('/')}/models", headers=_headers
+                )
+                resp.raise_for_status()
+                models = resp.json().get("data", [])
+                model_names = [m.get("id", "") for m in models if isinstance(m, dict)]
+                llm_status = ON
         except Exception as e:
-            logger.debug("Ollama status check failed: %s", e)
+            logger.debug("LLM status check failed: %s", e)
 
         print(_row())
-        print(_row(f"  {B}Ollama{X}        {ollama_status}"))
-        print(_row(f"  {D}Endpoint:{X}     {cfg.ollama_url}"))
+        print(_row(f"  {B}LLM Gateway{X}   {llm_status}"))
+        print(_row(f"  {D}Endpoint:{X}     {cfg.openai_base_url}"))
         print(_row(f"  {D}Active Model:{X} {Y}{active_model}{X}"))
         if model_names:
             label = f"  {D}Available:{X}    "
@@ -450,7 +450,6 @@ def _unload_model_safely():
         return
 
     proxy_url = f"http://{cfg.proxy_host}:{cfg.proxy_port}"
-    model = cfg.ollama_model
     _docker = shutil.which("docker") or "docker"
     session_info: dict = {}
     agent_stats: dict = {}
@@ -577,31 +576,7 @@ def _unload_model_safely():
     except Exception as e:
         logger.debug("SearXNG shutdown failed: %s", e)
 
-    print(_row(f"  {D}Unloading model…{X}"), end="\r", flush=True)
-    try:
-        ollama_url = cfg.ollama_url.rstrip("/")
-        cmd = [
-            "curl",
-            "-s",
-            "-X",
-            "POST",
-            f"{ollama_url}/api/generate",
-            "-d",
-            json.dumps({"model": model, "keep_alive": 0}),
-        ]
-        subprocess.run(  # nosec B603
-            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2
-        )
-    except Exception:
-        try:
-            data = json.dumps({"model": model, "keep_alive": 0}).encode()
-            req = urllib.request.Request(
-                f"{cfg.ollama_url.rstrip('/')}/api/generate", data=data, method="POST"
-            )
-            urllib.request.urlopen(req, timeout=2)  # nosec B310
-        except Exception as e:
-            logger.debug("Fallback unload via urllib failed: %s", e)
-    print(_svc(f"{G}✓{X}", "Ollama model", "VRAM released"))
+    # Remote OpenAI-compatible gateways are stateless — no local VRAM to release.
 
     print(_row())
     print(f"  {C}╚{'═' * (W + 2)}╝{X}")

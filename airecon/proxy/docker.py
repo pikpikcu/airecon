@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import re
 import shutil
@@ -69,6 +70,10 @@ class DockerEngine:
 
     def __init__(self) -> None:
         self.cfg = get_config()
+        # Honor the configured image name as the source of truth (falls back to
+        # the class default). Container naming stays on CONTAINER_PREFIX so this
+        # only affects which image is inspected/built/run.
+        self.IMAGE_NAME = (self.cfg.docker_image or "").strip() or DockerEngine.IMAGE_NAME
         self._container_id: str | None = None
         self._container_name: str | None = None
         self._connected = False
@@ -91,12 +96,10 @@ class DockerEngine:
     def is_connected(self) -> bool:
         return self._connected
 
-    async def ensure_image(self) -> bool:
-        docker_bin = shutil.which("docker")
-        if not docker_bin:
-            logger.error("Docker is not installed or not in PATH")
+    async def image_exists(self) -> bool:
+        """Return True if the sandbox image is already built locally."""
+        if not shutil.which("docker"):
             return False
-
         proc = await asyncio.create_subprocess_exec(
             "docker",
             "image",
@@ -106,8 +109,15 @@ class DockerEngine:
             stderr=asyncio.subprocess.DEVNULL,
         )
         await proc.wait()
+        return proc.returncode == 0
 
-        if proc.returncode == 0:
+    async def ensure_image(self) -> bool:
+        docker_bin = shutil.which("docker")
+        if not docker_bin:
+            logger.error("Docker is not installed or not in PATH")
+            return False
+
+        if await self.image_exists():
             logger.info("Docker image '%s' found", self.IMAGE_NAME)
             return True
 
@@ -870,7 +880,7 @@ class DockerEngine:
     async def discover_tools(self) -> list[dict[str, Any]]:
         return [EXECUTE_TOOL_DEF]
 
-    def tools_to_ollama_format(
+    def tools_to_llm_format(
         self, tools: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
         return tools
@@ -907,6 +917,22 @@ class DockerEngine:
             timeout = cfg.command_timeout
 
         return await self.execute(command, timeout, on_output=on_output)
+
+    async def close(self) -> None:
+        """Graceful shutdown hook used by the server lifespan.
+
+        Cancels background tasks and kills any active child processes via
+        force_stop(). The container itself is left in place so it can be
+        inspected or reused; call stop_container() explicitly to remove it.
+        """
+        for task in self._background_tasks:
+            task.cancel()
+        if self._background_tasks:
+            await asyncio.gather(*self._background_tasks, return_exceptions=True)
+            self._background_tasks.clear()
+        with contextlib.suppress(Exception):
+            await self.force_stop()
+        self._connected = False
 
     async def force_stop(self) -> None:
         logger.info(

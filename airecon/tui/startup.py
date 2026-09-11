@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import tempfile
 import threading
 import time
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 from textual.app import ComposeResult
@@ -28,6 +30,27 @@ _PROXY_START_EXTRA_GRACE_SECONDS: float = 25.0
 _proxy_thread: threading.Thread | None = None
 _proxy_fatal_error: list[str] = []
 
+# Single source of truth for the crash-log location so error messages can show
+# the FULL path (users were told to "check airecon_proxy_crash.log" without
+# knowing which temp dir it lives in — on macOS/Windows that is not /tmp).
+_CRASH_LOG_PATH: Path = Path(tempfile.gettempdir()) / "airecon_proxy_crash.log"
+
+
+def get_crash_log_path() -> str:
+    return str(_CRASH_LOG_PATH)
+
+
+def _write_crash_log(header: str) -> None:
+    """Append the current exception traceback to the crash log (best-effort)."""
+    import traceback as _tb
+
+    try:
+        with open(_CRASH_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(f"\n=== {header} ===\n")
+            _tb.print_exc(file=f)
+    except Exception as e:
+        logger.debug("could not write crash log: %s", e)
+
 
 def is_proxy_alive() -> bool:
     return _proxy_thread is not None and _proxy_thread.is_alive()
@@ -40,7 +63,6 @@ def get_proxy_fatal_error() -> str | None:
 def _proxy_thread_body() -> None:
     import os as _os
     import logging as _log
-    import traceback as _tb
 
     _debug_mode = bool(_os.environ.get("AIRECON_DEBUG"))
     if _debug_mode:
@@ -54,7 +76,19 @@ def _proxy_thread_body() -> None:
     for _n in ("uvicorn", "uvicorn.error", "httpx", "httpcore"):
         _log.getLogger(_n).setLevel(_log.CRITICAL)
 
-    from airecon.proxy.server import run_server
+    # Import inside the guarded body: an import-time failure (missing dependency,
+    # bad config, syntax error in a proxy module) is the most common reason the
+    # thread dies WITHOUT a crash log being written. Capture it so the user gets
+    # both a log file and a visible reason instead of a silent "thread stopped".
+    try:
+        from airecon.proxy.server import run_server
+    except BaseException as exc:  # noqa: BLE001 - must surface any startup failure
+        logger.error("Proxy failed to import/start: %s", exc)
+        _write_crash_log(f"Proxy import/startup failure: {exc!r}")
+        _proxy_fatal_error.append(
+            f"Proxy failed to start: {exc} (see {_CRASH_LOG_PATH})"
+        )
+        return
 
     _restart_count = 0
     _restart_delay = 2.0
@@ -63,6 +97,12 @@ def _proxy_thread_body() -> None:
         _t0 = time.monotonic()
         try:
             run_server()
+            # run_server returning normally (e.g. uvicorn exited because the port
+            # was already in use) is also a failure to keep serving — record it.
+            _proxy_fatal_error.append(
+                f"Proxy server exited unexpectedly without an error "
+                f"(possible port conflict on the proxy port). See {_CRASH_LOG_PATH}"
+            )
             break
         except KeyboardInterrupt:
             break
@@ -74,27 +114,17 @@ def _proxy_thread_body() -> None:
                 _restart_count,
                 exc,
             )
-            try:
-                import tempfile
-                from pathlib import Path
-
-                crash_log = Path(tempfile.gettempdir()) / "airecon_proxy_crash.log"
-                with open(crash_log, "a") as _f:
-                    _f.write(
-                        f"\n=== Crash (elapsed={_elapsed:.1f}s, attempt #{_restart_count}) ===\n"
-                    )
-                    _tb.print_exc(file=_f)
-            except Exception as e:
-                logger.debug(
-                    "Expected failure in _proxy_thread_body writing crash log: %s", e
-                )
+            _write_crash_log(
+                f"Crash (elapsed={_elapsed:.1f}s, attempt #{_restart_count}): {exc!r}"
+            )
 
             if _elapsed >= _MIN_STABLE_SECONDS:
                 _restart_count = 0
 
             if _restart_count >= _MAX_PROXY_RESTARTS:
                 _proxy_fatal_error.append(
-                    f"Proxy crashed {_MAX_PROXY_RESTARTS + 1} times: {exc}"
+                    f"Proxy crashed {_MAX_PROXY_RESTARTS + 1} times: {exc} "
+                    f"(see {_CRASH_LOG_PATH})"
                 )
                 logger.error(
                     "Proxy exhausted %d restart attempts — giving up. "
@@ -131,7 +161,7 @@ _STEP_IDS = [
     "step-docker",
     "step-searxng",
     "step-proxy",
-    "step-ollama",
+    "step-llm",
     "step-engine",
 ]
 
@@ -139,7 +169,7 @@ _STEP_LABELS: dict[str, str] = {
     "step-docker": "Docker Sandbox",
     "step-searxng": "SearXNG",
     "step-proxy": "Proxy Server",
-    "step-ollama": "Ollama",
+    "step-llm": "LLM",
     "step-engine": "Docker Engine",
 }
 
@@ -220,6 +250,8 @@ class StartupScreen(Screen[bool]):
     def _render_step(self, step_id: str) -> None:
         state, detail = self._step_states.get(step_id, ("pending", ""))
         label = _STEP_LABELS.get(step_id, step_id)
+        if step_id == "step-llm":
+            label = "LLM (OpenAI-compatible)"
         spinner_char = _SPINNER[self._spinner_frame % len(_SPINNER)]
         icons = {
             "pending": "[#484f58]○[/]",
@@ -289,14 +321,24 @@ class StartupScreen(Screen[bool]):
         from airecon.proxy.docker import DockerEngine
 
         engine = DockerEngine()
-        ok = await engine.ensure_image()
-        if not ok:
-            self._set_step("step-docker", "fail", "image build failed")
-            self._set_status(
-                "[#ef4444]✗ Docker image build failed.[/] "
-                "[#484f58]Run: docker build -t airecon-sandbox .[/]"
-            )
-            return
+        if cfg.docker_auto_build:
+            ok = await engine.ensure_image()
+            if not ok:
+                self._set_step("step-docker", "fail", "image build failed")
+                self._set_status(
+                    "[#ef4444]✗ Docker image build failed.[/] "
+                    "[#484f58]Run: docker build -t airecon-sandbox .[/]"
+                )
+                return
+        else:
+            # Auto-build disabled: never trigger a heavy build implicitly.
+            if not await engine.image_exists():
+                self._set_step("step-docker", "fail", "image missing")
+                self._set_status(
+                    "[#ef4444]✗ Sandbox image not found and auto-build is off.[/] "
+                    "[#484f58]Run: docker build -t airecon-sandbox .[/]"
+                )
+                return
         self._set_step("step-docker", "ok", "ready")
 
         _should_manage = (
@@ -322,7 +364,7 @@ class StartupScreen(Screen[bool]):
 
         if self.no_proxy:
             self._set_step("step-proxy", "skip", "skipped (--no-proxy)")
-            self._set_step("step-ollama", "skip", "—")
+            self._set_step("step-llm", "skip", "—")
             self._set_step("step-engine", "skip", "—")
         else:
             self._set_step("step-proxy", "running", "starting…")
@@ -332,7 +374,7 @@ class StartupScreen(Screen[bool]):
 
             proxy_ok = False
             docker_ok = False
-            ollama_ok = False
+            llm_ok = False
             _poll_timeout = _PROXY_STATUS_TIMEOUT_SECONDS
             _startup_started = time.monotonic()
             _startup_deadline = _startup_started + self._proxy_start_timeout_seconds()
@@ -343,15 +385,18 @@ class StartupScreen(Screen[bool]):
                 if _fatal:
                     self._set_step("step-proxy", "fail", _fatal[:44])
                     self._set_status(
-                        "[#ef4444]✗ Proxy crashed — check airecon_proxy_crash.log[/]"
+                        f"[#ef4444]✗ Proxy crashed:[/] [#8b949e]{_fatal[:200]}[/]\n"
+                        f"[#484f58]Log: {get_crash_log_path()}[/]"
                     )
                     return
 
                 if not is_proxy_alive():
+                    _why = get_proxy_fatal_error() or "no recorded error"
                     self._set_step("step-proxy", "fail", "thread stopped")
                     self._set_status(
                         "[#ef4444]✗ Proxy thread stopped before responding.[/] "
-                        "[#484f58]Check airecon_proxy_crash.log.[/]"
+                        f"[#8b949e]{_why[:200]}[/]\n"
+                        f"[#484f58]Log: {get_crash_log_path()}[/]"
                     )
                     return
 
@@ -361,7 +406,7 @@ class StartupScreen(Screen[bool]):
                     )  # nosec B310 - self.proxy_url is localhost http://127.0.0.1:8000, not user-controlled
                     data = json.loads(req.read())
                     docker_ok = data.get("docker", {}).get("connected", False)
-                    ollama_ok = data.get("ollama", {}).get("connected", False)
+                    llm_ok = data.get("llm", {}).get("connected", False)
                     proxy_ok = True
                     break
                 except Exception as e:
@@ -391,7 +436,7 @@ class StartupScreen(Screen[bool]):
                         )  # nosec B310
                         data = json.loads(req.read())
                         docker_ok = data.get("docker", {}).get("connected", False)
-                        ollama_ok = data.get("ollama", {}).get("connected", False)
+                        llm_ok = data.get("llm", {}).get("connected", False)
                         proxy_ok = True
                         break
                     except Exception as e:
@@ -408,15 +453,15 @@ class StartupScreen(Screen[bool]):
                 self._set_step("step-proxy", "fail", "no response (startup timeout)")
                 self._set_status(
                     "[#ef4444]✗ Proxy did not start in time.[/] "
-                    "[#484f58]Check airecon_proxy_crash.log and port conflicts.[/]"
+                    f"[#484f58]Check port conflicts and {get_crash_log_path()}[/]"
                 )
                 return
 
             self._set_step("step-proxy", "ok", "ready")
             self._set_step(
-                "step-ollama",
-                "ok" if ollama_ok else "warn",
-                "connected" if ollama_ok else "unavailable",
+                "step-llm",
+                "ok" if llm_ok else "warn",
+                "connected" if llm_ok else "unavailable",
             )
             self._set_step(
                 "step-engine",

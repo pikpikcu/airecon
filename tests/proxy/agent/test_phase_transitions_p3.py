@@ -24,7 +24,7 @@ from airecon.proxy.agent.pipeline import (
 from airecon.proxy.agent.loop import AgentLoop
 from airecon.proxy.agent.session import SessionData
 from airecon.proxy.agent.models import AgentState
-from airecon.proxy.ollama import OllamaClient
+from airecon.proxy.llm import LLMClient
 from airecon.proxy.docker import DockerEngine
 
 
@@ -126,10 +126,10 @@ class TestAgentLoopDuplicateDetection:
 
     def test_is_duplicate_command_fresh(self):
         """First execution should not be marked as duplicate."""
-        mock_ollama = AsyncMock(spec=OllamaClient)
+        mock_llm = AsyncMock(spec=LLMClient)
         mock_engine = AsyncMock(spec=DockerEngine)
 
-        loop = AgentLoop(mock_ollama, mock_engine)
+        loop = AgentLoop(mock_llm, mock_engine)
 
         is_dup, msg = loop._is_duplicate_command("execute", {"command": "ls -la"})
 
@@ -138,10 +138,10 @@ class TestAgentLoopDuplicateDetection:
 
     def test_is_duplicate_command_repeated(self):
         """Repeated execution with no evidence growth should be marked as duplicate."""
-        mock_ollama = AsyncMock(spec=OllamaClient)
+        mock_llm = AsyncMock(spec=LLMClient)
         mock_engine = AsyncMock(spec=DockerEngine)
 
-        loop = AgentLoop(mock_ollama, mock_engine)
+        loop = AgentLoop(mock_llm, mock_engine)
 
         # First execution
         is_dup1, msg1 = loop._is_duplicate_command("execute", {"command": "ls -la"})
@@ -154,10 +154,10 @@ class TestAgentLoopDuplicateDetection:
 
     def test_is_duplicate_command_evidence_driven_rerun(self):
         """Command can be re-executed if new evidence emerges."""
-        mock_ollama = AsyncMock(spec=OllamaClient)
+        mock_llm = AsyncMock(spec=LLMClient)
         mock_engine = AsyncMock(spec=DockerEngine)
 
-        loop = AgentLoop(mock_ollama, mock_engine)
+        loop = AgentLoop(mock_llm, mock_engine)
 
         # First execution
         is_dup1, _ = loop._is_duplicate_command("execute", {"command": "nmap -sV localhost"})
@@ -178,10 +178,10 @@ class TestAgentLoopDuplicateDetection:
 
     def test_is_duplicate_command_whitespace_normalized(self):
         """Duplicate detection should normalize whitespace in strings."""
-        mock_ollama = AsyncMock(spec=OllamaClient)
+        mock_llm = AsyncMock(spec=LLMClient)
         mock_engine = AsyncMock(spec=DockerEngine)
 
-        loop = AgentLoop(mock_ollama, mock_engine)
+        loop = AgentLoop(mock_llm, mock_engine)
 
         # First execution with trailing spaces
         is_dup1, _ = loop._is_duplicate_command("execute", {"command": "ls -la  "})
@@ -193,10 +193,10 @@ class TestAgentLoopDuplicateDetection:
 
     def test_is_duplicate_command_exempt_tools(self):
         """Exempt tools should always pass dedup check."""
-        mock_ollama = AsyncMock(spec=OllamaClient)
+        mock_llm = AsyncMock(spec=LLMClient)
         mock_engine = AsyncMock(spec=DockerEngine)
 
-        loop = AgentLoop(mock_ollama, mock_engine)
+        loop = AgentLoop(mock_llm, mock_engine)
 
         # create_file is exempt from dedup
         is_dup1, _ = loop._is_duplicate_command(
@@ -212,10 +212,10 @@ class TestAgentLoopDuplicateDetection:
 
     def test_is_duplicate_command_spawn_agent_exempt(self):
         """spawn_agent should be exempt from dedup."""
-        mock_ollama = AsyncMock(spec=OllamaClient)
+        mock_llm = AsyncMock(spec=LLMClient)
         mock_engine = AsyncMock(spec=DockerEngine)
 
-        loop = AgentLoop(mock_ollama, mock_engine)
+        loop = AgentLoop(mock_llm, mock_engine)
 
         is_dup1, _ = loop._is_duplicate_command(
             "spawn_agent", {"target": "http://example.com"}
@@ -230,10 +230,10 @@ class TestAgentLoopDuplicateDetection:
 
     def test_is_duplicate_command_browser_action_click_exempt(self):
         """browser_action click should be exempt from dedup."""
-        mock_ollama = AsyncMock(spec=OllamaClient)
+        mock_llm = AsyncMock(spec=LLMClient)
         mock_engine = AsyncMock(spec=DockerEngine)
 
-        loop = AgentLoop(mock_ollama, mock_engine)
+        loop = AgentLoop(mock_llm, mock_engine)
 
         is_dup1, _ = loop._is_duplicate_command(
             "browser_action", {"action": "click", "selector": "#button"}
@@ -248,10 +248,10 @@ class TestAgentLoopDuplicateDetection:
 
     def test_is_duplicate_command_browser_action_navigate_not_exempt(self):
         """browser_action navigate should not be exempt."""
-        mock_ollama = AsyncMock(spec=OllamaClient)
+        mock_llm = AsyncMock(spec=LLMClient)
         mock_engine = AsyncMock(spec=DockerEngine)
 
-        loop = AgentLoop(mock_ollama, mock_engine)
+        loop = AgentLoop(mock_llm, mock_engine)
 
         is_dup1, _ = loop._is_duplicate_command(
             "browser_action", {"action": "navigate", "url": "http://example.com"}
@@ -270,12 +270,12 @@ class TestAgentLoopInitialization:
 
     def test_agent_loop_initialization(self):
         """AgentLoop should initialize with correct state."""
-        mock_ollama = AsyncMock(spec=OllamaClient)
+        mock_llm = AsyncMock(spec=LLMClient)
         mock_engine = AsyncMock(spec=DockerEngine)
 
-        loop = AgentLoop(mock_ollama, mock_engine)
+        loop = AgentLoop(mock_llm, mock_engine)
 
-        assert loop.ollama == mock_ollama
+        assert loop.llm == mock_llm
         assert loop.engine == mock_engine
         assert isinstance(loop.state, AgentState)
         assert loop._stop_requested is False
@@ -285,10 +285,10 @@ class TestAgentLoopInitialization:
 
     def test_agent_loop_pipeline_initialization(self):
         """AgentLoop should support pipeline initialization."""
-        mock_ollama = AsyncMock(spec=OllamaClient)
+        mock_llm = AsyncMock(spec=LLMClient)
         mock_engine = AsyncMock(spec=DockerEngine)
 
-        loop = AgentLoop(mock_ollama, mock_engine)
+        loop = AgentLoop(mock_llm, mock_engine)
 
         # Initially no pipeline
         assert loop.pipeline is None
@@ -361,10 +361,10 @@ class TestIntegrationPhaseTransitions:
 
     def test_agent_loop_state_consistency(self):
         """AgentLoop state should remain consistent across operations."""
-        mock_ollama = AsyncMock(spec=OllamaClient)
+        mock_llm = AsyncMock(spec=LLMClient)
         mock_engine = AsyncMock(spec=DockerEngine)
 
-        loop = AgentLoop(mock_ollama, mock_engine)
+        loop = AgentLoop(mock_llm, mock_engine)
 
         # Simulate operations
         loop._consecutive_failures = 1
@@ -378,10 +378,10 @@ class TestIntegrationPhaseTransitions:
 
     def test_duplicate_command_tracking_across_phases(self):
         """Duplicate detection should persist across phase transitions."""
-        mock_ollama = AsyncMock(spec=OllamaClient)
+        mock_llm = AsyncMock(spec=LLMClient)
         mock_engine = AsyncMock(spec=DockerEngine)
 
-        loop = AgentLoop(mock_ollama, mock_engine)
+        loop = AgentLoop(mock_llm, mock_engine)
 
         # Execute command in RECON phase
         is_dup1, _ = loop._is_duplicate_command(
@@ -401,10 +401,10 @@ class TestIntegrationPhaseTransitions:
     @pytest.mark.asyncio
     async def test_agent_loop_stop_signal(self):
         """AgentLoop should handle stop signal."""
-        mock_ollama = AsyncMock(spec=OllamaClient)
+        mock_llm = AsyncMock(spec=LLMClient)
         mock_engine = AsyncMock(spec=DockerEngine)
 
-        loop = AgentLoop(mock_ollama, mock_engine)
+        loop = AgentLoop(mock_llm, mock_engine)
 
         assert loop._stop_requested is False
 
