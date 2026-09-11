@@ -39,7 +39,6 @@ AIRecon is an autonomous penetration testing agent that drives any **OpenAI-comp
 **Free testing is available, with 10% off using code `PROXY90`.**
 
 ---
----
 
 ## Why AIRecon?
 
