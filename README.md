@@ -22,6 +22,25 @@ AIRecon is an autonomous penetration testing agent that drives any **OpenAI-comp
 
 ---
 
+## Sponsor
+
+<p align="center">
+  <a href="https://www.swiftproxy.net/?ref=pikpikcu">
+    <img src="images/swiftproxy.png"
+         alt="Swiftproxy - Reliable Residential Proxies for Security Testing"
+         width="800">
+  </a>
+</p>
+
+### Swiftproxy – Reliable Residential Proxies for AI-Powered Web Research
+
+[Swiftproxy](https://www.swiftproxy.net/?ref=pikpikcu) provides **90M+ clean residential IPs across 220+ locations**, supporting HTTP(S)/SOCKS5, IP rotation, Sticky Sessions, and precise geo-targeting. It helps AI-powered research and reconnaissance workflows access websites reliably from different locations, making it suitable for web research, data collection, scraping, and location-based access.
+
+**Free testing is available, with 10% off using code `PROXY90`.**
+
+---
+---
+
 ## Why AIRecon?
 
 AIRecon talks to **one OpenAI-compatible gateway**, so you choose the trade-off — run a **local** model for privacy and zero API cost, or a **hosted** model for top reasoning quality. The same agent, pipeline, sandbox, and tooling work either way.
