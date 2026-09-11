@@ -665,15 +665,15 @@
 <p><img alt="AIRecon Logo" src="assets/logo.png" /></p>
 <h1 id="airecon_1">AIRecon<a class="headerlink" href="#airecon_1" title="Permanent link">&para;</a></h1>
 <p><strong>AI-Assisted Penetration Testing Agent</strong></p>
-<p><a href="https://github.com/pikpikcu/airecon/releases"><img alt="version" src="https://img.shields.io/badge/version-v0.1.7--beta-red.svg" /></a>
+<p><a href="https://github.com/pikpikcu/airecon/releases"><img alt="version" src="https://img.shields.io/badge/version-v1.7.1--beta-red.svg" /></a>
 <a href="https://www.python.org/"><img alt="python" src="https://img.shields.io/badge/python-3.12%2B-blue.svg" /></a>
-<a href="https://ollama.com/"><img alt="llm" src="https://img.shields.io/badge/LLM-Ollama%20(local)-orange.svg" /></a>
+<a href="https://platform.openai.com/docs/api-reference"><img alt="llm" src="https://img.shields.io/badge/LLM-OpenAI--compatible-orange.svg" /></a>
 <a href="https://github.com/pikpikcu/airecon/blob/main/LICENSE"><img alt="license" src="https://img.shields.io/badge/LICENSE-MIT-green.svg" /></a></p>
 </div>
 <hr />
-<p>AIRecon combines a self-hosted <strong>Ollama LLM</strong> with a <strong>Kali Linux Docker sandbox</strong>, native <strong>Caido proxy integration</strong>, a structured <strong>RECON → ANALYSIS → EXPLOIT → REPORT pipeline</strong>, and a real-time <strong>Textual TUI</strong>.</p>
+<p>AIRecon drives any <strong>OpenAI-compatible LLM gateway</strong> (LiteLLM / vLLM / a hosted endpoint — or a local gateway proxying a local Ollama) with a <strong>Kali Linux Docker sandbox</strong>, native <strong>Caido proxy integration</strong>, a structured <strong>RECON → ANALYSIS → EXPLOIT → REPORT pipeline</strong>, and a real-time <strong>Textual TUI</strong>.</p>
 <h2 id="why-airecon">Why AIRecon?<a class="headerlink" href="#why-airecon" title="Permanent link">&para;</a></h2>
-<p>AIRecon is designed for local-first workflows where model execution and tool orchestration run in your own environment.</p>
+<p>AIRecon is backend-agnostic: point it at a <strong>local</strong> gateway for fully offline/private operation, or a <strong>hosted</strong> model for maximum reasoning quality. Reasoning support is auto-detected at runtime — no per-model hardcoding.</p>
 <table>
 <thead>
 <tr>
@@ -728,8 +728,8 @@
 <p>Structured 4-phase state machine: <strong>RECON → ANALYSIS → EXPLOIT → REPORT</strong>. Auto-transitions based on real findings, not iteration counts.</p>
 </div>
 <div class="feature-card">
-<h3 id="ollama-stability">Ollama Stability<a class="headerlink" href="#ollama-stability" title="Permanent link">&para;</a></h3>
-<p>Includes VRAM/OOM recovery paths, context monitoring, and conversation compression controls.</p>
+<h3 id="backend-resilience">Backend Resilience<a class="headerlink" href="#backend-resilience" title="Permanent link">&para;</a></h3>
+<p>Runtime reasoning-capability detection, 5xx retry, context monitoring, and adaptive conversation-compression controls.</p>
 </div>
 <div class="feature-card">
 <h3 id="exploration-engine">Exploration Engine<a class="headerlink" href="#exploration-engine" title="Permanent link">&para;</a></h3>

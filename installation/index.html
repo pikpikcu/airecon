@@ -533,18 +533,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#2-install-ollama" class="md-nav__link">
+  <a href="#2-set-up-an-openai-compatible-llm-gateway" class="md-nav__link">
     <span class="md-ellipsis">
-      2. Install Ollama
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#3-pull-a-model" class="md-nav__link">
-    <span class="md-ellipsis">
-      3. Pull a Model
+      2. Set up an OpenAI-compatible LLM gateway
     </span>
   </a>
   
@@ -620,9 +611,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#10-remote-ollama-setup" class="md-nav__link">
+  <a href="#10-remote-hosted-backend" class="md-nav__link">
     <span class="md-ellipsis">
-      10. Remote Ollama Setup
+      10. Remote / hosted backend
     </span>
   </a>
   
@@ -982,18 +973,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#2-install-ollama" class="md-nav__link">
+  <a href="#2-set-up-an-openai-compatible-llm-gateway" class="md-nav__link">
     <span class="md-ellipsis">
-      2. Install Ollama
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#3-pull-a-model" class="md-nav__link">
-    <span class="md-ellipsis">
-      3. Pull a Model
+      2. Set up an OpenAI-compatible LLM gateway
     </span>
   </a>
   
@@ -1069,9 +1051,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#10-remote-ollama-setup" class="md-nav__link">
+  <a href="#10-remote-hosted-backend" class="md-nav__link">
     <span class="md-ellipsis">
-      10. Remote Ollama Setup
+      10. Remote / hosted backend
     </span>
   </a>
   
@@ -1214,15 +1196,14 @@
 <h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
 <ol>
 <li><a href="#1-system-requirements">System Requirements</a></li>
-<li><a href="#2-install-ollama">Install Ollama</a></li>
-<li><a href="#3-pull-a-model">Pull a Model</a></li>
+<li><a href="#2-set-up-an-openai-compatible-llm-gateway">Set up an OpenAI-compatible LLM gateway</a></li>
 <li><a href="#4-install-airecon">Install AIRecon</a></li>
 <li><a href="#5-configure-path">Configure PATH</a></li>
 <li><a href="#6-build-the-docker-sandbox">Build the Docker Sandbox</a></li>
 <li><a href="#7-verify-the-installation">Verify the Installation</a></li>
 <li><a href="#8-first-run">First Run</a></li>
 <li><a href="#9-updating-airecon">Updating AIRecon</a></li>
-<li><a href="#10-remote-ollama-setup">Remote Ollama Setup</a></li>
+<li><a href="#10-remote-ollama-setup">Remote / hosted backend</a></li>
 <li><a href="#11-optional-install-datasets">Optional: Install Datasets</a></li>
 <li><a href="#12-troubleshooting">Troubleshooting</a></li>
 </ol>
@@ -1253,12 +1234,12 @@
 <td>20.10+</td>
 </tr>
 <tr>
-<td>Ollama</td>
-<td>Recent version with tool-calling support</td>
+<td>LLM backend</td>
+<td>An OpenAI-compatible gateway reachable at <code>openai_base_url</code> (LiteLLM / vLLM / hosted; or a gateway → local Ollama). Model must support native tool calling.</td>
 </tr>
 <tr>
 <td>Storage</td>
-<td>40+ GB free (model + Docker image + tools)</td>
+<td>40+ GB free (Docker image + tools; plus model weights if running locally)</td>
 </tr>
 </tbody>
 </table>
@@ -1269,51 +1250,30 @@
 <li>Models below <strong>8B</strong> are not recommended for full engagements.</li>
 </ul>
 <hr />
-<h2 id="2-install-ollama">2. Install Ollama<a class="headerlink" href="#2-install-ollama" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Linux / macOS</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://ollama.com/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Verify version — use a recent Ollama build with tool calling support</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>ollama<span class="w"> </span>--version
-</span></code></pre></div>
-<p>Ensure Ollama is running as a service:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Check status</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>systemctl<span class="w"> </span>status<span class="w"> </span>ollama
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Start if not running</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>start<span class="w"> </span>ollama
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1"># Or manually:</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>ollama<span class="w"> </span>serve<span class="w"> </span><span class="p">&amp;</span>
-</span></code></pre></div>
-<hr />
-<h2 id="3-pull-a-model">3. Pull a Model<a class="headerlink" href="#3-pull-a-model" title="Permanent link">&para;</a></h2>
-<p>Pull the model you intend to use <strong>before</strong> starting AIRecon:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Example picks — adjust to your VRAM and model availability</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>ollama<span class="w"> </span>pull<span class="w"> </span>qwen3.5:9b
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>ollama<span class="w"> </span>pull<span class="w"> </span>qwen3.5:35b
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>ollama<span class="w"> </span>pull<span class="w"> </span>qwen3.5:122b
-</span></code></pre></div>
-<p>Verify the model is available:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>ollama<span class="w"> </span>list
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1"># Should show the model(s) you pulled</span>
+<h2 id="2-set-up-an-openai-compatible-llm-gateway">2. Set up an OpenAI-compatible LLM gateway<a class="headerlink" href="#2-set-up-an-openai-compatible-llm-gateway" title="Permanent link">&para;</a></h2>
+<p>AIRecon talks to one <strong>OpenAI-compatible</strong> <code>/v1/chat/completions</code> endpoint. Pick whichever fits you — the rest of AIRecon is identical:</p>
+<ul>
+<li><strong>Local / offline</strong> — run a local OpenAI-compatible gateway, vLLM, or LiteLLM on your machine. a local gateway (e.g. via a proxy) can serve a local Ollama, so you keep a fully private setup. Default base URL: <code>http://localhost:20128/v1</code>.</li>
+<li><strong>Hosted</strong> — any OpenAI/Anthropic/Gemini-compatible gateway. You'll set <code>openai_api_key</code>.</li>
+</ul>
+<p>You'll point AIRecon at it with three config keys (see step 8 and the <a href="../configuration/">Configuration reference</a>):</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">openai_base_url</span><span class="p">:</span><span class="w"> </span><span class="s">"http://localhost:20128/v1"</span><span class="w">   </span><span class="c1"># must include /v1</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nt">openai_api_key</span><span class="p">:</span><span class="w"> </span><span class="s">""</span><span class="w">                              </span><span class="c1"># set if your gateway requires one</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nt">openai_model</span><span class="p">:</span><span class="w"> </span><span class="s">"qwen3:8b"</span><span class="w">                         </span><span class="c1"># any model your gateway exposes</span>
 </span></code></pre></div>
 <blockquote>
-<p><strong>Small model caution:</strong> models below 8B are not recommended for full engagements. Expect more tool-call errors and hallucinations as size shrinks.</p>
-<p><strong>Performance tip:</strong> For NVIDIA GPUs, set <code>OLLAMA_GPU_LAYERS=99</code> to maximize GPU offloading:
-<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a># Add to /etc/systemd/system/ollama.service [Service] section:
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>Environment=&quot;OLLAMA_GPU_LAYERS=99&quot;
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>systemctl daemon-reload &amp;&amp; systemctl restart ollama
-</span></code></pre></div></p>
+<p><strong>Tool calling is required</strong>; reasoning is auto-detected at runtime (no model-name list). For a local model, run it behind the gateway first and confirm <code>GET &lt;base_url&gt;/models</code> responds.</p>
+<p><strong>Small model caution:</strong> local models below ~8B are not recommended for full engagements — expect more tool-call errors and hallucinations.</p>
 </blockquote>
 <hr />
 <h2 id="4-install-airecon">4. Install AIRecon<a class="headerlink" href="#4-install-airecon" title="Permanent link">&para;</a></h2>
 <p>AIRecon uses <a href="https://python-poetry.org/">Poetry</a> for dependency management and builds a Python wheel that is installed to your user path.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># 1. Clone the repository</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/pikpikcu/airecon.git
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="nb">cd</span><span class="w"> </span>airecon
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1"># 2. Run the installer</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>./install.sh
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># 1. Clone the repository</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/pikpikcu/airecon.git
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nb">cd</span><span class="w"> </span>airecon
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># 2. Run the installer</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>./install.sh
 </span></code></pre></div>
 <h3 id="what-installsh-does">What <code>install.sh</code> does<a class="headerlink" href="#what-installsh-does" title="Permanent link">&para;</a></h3>
 <ol>
@@ -1327,32 +1287,32 @@
 <hr />
 <h2 id="5-configure-path">5. Configure PATH<a class="headerlink" href="#5-configure-path" title="Permanent link">&para;</a></h2>
 <p>The <code>airecon</code> command is installed to <code>~/.local/bin/</code>. If this is not in your PATH, the command will not be found.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Check if it is already in PATH</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>which<span class="w"> </span>airecon
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># If not found, add to your shell profile:</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="c1"># For bash:</span>
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;export PATH=&quot;$HOME/.local/bin:$PATH&quot;&#39;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>~/.bashrc
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="nb">source</span><span class="w"> </span>~/.bashrc
-</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
-</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="c1"># For zsh:</span>
-</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;export PATH=&quot;$HOME/.local/bin:$PATH&quot;&#39;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>~/.zshrc
-</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="nb">source</span><span class="w"> </span>~/.zshrc
-</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>
-</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="c1"># Verify</span>
-</span><span id="__span-6-15"><a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>airecon<span class="w"> </span>--version
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Check if it is already in PATH</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>which<span class="w"> </span>airecon
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># If not found, add to your shell profile:</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="c1"># For bash:</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="nb">echo</span><span class="w"> </span><span class="s1">'export PATH="$HOME/.local/bin:$PATH"'</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>~/.bashrc
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="nb">source</span><span class="w"> </span>~/.bashrc
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="c1"># For zsh:</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="nb">echo</span><span class="w"> </span><span class="s1">'export PATH="$HOME/.local/bin:$PATH"'</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>~/.zshrc
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="nb">source</span><span class="w"> </span>~/.zshrc
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="c1"># Verify</span>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>airecon<span class="w"> </span>--version
 </span></code></pre></div>
 <hr />
 <h2 id="6-build-the-docker-sandbox">6. Build the Docker Sandbox<a class="headerlink" href="#6-build-the-docker-sandbox" title="Permanent link">&para;</a></h2>
 <p>The Docker sandbox is the Kali Linux execution environment where all shell commands run. You must build it before starting AIRecon.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">cd</span><span class="w"> </span>airecon
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1"># Build the sandbox image (takes 5–15 minutes on first build)</span>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>airecon-sandbox<span class="w"> </span>airecon/containers/
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
-</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="c1"># Verify the image exists</span>
-</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>docker<span class="w"> </span>images<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>airecon-sandbox
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nb">cd</span><span class="w"> </span>airecon
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># Build the sandbox image (takes 5–15 minutes on first build)</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>airecon-sandbox<span class="w"> </span>airecon/containers/
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="c1"># Verify the image exists</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>docker<span class="w"> </span>images<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>airecon-sandbox
 </span></code></pre></div>
 <blockquote>
 <p>The sandbox includes: <code>nmap</code>, <code>naabu</code>, <code>masscan</code>, <code>subfinder</code>, <code>amass</code>, <code>httpx</code>, <code>nuclei</code>, <code>nikto</code>, <code>wapiti</code>, <code>ffuf</code>, <code>feroxbuster</code>, <code>sqlmap</code>, <code>dalfox</code>, <code>gau</code>, <code>waybackurls</code>, <code>katana</code>, <code>arjun</code>, full SecLists, FuzzDB, and 40+ more tools. It runs as user <code>pentester</code> with passwordless <code>sudo</code>.</p>
@@ -1361,86 +1321,83 @@
 <hr />
 <h2 id="7-verify-the-installation">7. Verify the Installation<a class="headerlink" href="#7-verify-the-installation" title="Permanent link">&para;</a></h2>
 <p>Run this checklist after installing:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># 1. Check AIRecon version</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>airecon<span class="w"> </span>--version
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># 2. Check Ollama is running and model is available</span>
-</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>ollama<span class="w"> </span>list
-</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
-</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># 3. Check Docker image</span>
-</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>docker<span class="w"> </span>images<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>airecon-sandbox
-</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
-</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="c1"># 4. Test Playwright (should open and close Chromium silently)</span>
-</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from playwright.sync_api import sync_playwright; p = sync_playwright().start(); b = p.chromium.launch(); b.close(); p.stop(); print(&#39;Playwright OK&#39;)&quot;</span>
-</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>
-</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="c1"># 5. Check config file location</span>
-</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>cat<span class="w"> </span>~/.airecon/config.yaml<span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Will be created on first run&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># 1. Check AIRecon version</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>airecon<span class="w"> </span>--version
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># 2. Check the LLM gateway is reachable and lists your model</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>curl<span class="w"> </span>-s<span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">OPENAI_BASE_URL</span><span class="k">:-</span><span class="nv">http</span><span class="p">://localhost:</span><span class="nv">20128</span><span class="p">/v1</span><span class="si">}</span><span class="s2">/models"</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>head
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="c1"># 3. Check Docker image</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>docker<span class="w"> </span>images<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>airecon-sandbox
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="c1"># 4. Test Playwright (should open and close Chromium silently)</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"from playwright.sync_api import sync_playwright; p = sync_playwright().start(); b = p.chromium.launch(); b.close(); p.stop(); print('Playwright OK')"</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="c1"># 5. Check config file location</span>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>cat<span class="w"> </span>~/.airecon/config.yaml<span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"Will be created on first run"</span>
 </span></code></pre></div>
 <hr />
 <h2 id="8-first-run">8. First Run<a class="headerlink" href="#8-first-run" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Navigate to a working directory (workspace/ will be created here)</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nb">cd</span><span class="w"> </span>~/pentest-projects/
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># Start the TUI</span>
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>airecon<span class="w"> </span>start
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Navigate to a working directory (workspace/ will be created here)</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nb">cd</span><span class="w"> </span>~/pentest-projects/
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Start the TUI</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>airecon<span class="w"> </span>start
 </span></code></pre></div>
 <p>On first run:
 - <code>~/.airecon/config.yaml</code> is created with default values
 - The <code>workspace/</code> directory is created in your current working directory
 - The Docker sandbox container is started</p>
-<p><strong>Set the correct model in config before starting:</strong></p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Edit config</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>nano<span class="w"> </span>~/.airecon/config.yaml
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># Change &quot;ollama_model&quot; to match what you pulled, e.g.:</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="c1"># &quot;ollama_model&quot;: &quot;qwen3.5:9b&quot;</span>
-</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="c1"># &quot;ollama_model&quot;: &quot;qwen3.5:35b&quot;</span>
-</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="c1"># &quot;ollama_model&quot;: &quot;qwen3.5:122b&quot;</span>
+<p><strong>Set the backend in config before starting</strong> (required — <code>openai_base_url</code> and <code>openai_model</code> must be set):</p>
+<p><div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>nano<span class="w"> </span>~/.airecon/config.yaml
 </span></code></pre></div>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">openai_base_url</span><span class="p">:</span><span class="w"> </span><span class="s">"http://localhost:20128/v1"</span><span class="w">   </span><span class="c1"># your gateway, must include /v1</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nt">openai_api_key</span><span class="p">:</span><span class="w"> </span><span class="s">""</span><span class="w">                              </span><span class="c1"># set if the gateway requires one</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="nt">openai_model</span><span class="p">:</span><span class="w"> </span><span class="s">"qwen3:8b"</span><span class="w">                         </span><span class="c1"># e.g. claude-sonnet-4 / gpt-4o / a local model</span>
+</span></code></pre></div></p>
 <p>See <a href="../configuration/">Configuration Reference</a> for all options.</p>
 <hr />
 <h2 id="9-updating-airecon">9. Updating AIRecon<a class="headerlink" href="#9-updating-airecon" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">cd</span><span class="w"> </span>airecon
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="c1"># Pull latest changes</span>
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>git<span class="w"> </span>pull
-</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>
-</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="c1"># Re-run the installer</span>
-</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>./install.sh
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">cd</span><span class="w"> </span>airecon
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="c1"># Pull latest changes</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>git<span class="w"> </span>pull
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="c1"># Re-run the installer</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>./install.sh
 </span></code></pre></div>
 <p>The installer automatically cleans the previous version before reinstalling.</p>
 <hr />
-<h2 id="10-remote-ollama-setup">10. Remote Ollama Setup<a class="headerlink" href="#10-remote-ollama-setup" title="Permanent link">&para;</a></h2>
-<p>If your Ollama instance runs on a separate machine (e.g., a GPU server):</p>
-<p><strong>On the Ollama server:</strong>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Bind Ollama to all interfaces</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nv">OLLAMA_HOST</span><span class="o">=</span><span class="m">0</span>.0.0.0<span class="w"> </span>ollama<span class="w"> </span>serve
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
-</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="c1"># Or set permanently in the systemd service:</span>
-</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="c1"># Environment=&quot;OLLAMA_HOST=0.0.0.0&quot;</span>
-</span></code></pre></div></p>
-<p><strong>In <code>~/.airecon/config.yaml</code> on your workstation:</strong>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nt">ollama_url</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;http://&lt;server-ip&gt;:11434&quot;</span>
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="nt">ollama_model</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;qwen3.5:35b&quot;</span>
-</span></code></pre></div></p>
-<p>Make sure port 11434 is open in the server's firewall.</p>
+<h2 id="10-remote-hosted-backend">10. Remote / hosted backend<a class="headerlink" href="#10-remote-hosted-backend" title="Permanent link">&para;</a></h2>
+<p>The gateway can live anywhere — a LAN GPU box, a tunnel, or a hosted provider. Just point <code>openai_base_url</code> at it:</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># LAN gateway (e.g. vLLM on a GPU server)</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nt">openai_base_url</span><span class="p">:</span><span class="w"> </span><span class="s">"http://&lt;server-ip&gt;:20128/v1"</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="nt">openai_model</span><span class="p">:</span><span class="w"> </span><span class="s">"qwen3:8b"</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nt">openai_api_key</span><span class="p">:</span><span class="w"> </span><span class="s">""</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="c1"># Hosted provider</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="nt">openai_base_url</span><span class="p">:</span><span class="w"> </span><span class="s">"https://your-gateway.example/v1"</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="nt">openai_model</span><span class="p">:</span><span class="w"> </span><span class="s">"claude-sonnet-4"</span>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="nt">openai_api_key</span><span class="p">:</span><span class="w"> </span><span class="s">"sk-..."</span>
+</span></code></pre></div>
+<p>Make sure the gateway's port is reachable (open in the firewall) and that <code>GET &lt;base_url&gt;/models</code> responds.</p>
 <hr />
 <h2 id="11-optional-install-datasets">11. Optional: Install Datasets<a class="headerlink" href="#11-optional-install-datasets" title="Permanent link">&para;</a></h2>
 <p>The <a href="https://github.com/pikpikcu/airecon-dataset">airecon-dataset</a> package gives the agent access to a local security knowledge base (~1.09M indexed records, 13 datasets) via the <code>dataset_search</code> tool. This is optional — AIRecon works without it.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/pikpikcu/airecon-dataset.git
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="nb">cd</span><span class="w"> </span>airecon-dataset
-</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
-</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c1"># Install Python dependencies for the installer</span>
-</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>pip<span class="w"> </span>install<span class="w"> </span>huggingface_hub<span class="w"> </span>tqdm<span class="w"> </span>pyarrow
-</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>
-</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="c1"># Install all datasets (~2.4 GB download, ~2 GB installed)</span>
-</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>python<span class="w"> </span>install.py
-</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>
-</span><span id="__span-14-10"><a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="c1"># Or install only specific datasets</span>
-</span><span id="__span-14-11"><a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>python<span class="w"> </span>install.py<span class="w"> </span>--include<span class="w"> </span>nuclei-templates<span class="w"> </span>red-team-offensive<span class="w"> </span>apt-privesc
-</span><span id="__span-14-12"><a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>
-</span><span id="__span-14-13"><a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a><span class="c1"># Verify</span>
-</span><span id="__span-14-14"><a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>python<span class="w"> </span>install.py<span class="w"> </span>installed
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/pikpikcu/airecon-dataset.git
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nb">cd</span><span class="w"> </span>airecon-dataset
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># Install Python dependencies for the installer</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>pip<span class="w"> </span>install<span class="w"> </span>huggingface_hub<span class="w"> </span>tqdm<span class="w"> </span>pyarrow
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="c1"># Install all datasets (~2.4 GB download, ~2 GB installed)</span>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>python<span class="w"> </span>install.py
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="c1"># Or install only specific datasets</span>
+</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>python<span class="w"> </span>install.py<span class="w"> </span>--include<span class="w"> </span>nuclei-templates<span class="w"> </span>red-team-offensive<span class="w"> </span>apt-privesc
+</span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>
+</span><span id="__span-10-13"><a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="c1"># Verify</span>
+</span><span id="__span-10-14"><a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>python<span class="w"> </span>install.py<span class="w"> </span>installed
 </span></code></pre></div>
 <p>Restart AIRecon after installing — the <code>dataset_search</code> tool picks up new databases automatically.</p>
 <p><strong>What gets installed:</strong></p>
@@ -1532,61 +1489,61 @@
 <h3 id="airecon-sandbox-image-not-found-at-startup"><code>airecon-sandbox</code> image not found at startup<a class="headerlink" href="#airecon-sandbox-image-not-found-at-startup" title="Permanent link">&para;</a></h3>
 <p>Build manually: <code>docker build -t airecon-sandbox airecon/containers/</code></p>
 <h3 id="model-not-found-model-name-mismatch"><code>Model not found</code> / model name mismatch<a class="headerlink" href="#model-not-found-model-name-mismatch" title="Permanent link">&para;</a></h3>
-<p>Run <code>ollama list</code> and copy the exact model name (including tag) into <code>ollama_model</code> in config.</p>
+<p>Run <code>ollama list</code> and copy the exact model name (including tag) into <code>openai_model</code> in config.</p>
 <h3 id="ollama-returned-html-error-page-server-crashed"><code>Ollama returned HTML error page</code> / server crashed<a class="headerlink" href="#ollama-returned-html-error-page-server-crashed" title="Permanent link">&para;</a></h3>
 <p><strong>Root cause:</strong> Ollama ran out of VRAM and crashed. When this happens, Ollama's HTTP server returns an HTML error page instead of a JSON response, which AIRecon cannot parse.</p>
 <p>This is the most common error on sessions with long context history or when running large models near VRAM limits.</p>
 <p><strong>Why it happens:</strong>
 - The KV cache (conversation history) grows with each iteration — a 500-iteration session can consume 2–4× more VRAM than the initial load
-- <code>ollama_num_ctx: 65536</code> with a 32B model requires ~6–8 GB VRAM just for the KV cache, on top of model weights
+- <code>llm_context_window: 65536</code> with a 32B model requires ~6–8 GB VRAM just for the KV cache, on top of model weights
 - Spawning parallel agents (<code>run_parallel_agents</code>) doubles or triples VRAM usage simultaneously</p>
 <p><strong>Fix in order of preference:</strong></p>
 <p><strong>1. Restart Ollama immediately (quick fix):</strong>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>ollama
-</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="c1"># or if running manually:</span>
-</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>pkill<span class="w"> </span>ollama<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>ollama<span class="w"> </span>serve<span class="w"> </span><span class="p">&amp;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>ollama
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="c1"># or if running manually:</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>pkill<span class="w"> </span>ollama<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>ollama<span class="w"> </span>serve<span class="w"> </span><span class="p">&amp;</span>
 </span></code></pre></div></p>
 <p><strong>2. Reduce context window (permanent fix):</strong>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="p">{</span>
-</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">    </span><span class="nt">&quot;ollama_num_ctx&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">32768</span><span class="p">,</span>
-</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">    </span><span class="nt">&quot;ollama_num_ctx_small&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">16384</span>
-</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="p">{</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">    </span><span class="nt">"llm_context_window"</span><span class="p">:</span><span class="w"> </span><span class="mi">32768</span><span class="p">,</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">    </span><span class="nt">"llm_context_window_small"</span><span class="p">:</span><span class="w"> </span><span class="mi">16384</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="p">}</span>
 </span></code></pre></div></p>
 <p><strong>3. Reduce max output tokens:</strong>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nt">ollama_num_predict</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8192</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nt">openai_max_tokens</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8192</span>
 </span></code></pre></div></p>
 <p><strong>4. Shorten model keep-alive to free VRAM between sessions:</strong>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nt">ollama_keep_alive</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;5m&quot;</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nt">llm_keep_alive</span><span class="p">:</span><span class="w"> </span><span class="s">"5m"</span>
 </span></code></pre></div></p>
 <p><strong>5. Limit parallel agent concurrency</strong> — avoid <code>run_parallel_agents</code> if VRAM is near the limit. Use <code>spawn_agent</code> (single specialist) instead.</p>
 <p><strong>Recommended safe config for 16–20 GB VRAM:</strong>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nt">ollama_model</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;qwen3.5:35b&quot;</span>
-</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="nt">ollama_num_ctx</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32768</span>
-</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="nt">ollama_num_ctx_small</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16384</span>
-</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="nt">ollama_num_predict</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8192</span>
-</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="nt">ollama_keep_alive</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;10m&quot;</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nt">openai_model</span><span class="p">:</span><span class="w"> </span><span class="s">"qwen3.5:35b"</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="nt">llm_context_window</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32768</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="nt">llm_context_window_small</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16384</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="nt">openai_max_tokens</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8192</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="nt">llm_keep_alive</span><span class="p">:</span><span class="w"> </span><span class="s">"10m"</span>
 </span></code></pre></div></p>
 <blockquote>
-<p>The agent uses periodic context compression, so reducing <code>ollama_num_ctx</code> usually has limited impact on long session quality.</p>
+<p>The agent uses periodic context compression, so reducing <code>llm_context_window</code> usually has limited impact on long session quality.</p>
 </blockquote>
 <h3 id="context-length-error-out-of-memory-vram">Context length error / out of memory (VRAM)<a class="headerlink" href="#context-length-error-out-of-memory-vram" title="Permanent link">&para;</a></h3>
-<p>Lower <code>ollama_num_ctx</code> in config:
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="nt">ollama_num_ctx</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32768</span>
+<p>Lower <code>llm_context_window</code> in config:
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nt">llm_context_window</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32768</span>
 </span></code></pre></div>
 Or use a smaller model. See the <code>Ollama returned HTML error page</code> section above for a complete diagnosis.</p>
 <h3 id="playwright-error-executable-doesnt-exist">Playwright error: <code>executable doesn't exist</code><a class="headerlink" href="#playwright-error-executable-doesnt-exist" title="Permanent link">&para;</a></h3>
 <p>Reinstall Playwright browsers:
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="nb">cd</span><span class="w"> </span>airecon
-</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>playwright<span class="w"> </span>install<span class="w"> </span>chromium
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nb">cd</span><span class="w"> </span>airecon
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>playwright<span class="w"> </span>install<span class="w"> </span>chromium
 </span></code></pre></div></p>
 <h3 id="connection-timeout-to-ollama-during-long-scans"><code>Connection timeout</code> to Ollama during long scans<a class="headerlink" href="#connection-timeout-to-ollama-during-long-scans" title="Permanent link">&para;</a></h3>
-<p>Increase <code>ollama_timeout</code> in config (default 1900s should be sufficient for most models):
-<div class="language-json highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="nt">&quot;ollama_timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">3600.0</span>
+<p>Increase <code>llm_timeout</code> in config (default 1900s should be sufficient for most models):
+<div class="language-json highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nt">"llm_timeout"</span><span class="p">:</span><span class="w"> </span><span class="mf">3600.0</span>
 </span></code></pre></div></p>
 <h3 id="poetry-install-fails-with-dependency-conflicts">Poetry install fails with dependency conflicts<a class="headerlink" href="#poetry-install-fails-with-dependency-conflicts" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="c1"># Clean Poetry environment and retry</span>
-</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>poetry<span class="w"> </span>env<span class="w"> </span>remove<span class="w"> </span>python3
-</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>poetry<span class="w"> </span>install
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># Clean Poetry environment and retry</span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>poetry<span class="w"> </span>env<span class="w"> </span>remove<span class="w"> </span>python3
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>poetry<span class="w"> </span>install
 </span></code></pre></div>
 
 
