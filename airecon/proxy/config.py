@@ -226,6 +226,15 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         "google,bing,duckduckgo,brave,google_news,github,stackoverflow",
         "Comma-separated search engines.",
     ),
+    "youcom_search": (
+        False,
+        "Use the keyless You.com MCP web search as an additional web_search "
+        "source. No API key needed. Off by default (SearXNG, then DuckDuckGo).",
+    ),
+    "youcom_url": (
+        "https://api.you.com/mcp?profile=free",
+        "You.com MCP endpoint URL. Default is the keyless free profile.",
+    ),
     "tool_health_probe_binaries": (
         "nuclei,nmap,ffuf,httpx,katana,subfinder,sqlmap",
         "Comma-separated CLI tools probed (via `which` in the sandbox) for the "
@@ -913,6 +922,8 @@ _CONFIG_CATEGORIES = [
             "caido_graphql_url",
             "searxng_url",
             "searxng_engines",
+            "youcom_search",
+            "youcom_url",
         ],
     ),
     (
@@ -1301,6 +1312,8 @@ class Config:
 
     searxng_url: str
     searxng_engines: str
+    youcom_search: bool
+    youcom_url: str
     tool_health_probe_binaries: str
     tool_health_probe_ttl: float
     notify_webhook_url: str
