@@ -654,6 +654,34 @@ searxng_engines: "google,bing,duckduckgo"
 
 ---
 
+### `youcom_search`
+**Type:** bool | **Default:** `false`
+
+Use the keyless You.com MCP web search as the `web_search` source. No API key or sign-up is needed — the free profile endpoint provides search without credentials, matching AIRecon's zero-key setup. When enabled, `web_search` tries You.com first and silently falls back to the normal SearXNG → DuckDuckGo path if the request fails.
+
+```yaml
+# Keyless You.com web search (opt-in)
+youcom_search: true
+
+# Default: off — SearXNG, then DuckDuckGo
+youcom_search: false
+```
+
+Can also be set via the `AIRECON_YOUCOM_SEARCH=true` environment variable.
+
+---
+
+### `youcom_url`
+**Type:** string | **Default:** `"https://api.you.com/mcp?profile=free"`
+
+The You.com MCP endpoint used when `youcom_search` is enabled. The default is the keyless free profile. Point it at `https://api.you.com/mcp` if you use an authenticated setup (bearer token via `YDC_API_KEY`).
+
+```yaml
+youcom_url: "https://api.you.com/mcp?profile=free"
+```
+
+---
+
 ## 10. Session Settings
 
 ### `vuln_similarity_threshold`

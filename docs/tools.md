@@ -9,7 +9,7 @@ Complete reference for all tools available to the AIRecon agent.
    - [execute](#21-execute--docker-sandbox-shell)
    - [browser_action](#22-browser_action--headless-chromium)
    - [request_user_input](#23-request_user_input-interactive-input)
-   - [web_search](#24-web_search--searxng-duckduckgo)
+   - [web_search](#24-web_search--searxng-duckduckgo-optional-youcom)
    - [create_vulnerability_report](#25-create_vulnerability_report)
    - [create_file](#26-create_file)
    - [read_file](#27-read_file)
@@ -376,11 +376,13 @@ request_user_input(
 
 ---
 
-### 2.4 `web_search` — SearXNG / DuckDuckGo
+### 2.4 `web_search` — SearXNG / DuckDuckGo / optional You.com
 
 **Source:** `airecon/proxy/web_search.py`
 
 Performs a live web search via SearXNG (preferred) or DuckDuckGo (fallback) during assessments. Used for CVE research, WAF bypass lookups, and technology-specific payload discovery.
+
+Optionally, You.com can be used as the web-search source by enabling `youcom_search` in `~/.airecon/config.yaml`. It talks to the keyless You.com MCP free profile (`https://api.you.com/mcp?profile=free`) — no API key, no sign-up, no cloud dependency beyond the search endpoint itself — which keeps the zero-key setup AIRecon is designed around. If the You.com request fails, `web_search` silently falls back to the normal SearXNG → DuckDuckGo path.
 
 **Schema:**
 

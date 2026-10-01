@@ -173,9 +173,13 @@ async def web_search(query: str, max_results: int = 10, use_cache: bool = True) 
         cfg = get_config()
         searxng_url = cfg.searxng_url.strip()
         engines = cfg.searxng_engines.strip() or "google,bing,duckduckgo,brave"
+        youcom_enabled = bool(getattr(cfg, "youcom_search", False))
+        youcom_url = (getattr(cfg, "youcom_url", "") or "").strip()
     except Exception:
         searxng_url = ""
         engines = "google,bing,duckduckgo,brave"
+        youcom_enabled = False
+        youcom_url = ""
 
     max_results = min(int(max_results), 50)
 
@@ -184,6 +188,21 @@ async def web_search(query: str, max_results: int = 10, use_cache: bool = True) 
         if cached:
             cached["from_cache"] = True
             return cached
+
+    if youcom_enabled:
+        from .web_search_youcom import youcom_search
+
+        youcom_result = await youcom_search(
+            query, max_results, youcom_url or "https://api.you.com/mcp?profile=free"
+        )
+        if youcom_result.get("success"):
+            if effective_cache:
+                _cache_results(query, max_results, youcom_result, engines)
+            return youcom_result
+        logger.warning(
+            "You.com web search failed (%s) — falling back to SearXNG/DuckDuckGo",
+            youcom_result.get("error"),
+        )
 
     if searxng_url:
 
