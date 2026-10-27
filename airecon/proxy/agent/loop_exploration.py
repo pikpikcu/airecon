@@ -1205,17 +1205,9 @@ class _ExplorationMixin:
                 len(engine.observation_log) > 0
                 and len(engine.observation_log) % 30 == 0
             ):
-                insights = engine.distill_insights(
-                    base_url=cfg.openai_base_url,
-                    model=cfg.openai_model,
-                    api_key=cfg.openai_api_key,
-                )
-                if insights:
-                    logger.info(
-                        "[AdaptiveLearning] Distilled %d new insights from %d observations",
-                        len(insights),
-                        len(engine.observation_log),
-                    )
+                # The next async iteration awaits distillation with the current
+                # client. Never run Future.result() on the proxy event loop.
+                self._learning_distill_due = True
 
             logger.debug(
                 "[AdaptiveLearning] Recorded: tool=%s success=%s duration=%.2fs phase=%s observations=%d",

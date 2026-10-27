@@ -174,6 +174,8 @@ class AgentLoop(
         self.state = AgentState()
         self._tools_llm: list[dict[str, Any]] | None = None
         self._last_output_file: str | None = None
+        self._context_char_budget = 0
+        self._learning_distill_due = False
         self._executed_tool_counts: dict[tuple[str, str], int] = {}
 
         self._executed_cmd_hashes: set[str] = set()

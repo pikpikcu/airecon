@@ -64,3 +64,24 @@ def test_disabling_gate_learns_all(monkeypatch):
     s = _stub(vulns)
     saved = _StateMixin._save_new_findings_to_memory(s)
     assert saved == 2  # gate off -> learns everything
+
+
+def test_only_new_explicitly_verified_findings_credit_recalled_insights():
+    from unittest.mock import MagicMock
+    s = _stub([
+        {"type": "a", "description": "verified", "verified": True},
+        {"type": "b", "description": "high confidence only", "verified_confidence": .9},
+    ])
+    s._adaptive_learning_engine = MagicMock()
+    assert _StateMixin._save_new_findings_to_memory(s) == 2
+    s._adaptive_learning_engine.attribute_hit.assert_called_once_with()
+    assert _StateMixin._save_new_findings_to_memory(s) == 0
+    s._adaptive_learning_engine.attribute_hit.assert_called_once_with()
+
+
+def test_unverified_confidence_alone_does_not_credit_a_verified_hit():
+    from unittest.mock import MagicMock
+    s = _stub([{"type":"a", "description":"only a confidence estimate", "verified_confidence": .9}])
+    s._adaptive_learning_engine = MagicMock()
+    assert _StateMixin._save_new_findings_to_memory(s) == 1
+    s._adaptive_learning_engine.attribute_hit.assert_not_called()

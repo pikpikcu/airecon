@@ -305,3 +305,235 @@ class TestRunIterationLoop:
                 break
 
         assert agent.state.token_usage["limit"] == -1
+
+    @pytest.mark.asyncio
+    async def test_context_error_stops_without_auto_recovery(self, agent, monkeypatch):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock
+
+        from airecon.proxy.config import DEFAULT_CONFIG
+        from airecon.proxy.llm import LLMBackendHTTPError
+
+        cfg = SimpleNamespace(**DEFAULT_CONFIG)
+        agent.state.max_iterations = 1
+        agent._consecutive_failures = 0
+        agent._fit_num_predict_to_ctx = lambda predict, ctx: min(predict, ctx)
+        original_conversation = [{"role": "user", "content": "Read the fixture."}]
+        agent.state.conversation = list(original_conversation)
+        attempts = []
+        sleep = AsyncMock()
+        monkeypatch.setattr("airecon.proxy.agent.loop_tool_cycle.asyncio.sleep", sleep)
+
+        async def failed_stream(**kwargs):
+            attempts.append(kwargs)
+            raise LLMBackendHTTPError(
+                500,
+                'OpenAI-compatible returned HTTP 500: '
+                '{"error":{"message":"no user query found in messages"}}',
+            )
+            yield  # pragma: no cover — preserve the async-generator interface
+
+        agent.llm.chat_stream = failed_stream
+        events = [event async for event in agent._run_iteration_loop(cfg)]
+
+        assert len(attempts) == 1
+        sleep.assert_not_awaited()
+        assert not any("AUTO-RECOVERY" in str(event.data) for event in events)
+        errors = [event.data for event in events if event.type == "error"]
+        assert len(errors) == 1
+        assert errors[0]["reason"] == "llm_context_error"
+        assert "OLLAMA_CONTEXT_LENGTH" in errors[0]["message"]
+        assert events[-1].type == "done"
+        assert agent._vram_crash_count == 0
+        assert any(m == original_conversation[0] for m in agent.state.conversation)
+
+    @pytest.mark.asyncio
+    async def test_context_recovery_retries_only_smaller_payloads_and_is_bounded(self, agent, monkeypatch, tmp_path):
+        from types import MethodType, SimpleNamespace
+        from unittest.mock import AsyncMock
+        from airecon.proxy.agent.loop_context import _ContextMixin
+        from airecon.proxy.context_budget import ArtifactCompressor, request_chars
+        from airecon.proxy.config import DEFAULT_CONFIG
+        from airecon.proxy.llm import LLMBackendHTTPError
+
+        agent._fit_num_predict_to_ctx = lambda predict, ctx: min(predict, ctx)
+        agent._consecutive_failures = 0
+        agent.state.conversation = [
+            {"role": "user", "content": "Stay in example.test only."},
+            {"role": "assistant", "content": "", "tool_calls": [{"id": "call_1", "function": {"name": "execute", "arguments": {}}}]},
+            {"role": "tool", "tool_call_id": "call_1", "content": "noise " * 10000},
+        ]
+        agent._messages_for_llm = lambda: agent.state.conversation
+        agent._get_artifact_compressor = lambda: ArtifactCompressor(tmp_path, rtk="", caveman="")
+        agent._recover_context_budget = MethodType(_ContextMixin._recover_context_budget, agent)
+        sizes = []
+        sleep = AsyncMock()
+        monkeypatch.setattr("airecon.proxy.agent.loop_tool_cycle.asyncio.sleep", sleep)
+
+        async def reject(**kwargs):
+            sizes.append(request_chars(kwargs["messages"], kwargs["tools"]))
+            raise LLMBackendHTTPError(500, "no user query found in messages")
+            yield  # pragma: no cover
+
+        agent.llm.chat_stream = reject
+        events = [e async for e in agent._run_iteration_loop(SimpleNamespace(**DEFAULT_CONFIG))]
+        assert 1 < len(sizes) <= 4
+        assert all(after < before for before, after in zip(sizes, sizes[1:]))
+        sleep.assert_not_awaited()
+        assert events[-1].type == "done"
+        assert any(e.type == "error" and e.data["reason"] == "llm_context_error" for e in events)
+
+    @pytest.mark.asyncio
+    async def test_oversized_mandatory_context_stops_before_repeated_local_compaction(self, agent, tmp_path):
+        from types import MethodType, SimpleNamespace
+        from airecon.proxy.agent.loop_context import _ContextMixin
+        from airecon.proxy.context_budget import ArtifactCompressor
+        from airecon.proxy.config import DEFAULT_CONFIG
+        agent._fit_num_predict_to_ctx = lambda predict, ctx: min(predict, ctx)
+        agent.state.conversation = [{"role": "user", "content": "Never leave example.test. " * 5000}]
+        agent._recompute_used_tokens_from_conversation = lambda: 100_000
+        agent._compress_old_tool_outputs = lambda **kwargs: None
+        agent._build_compressed_findings_summary = lambda: ""
+        agent._calc_keep_recent = lambda *args, **kwargs: 35
+        agent._apply_local_context_fallback = lambda **kwargs: None
+        agent._get_artifact_compressor = lambda: ArtifactCompressor(tmp_path, rtk="", caveman="")
+        agent._enforce_char_budget = MethodType(_ContextMixin._enforce_char_budget, agent)
+        cfg = SimpleNamespace(**DEFAULT_CONFIG)
+        cfg.llm_context_window = 8192
+        events = []
+        async for event in agent._run_iteration_loop(cfg):
+            events.append(event)
+            if len(events) > 5:
+                break
+        assert events[-1].type == "done"
+        assert any(e.type == "error" and e.data["reason"] == "context_budget" for e in events)
+        agent.llm.chat_stream.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_invalid_tool_arguments_get_bounded_correction_not_connection_backoff(self, agent, monkeypatch):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock
+        from airecon.proxy.config import DEFAULT_CONFIG
+        from airecon.proxy.llm import LLMToolCallError
+        agent._fit_num_predict_to_ctx = lambda predict, ctx: min(predict, ctx)
+        agent._consecutive_failures = 0
+        agent.state.conversation = [{"role": "user", "content": "Do not access /payments."}]
+        agent._messages_for_llm = lambda: agent.state.conversation
+        agent._tools_llm = [{"type": "function", "function": {"name": "execute", "parameters": {
+            "type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"],
+        }}}]
+        requests = []
+        async def invalid(**kwargs):
+            import copy
+            requests.append(copy.deepcopy(kwargs["messages"]))
+            raise LLMToolCallError("execute", "missing required argument 'command'")
+            yield  # pragma: no cover
+        sleep = AsyncMock()
+        monkeypatch.setattr("airecon.proxy.agent.loop_tool_cycle.asyncio.sleep", sleep)
+        agent.llm.chat_stream = invalid
+        events = [e async for e in agent._run_iteration_loop(SimpleNamespace(**DEFAULT_CONFIG))]
+        assert len(requests) == 3  # original + two repair requests, never a scan/tool call
+        assert requests[1] != requests[0]
+        assert any("command" in m.get("content", "") and "TOOL CALL REPAIR" in m.get("content", "") for m in requests[1])
+        assert all(any(m.get("content") == "Do not access /payments." for m in request) for request in requests)
+        sleep.assert_not_awaited()
+        assert not any(e.type == "tool_start" for e in events)
+        assert events[-1].type == "done"
+        assert any(e.type == "error" and e.data.get("reason") == "invalid_tool_arguments" for e in events)
+
+    @pytest.mark.asyncio
+    async def test_repaired_tool_call_reaches_existing_validation_with_exact_command(self, agent, monkeypatch):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock
+        from airecon.proxy.config import DEFAULT_CONFIG
+        from airecon.proxy.llm import LLMToolCallError
+        agent._fit_num_predict_to_ctx = lambda predict, ctx: min(predict, ctx)
+        agent._consecutive_failures = 0
+        seen = []
+        async def repair(**kwargs):
+            seen.append(kwargs["messages"])
+            if len(seen) == 1:
+                raise LLMToolCallError("execute", "missing required argument 'command'")
+            yield {"message": {"tool_calls": [{"id": "repaired", "function": {
+                "name": "execute", "arguments": {"command": "printf synthetic_fixture"},
+            }}]}, "done": True}
+        admitted = []
+        def validate(name, arguments):
+            admitted.append((name, arguments))
+            agent._stop_requested = True
+            return False, "fixture stops here; no command execution"
+        agent.llm.chat_stream = repair
+        agent._validate_tool_args = validate
+        agent._append_tool_result = lambda *args: None
+        sleep = AsyncMock()
+        monkeypatch.setattr("airecon.proxy.agent.loop_tool_cycle.asyncio.sleep", sleep)
+        events = [e async for e in agent._run_iteration_loop(SimpleNamespace(**DEFAULT_CONFIG))]
+        assert len(seen) == 2
+        assert admitted == [("execute", {"command": "printf synthetic_fixture"})]
+        assert any(e.type == "llm_status" and e.data.get("recovered") is True for e in events)
+        sleep.assert_not_awaited()
+        assert events[-1].type == "done"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("failure", [RuntimeError("fixture parser fault"), ValueError("fixture bad input"), AttributeError("fixture missing field")])
+    async def test_local_faults_do_not_enter_connection_retry(self, agent, monkeypatch, failure):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock
+        from airecon.proxy.config import DEFAULT_CONFIG
+        agent._fit_num_predict_to_ctx = lambda predict, ctx: min(predict, ctx)
+        agent._consecutive_failures = 0
+        attempts = []
+        async def fail(**kwargs):
+            attempts.append(kwargs)
+            raise failure
+            yield
+        agent.llm.chat_stream = fail
+        sleep = AsyncMock()
+        monkeypatch.setattr("airecon.proxy.agent.loop_tool_cycle.asyncio.sleep", sleep)
+        events = [e async for e in agent._run_iteration_loop(SimpleNamespace(**DEFAULT_CONFIG))]
+        assert len(attempts) == 1
+        sleep.assert_not_awaited()
+        assert not any("AUTO-RECOVERY" in str(e.data) for e in events)
+        assert any(e.type == "error" and e.data.get("reason") == "llm_stream_error" for e in events)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("status", [429, 503])
+    async def test_transient_http_has_one_retry_owner_and_no_fake_vram_recovery(self, agent, monkeypatch, status):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock
+        from airecon.proxy.config import DEFAULT_CONFIG
+        from airecon.proxy.llm import LLMBackendHTTPError
+        agent._fit_num_predict_to_ctx = lambda predict, ctx: min(predict, ctx)
+        agent._consecutive_failures = 0
+        attempts = []
+        async def fail(**kwargs):
+            attempts.append(kwargs)
+            raise LLMBackendHTTPError(status, f"OpenAI-compatible returned HTTP {status}: fixture unavailable")
+            yield
+        agent.llm.chat_stream = fail
+        sleep = AsyncMock()
+        monkeypatch.setattr("airecon.proxy.agent.loop_tool_cycle.asyncio.sleep", sleep)
+        events = [e async for e in agent._run_iteration_loop(SimpleNamespace(**DEFAULT_CONFIG))]
+        assert len(attempts) == 5
+        assert all(a.get("max_retries") == 0 for a in attempts)
+        assert agent._vram_crash_count == 0
+        assert all(f"HTTP {status}" in e.data["content"] for e in events if e.type == "text" and "Retrying in" in e.data.get("content", ""))
+        assert not any(e.type == "tool_start" for e in events)
+
+    @pytest.mark.asyncio
+    async def test_empty_response_recovery_preserves_earlier_user_constraints(self, agent, monkeypatch):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock
+        from airecon.proxy.config import DEFAULT_CONFIG
+        agent._fit_num_predict_to_ctx = lambda predict, ctx: min(predict, ctx)
+        agent.state.max_iterations = 1
+        agent._empty_response_retry_count = 2
+        constraint = {"role": "user", "content": "Never request /payments."}
+        agent.state.conversation = [constraint] + [{"role": "assistant", "content": f"fixture {i}"} for i in range(35)]
+        async def empty(**kwargs):
+            return
+            yield
+        agent.llm.chat_stream = empty
+        monkeypatch.setattr("airecon.proxy.agent.loop_tool_cycle.asyncio.sleep", AsyncMock())
+        _ = [e async for e in agent._run_iteration_loop(SimpleNamespace(**DEFAULT_CONFIG))]
+        assert constraint in agent.state.conversation

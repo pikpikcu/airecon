@@ -37,8 +37,9 @@ def test_agent_state_approaching_limit():
 def test_agent_state_truncate_conversation():
     state = AgentState()
     # Add many messages to force truncation
+    state.add_message("user", "Scan example.test only.")
     for i in range(100):
-        state.add_message("user", f"Message {i}")
+        state.add_message("assistant", f"Message {i}")
 
     original_len = len(state.conversation)
     # The default budget for non-system messages limits keeping everything.
@@ -46,13 +47,8 @@ def test_agent_state_truncate_conversation():
 
     # After truncation, the actual number of messages should be bounded roughly to `max_messages` + separator
     assert len(state.conversation) < original_len
-    # Since all messages are short strings, they are dropped instead of compressed text,
-    # but dropped message triggers the separator adding logic.
-    separator_exists = any(
-        "older messages compressed/removed" in str(msg.get("content"))
-        for msg in state.conversation
-    )
-    assert separator_exists
+    assert any(msg.get("content") == "Message 99" for msg in state.conversation)
+    assert any(msg.get("content") == "Scan example.test only." for msg in state.conversation)
 
 
 def test_agent_state_truncate_conversation_keeps_boundary_tool_pair_without_loop():

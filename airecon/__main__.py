@@ -4,6 +4,14 @@ import argparse
 import logging
 import sys
 
+# A direct `python airecon/__main__.py` puts airecon/, not its parent,
+# on sys.path. Without this bootstrap absolute imports can silently resolve
+# to an older pip installation even though the script is in this checkout.
+if __package__ in (None, ""):
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from airecon._version import __version__
 
 logger = logging.getLogger("airecon.cli")

@@ -376,6 +376,16 @@ class AIReconApp(App):
         except Exception as e:
             logger.debug("Expected failure in _mark_llm_degraded set_status: %s", e)
 
+    def _handle_llm_status(self, event: dict) -> None:
+        # Reachability or a partial text chunk does not prove recovery.
+        if event.get("recovered") is not True:
+            return
+        self._llm_degraded_until = 0.0
+        try:
+            self.query_one("#status-bar", StatusBar).set_status(llm_degraded=False)
+        except Exception as exc:
+            logger.debug("Could not update recovered LLM status: %s", exc)
+
     def compose(self) -> ComposeResult:
         yield Header()
 
@@ -1553,6 +1563,9 @@ class AIReconApp(App):
                                 chat.scroll_end(animate=False)
                                 self._last_scroll_time = _now
 
+                    elif event_type == "llm_status":
+                        self._handle_llm_status(event)
+
                     elif event_type == "thinking":
                         content = event.get("content", "")
                         if content:
@@ -2086,6 +2099,7 @@ class AIReconApp(App):
                 "- /think true|false     Enable/disable thinking\n"
                 "- /shell <command>      Run command in AIRecon Kali Docker shell\n"
                 "- /scope ...            Scope guard: allow/deny <hosts>, mode <off|warn|block>, show, clear\n"
+                "- /brain                Show cross-session memory and observed recall mode\n"
                 "- /reset                Reset conversation\n"
                 "- /clear                Clear chat display\n\n"
                 "Note: For authenticated MCP endpoint, use auth:user/pass or auth:apikey:<token> after URL."
@@ -2328,6 +2342,29 @@ class AIReconApp(App):
                     )
             except Exception as e:
                 chat.add_error_message(f"Scope request failed: {e}")
+            return
+
+        elif cmd == "/brain" or cmd.startswith("/brain "):
+            try:
+                response = await self._http.get("/api/brain", timeout=10.0)
+                data = response.json() if response.content else {}
+                if response.status_code != 200 or data.get("error"):
+                    chat.add_error_message(f"Brain unavailable: {data.get('error', response.text)}")
+                    return
+                summary = data.get("summary", {})
+                lines = ["[brain]",
+                         f"  insights:      {summary.get('total_insights', 0)}",
+                         f"  observations:  {summary.get('total_observations', 0)}",
+                         f"  tools tracked: {summary.get('total_tools_tracked', 0)}",
+                         f"  strategies:    {summary.get('total_patterns_learned', 0)}",
+                         f"  retrieval:     {data.get('retrieval_mode', 'lexical')}"]
+                for insight in data.get("insights", [])[:10]:
+                    lines.append(f"    [{insight.get('category')}] {insight.get('title')} "
+                                 f"(conf {float(insight.get('confidence', 0)):.2f}, "
+                                 f"recalls {insight.get('recalls', 0)}, hits {insight.get('hits', 0)})")
+                chat.add_assistant_message("\n".join(lines), markup=False)
+            except Exception as exc:
+                chat.add_error_message(f"Brain request failed: {exc}")
             return
 
         elif cmd.startswith("/mcp"):
@@ -2577,6 +2614,7 @@ class AIReconApp(App):
 - /models: List/switch OpenAI-compatible models.
 - /think true|false: Enable/disable thinking.
 - /shell <command>: Run command in AIRecon Kali Docker shell.
+- /brain: Show cross-session learning and the observed recall mode.
 - /reset: Reset conversation.
 - /clear: Clear chat history.
 

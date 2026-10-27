@@ -1633,6 +1633,8 @@ class AgentState:
         )
         for i in range(compress_boundary):
             msg = other_messages[i]
+            if msg.get("_protected") or msg.get("name") == "read_file":
+                continue
             content = msg.get("content", "")
             role = msg.get("role", "")
 
@@ -1660,6 +1662,7 @@ class AgentState:
             m
             for m in other_messages
             if m.get("role") == "assistant" and not m.get("tool_calls")
+            and not m.get("_protected")
         ]
         if len(assistant_text_only) > 3:
             dropped_text_ids = set(id(m) for m in assistant_text_only[1:-2])
@@ -1685,12 +1688,9 @@ class AgentState:
 
         must_keep = []
         can_trim = []
-        first_user_seen = False
-
         for msg in other_messages:
-            if msg.get("role") == "user" and not first_user_seen:
+            if (msg.get("role") == "user" and not msg.get("_tool_result")) or msg.get("_protected"):
                 must_keep.append(msg)
-                first_user_seen = True
             else:
                 can_trim.append(msg)
 
@@ -1741,7 +1741,10 @@ class AgentState:
             ),
         }
 
-        rebuilt = must_keep + ([separator] if dropped_count > 0 else []) + trimmed
+        original_order = {id(msg): i for i, msg in enumerate(other_messages)}
+        rebuilt = sorted(must_keep + trimmed, key=lambda msg: original_order[id(msg)])
+        if dropped_count > 0:
+            rebuilt.insert(0, separator)
         repaired = self._repair_tool_pairs(
             core_system + ephemeral_system + protected_system + rebuilt
         )
@@ -2072,16 +2075,22 @@ class AgentState:
 
         carry_forward_context = "\n".join(carry_forward_lines).strip()
 
-        non_system = [m for m in self.conversation if m.get("role") != "system"]
+        preserved_users = [
+            m for m in self.conversation
+            if m.get("role") != "system" and (
+                (m.get("role") == "user" and not m.get("_tool_result"))
+                or m.get("_protected")
+            )
+        ]
+        non_system = [m for m in self.conversation if m.get("role") != "system" and m not in preserved_users]
         if len(non_system) <= keep_recent + 1:
             return
 
         system_msgs = [m for m in self.conversation if m.get("role") == "system"]
-        first_user = non_system[0]
-        to_compress = non_system[1 : len(non_system) - keep_recent]
+        to_compress = non_system[: len(non_system) - keep_recent]
         keep_tail = non_system[len(non_system) - keep_recent :]
 
-        if len(to_compress) < 5:
+        if not to_compress:
             return
 
         CHUNK_SIZE = 10
@@ -2375,7 +2384,7 @@ class AgentState:
                     summaries.extend(chunk)
 
         before = len(self.conversation)
-        self.conversation = system_msgs + [first_user] + summaries + keep_tail
+        self.conversation = system_msgs + preserved_users + summaries + keep_tail
         logger.info(
             "Memory compressed (%s): %d messages → %d summaries (%d → %d total)",
             phase,

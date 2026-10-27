@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 from ..browser import browser_action
 from ..config import get_config, get_workspace_root
 from ..data_loader import load_tools_meta
+from ..scope import check_network_tool_scope
 from .executors_catalog import (
     _RESULT_TRUNCATION_THRESHOLD,
 )
@@ -124,6 +125,10 @@ class _BrowserExecutorMixin:
         arguments: dict[str, Any],
     ) -> tuple[bool, float, dict[str, Any], str | None]:
         self._last_output_file = None
+
+        scope_error = check_network_tool_scope(tool_name, arguments)
+        if scope_error:
+            return False, 0.0, {"success": False, "error": scope_error}, None
 
         # ── Pre-filter: block tracking/analytics URLs before browser ──
         action = arguments.get("action", "")

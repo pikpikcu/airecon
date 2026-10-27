@@ -142,6 +142,26 @@ allow_destructive_testing: false
 
 ## 3. LLM Backend Settings
 
+Select the wire protocol explicitly with `llm_provider`:
+
+| Value | Endpoint appended to `openai_base_url` | Authentication |
+| --- | --- | --- |
+| `openai` (default) | `/chat/completions` | Bearer, if configured |
+| `anthropic` (alias `claude`) | `/messages` | `llm_anthropic_auth: x-api-key` by default |
+
+Keep the `/v1` suffix in the base URL. For native Anthropic use
+`https://api.anthropic.com/v1`, your exact available model ID in `openai_model`,
+and your API key in `openai_api_key`. Gateways requiring OAuth/Bearer headers
+must explicitly select `llm_anthropic_auth: bearer` or `both`; auth is not
+inferred from the hostname or key shape. `AIRECON_LLM_PROVIDER` is the equivalent
+environment override. No Anthropic SDK is required.
+
+Native signed thinking blocks, narration and tool-use blocks are retained for
+continuation. Thinking is omitted when the output budget cannot fit its minimum;
+when enabled its budget is below `max_tokens` and incompatible sampling fields
+are omitted. OpenAI-compatible reasoning/optional-parameter negotiation remains
+separate. Schema and signed-block bytes are included in context budgeting.
+
 ### `openai_base_url`
 **Type:** string | **Default:** `"http://localhost:20128/v1"` | **Required**
 
@@ -490,6 +510,24 @@ The message role used when returning tool results to the LLM in the conversation
 Most models work correctly with `"tool"`. If you see the model failing to parse tool results, try `"user"`.
 
 ---
+
+### Cross-session semantic memory
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `intelligence_semantic_recall` | `true` | Prefer semantic recall when available; otherwise lexical matching |
+| `intelligence_embeddings_enabled` | `true` | Permit embeddings on the configured gateway |
+| `embedding_model` | `""` | Exact embedding model; empty means lexical-only |
+| `intelligence_dedup_threshold` | `0.90` | Similarity threshold for merging duplicate insights |
+| `intelligence_utility_floor` | `0.2` | Retire old low-utility insights after enough recalls |
+| `intelligence_insight_ttl_days` | `90` | Retire stale unused low-confidence insights |
+
+Native Anthropic has no embeddings endpoint. AIRecon uses lexical fallback
+instead of guessing another provider or transmitting data to an undeclared host.
+Recall is awaited without blocking the proxy event loop. Failure-derived lessons
+carry lower confidence than successful observations. `/brain` and `GET /api/brain`
+show learned insights and recall/hit counters; those counters are not evidence
+that a proposed vulnerability has been verified.
 
 ## 5. Docker Sandbox
 

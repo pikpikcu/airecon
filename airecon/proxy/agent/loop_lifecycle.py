@@ -317,6 +317,8 @@ class _LifecycleMixin:
         self._vram_crash_count = 0
         self._adaptive_num_predict_cap = 0
         self._fatal_llm_error = ""
+        self._context_char_budget = 0
+        self._learning_distill_due = False
         self._context_check_task = None
 
         self._session = SessionData(target=old_target)

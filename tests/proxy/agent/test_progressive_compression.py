@@ -216,7 +216,7 @@ class TestCompressOldToolOutputs:
             loop.state.conversation.append(
                 {
                     "role": role,
-                    "content": "A" * 500 + f" result number {i}",
+                    "content": "A" * 5000 + f" result number {i}",
                 }
             )
 
@@ -224,8 +224,10 @@ class TestCompressOldToolOutputs:
 
         # Old tool messages (first 5) should be compressed
         tool_msgs = [m for m in loop.state.conversation if m.get("role") == "tool"]
-        compressed = [m for m in tool_msgs if m["content"].startswith("[COMPRESSED]")]
+        compressed = [m for m in tool_msgs if m.get("_context_ref")]
         assert len(compressed) > 0
+        for message in compressed:
+            assert loop._get_artifact_compressor().load(message["_context_ref"]).startswith("A" * 5000)
 
     def test_does_not_compress_recent_8(self) -> None:
         loop = _make_loop()
