@@ -5,6 +5,7 @@ import logging
 import re
 import shlex
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -786,13 +787,24 @@ class _ObserveExecutorMixin:
         cmd_parts.append("--output-truncate false")
         active_target = self.state.active_target or "unknown"
         workspace_dir = shlex.quote(f"/workspace/{active_target}")
-        output_file = shlex.quote(
-            f"/workspace/{active_target}/output/schemathesis_results.txt"
-        )
+        run_id = uuid.uuid4().hex[:12]
+        output_file = f"/workspace/{active_target}/output/schemathesis_{run_id}.txt"
+        report_file = f"/workspace/{active_target}/output/schemathesis_{run_id}.json"
+        cmd_parts.extend(["--report json", "--report-json-path", shlex.quote(report_file)])
         joined_cmd = " ".join(cmd_parts)
-        full_cmd = f"cd {workspace_dir} && {joined_cmd} 2>&1 | tee {output_file}"
+        # Preserve the scanner's status instead of tee/cat's status. Exit 1
+        # may mean findings, so also inspect the structured report below.
+        full_cmd = (
+            f"cd {workspace_dir} && {{ {joined_cmd} > {shlex.quote(output_file)} 2>&1; "
+            f"status=$?; cat {shlex.quote(output_file)}; exit \"$status\"; }}"
+        )
 
         try:
+            workspace_root = get_workspace_root().resolve()
+            host_output = (workspace_root / active_target / "output").resolve()
+            host_output.relative_to(workspace_root)
+            host_output.mkdir(parents=True, exist_ok=True)
+            host_report = host_output / f"schemathesis_{run_id}.json"
             exec_result = await self.engine.execute_tool(
                 "execute",
                 {"command": full_cmd, "timeout": 300},
@@ -801,31 +813,61 @@ class _ObserveExecutorMixin:
                 exec_result.get("stdout", "") or exec_result.get("result", "") or ""
             )
 
-            exec_error = exec_result.get("error") or exec_result.get("stderr") or ""
-            engine_ok = bool(exec_result.get("success", True))
-            success = engine_ok and (bool(stdout.strip()) or not bool(exec_error))
-
-            violations = stdout.count("FAILED") + stdout.count("not_a_server_error")
-            passed = stdout.count("PASSED")
-
             res_dict = {
-                "success": success,
-                "summary": f"Schemathesis completed: {passed} passed, {violations} potential violations.",
-                "violations": violations,
                 "output_file": output_file,
+                "report_file": report_file,
                 "raw_output": stdout[:3000],
             }
+            report = json.loads(host_report.read_text(encoding="utf-8"))
+            if not isinstance(report, dict):
+                raise ValueError("Schemathesis JSON report must be an object")
+            counts = report.get("test_cases") or {}
+            operations = report.get("operations") or {}
+            if not isinstance(counts, dict) or not isinstance(operations, dict):
+                raise ValueError("Invalid Schemathesis test counts")
+            generated = int(counts.get("generated", 0))
+            failed = int(counts.get("with_failures", 0))
+            violations = int(counts.get("unique_failures", 0))
+            passed = max(0, generated - failed - int(counts.get("without_checks", 0)))
+            failures = report.get("failures", [])
+            errors = report.get("errors", [])
+            exit_code = exec_result.get("exit_code")
+            success = (
+                report.get("complete") is True
+                and exit_code in (0, 1)
+                and report.get("exit_code") == exit_code
+                and (exit_code == 0 or bool(failures))
+                and not errors
+                and not operations.get("errored", 0)
+                and int(operations.get("tested", 0)) > 0
+                and generated > 0
+            )
+            res_dict.update({
+                "success": success,
+                "exit_code": exit_code,
+                "complete": report.get("complete") is True,
+                "passed": passed,
+                "violations": violations,
+                "test_cases": counts,
+                "failures": failures,
+                "errors": errors,
+                "summary": (
+                    f"Schemathesis completed: {passed} passed test cases, "
+                    f"{failed} failed test cases, {violations} unique violations."
+                    if success else "Schemathesis scan failed or was incomplete."
+                ),
+            })
             if not success:
-                res_dict["error"] = (
-                    exec_error[:500] if exec_error else "No output produced"
-                )
+                res_dict["error"] = str(errors or exec_result.get("error") or
+                                        "Incomplete run, no tested operations, or scanner execution error")[:500]
             try:
                 self._save_tool_output(tool_name, arguments, res_dict)
             except Exception as _e:
                 logger.debug("Could not save tool output: %s", _e)
         except Exception as e:
             logger.error("schemathesis_fuzz error: %s", e)
-            res_dict = {"success": False, "error": str(e)}
+            res_dict = {"success": False, "error": f"Schemathesis report unavailable or invalid: {e}",
+                        "output_file": output_file, "report_file": report_file}
             success = False
 
         duration = time.time() - start_time

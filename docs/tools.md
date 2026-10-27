@@ -690,9 +690,11 @@ Context-aware custom wordlist generation based on target analysis.
 
 ### 3.5 `schemathesis_fuzz`
 
-**Source:** `airecon/proxy/validators.py`
+**Source:** `airecon/proxy/agent/executors_observe.py`
 
 API schema-aware fuzzing using Schemathesis against OpenAPI/Swagger specifications.
+Requires Schemathesis 4.26 or later in the 4.x series inside the sandbox.
+New sandbox builds install this version range; older images may need an update.
 
 **Schema:**
 
@@ -702,8 +704,8 @@ API schema-aware fuzzing using Schemathesis against OpenAPI/Swagger specificatio
   "parameters": {
     "schema_url": "string — URL to OpenAPI/Swagger spec",
     "base_url": "string — Base URL for API (if different from spec)",
-    "auth": "string — Authentication header (e.g., 'Bearer token')",
-    "headers": "object — Additional headers",
+    "auth_header": "string — Authorization header value (e.g., 'Bearer token')",
+    "max_examples": "integer — Maximum generated examples per operation (default 30)",
     "checks": "array — Schemathesis checks to run"
   },
   "required": ["schema_url"]
@@ -716,6 +718,20 @@ API schema-aware fuzzing using Schemathesis against OpenAPI/Swagger specificatio
 - Missing authentication
 - Authorization bypass
 - Content-type confusion
+
+Results are parsed from a JSON report, not console text. `passed` counts test
+cases without failures or unchecked cases; `violations` is the number of unique
+failures, while `failures` contains grouped failure details. Full text and JSON
+artifacts are saved under the target's `output/` directory with unique run names.
+A completed scan can return `success: true` with violations and scanner exit
+code 1. Missing/invalid reports, schema-loading failures, incomplete scans, and
+runtime errors return `success: false`, not a clean scan.
+
+Configured scope allow/deny rules are checked on declared network destinations
+before native scan, HTTP, Caido send, and agent-spawn dispatch, as well as browser
+URLs. This is application-level validation, not a network firewall: it does not
+provide egress containment for arbitrary scripts, MCP tools, redirects, or
+destinations embedded inside a supplied API schema.
 
 ---
 

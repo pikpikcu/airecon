@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import tempfile
+import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -922,7 +923,7 @@ async def get_status() -> ORJSONResponse:
 
     _active_model = getattr(llm_client, "model", None) or cfg.openai_model
     _active_url = cfg.openai_base_url
-    _backend_label = "OpenAI"
+    _backend_label = "Anthropic" if str(getattr(cfg, "llm_provider", "openai")).lower() in ("anthropic", "claude") else "OpenAI"
 
     # Tool/service readiness dashboard. The Docker sandbox is where the CLI tools
     # (nuclei/nmap/ffuf/…) live, so docker_ok is their readiness proxy; browser
@@ -1032,11 +1033,14 @@ async def get_progress():
 @app.get("/api/diagnostics")
 async def get_diagnostics() -> JSONResponse:
     cfg = get_config()
-    _backend = "openai"
+    _backend = str(getattr(cfg, "llm_provider", "openai"))
+    from .context_budget import pack_history
     _active_model = getattr(llm_client, "model", None) or cfg.openai_model
     health_status: dict[str, Any] = {
         "status": "ok",
         "timestamp": time.time(),
+        "runtime": {"source": str(Path(__file__).resolve()), "python": sys.executable,
+                    "pid": os.getpid(), "version": _version, "context_budget": callable(pack_history)},
         "components": {
             "llm": {"status": "disconnected", "details": {}},
             "docker": {"status": "disconnected", "details": {}},
@@ -1090,6 +1094,35 @@ async def get_diagnostics() -> JSONResponse:
             health_status["components"]["agent"]["details"] = {"error": str(e)}
 
     return JSONResponse(health_status)
+
+
+@app.get("/api/brain")
+async def get_brain() -> ORJSONResponse:
+    if not agent or not hasattr(agent, "_ensure_adaptive_learning_engine"):
+        return ORJSONResponse({"error": "agent not initialized"}, status_code=503)
+    try:
+        learning = agent._ensure_adaptive_learning_engine()
+        if learning is None:
+            return ORJSONResponse({"error": "adaptive learning disabled"}, status_code=503)
+        insights = sorted(learning.learned_insights, key=lambda i: (i.confidence, i.last_updated), reverse=True)[:30]
+        utility = learning._utility_map()
+        return ORJSONResponse({
+            "summary": learning.get_learning_summary(),
+            "semantic_recall": bool(getattr(learning, "_semantic_recall", False)),
+            "embedding_model": getattr(learning, "_embedding_model", ""),
+            "retrieval_mode": getattr(learning, "_last_recall_mode", "lexical"),
+            "insights": [{
+                "id": ins.insight_id, "category": ins.category, "title": ins.title,
+                "recommendation": ins.recommendation, "conditions": ins.conditions,
+                "confidence": ins.confidence, "observations": ins.observation_count,
+                "last_updated": ins.last_updated,
+                "recalls": utility.get(ins.insight_id, {}).get("recalls", 0),
+                "hits": utility.get(ins.insight_id, {}).get("hits", 0),
+            } for ins in insights],
+        })
+    except Exception as exc:
+        logger.exception("Brain read failed")
+        return ORJSONResponse({"error": str(exc)}, status_code=500)
 
 
 @app.get("/api/models")

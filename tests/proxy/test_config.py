@@ -36,6 +36,28 @@ def test_config_file_loading(tmp_path):
     assert cfg.llm_timeout == DEFAULT_CONFIG["llm_timeout"]
 
 
+def test_migration_preserves_explicit_nonessential_settings_after_restart(tmp_path):
+    path = tmp_path / "config.yaml"
+    settings = {"openai_model": "audit-model", "docker_image": "custom-image",
+                "openai_supports_native_tools": False, "fuzzer_threads": 3,
+                "caido_graphql_url": "http://127.0.0.1:49000/graphql"}
+    path.write_text(yaml.safe_dump(settings))
+    first = Config.load(path)
+    second = Config.load(path)
+    persisted = yaml.safe_load(path.read_text())
+    for key, value in settings.items():
+        assert getattr(first, key) == value
+        assert persisted.get(key) == value
+        assert getattr(second, key) == value
+
+
+def test_new_default_config_remains_minimal(tmp_path):
+    from airecon.proxy.config import _write_yaml_with_comments
+    path = tmp_path / "new.yaml"
+    _write_yaml_with_comments(DEFAULT_CONFIG, path)
+    assert "fuzzer_threads" not in yaml.safe_load(path.read_text())
+
+
 def test_config_env_overrides(tmp_path, monkeypatch):
     monkeypatch.setenv("AIRECON_PROXY_PORT", "9999")
     monkeypatch.setenv("AIRECON_LLM_ENABLE_THINKING", "false")

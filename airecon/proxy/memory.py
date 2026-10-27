@@ -380,6 +380,33 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_skill_usage_timestamp ON skill_usage(timestamp)"
     )
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS embeddings (
+            kind TEXT NOT NULL,            -- 'knowledge' | 'finding' | 'pattern' | 'insight'
+            ref_id INTEGER NOT NULL,
+            model TEXT NOT NULL,           -- embedding model that produced the vector
+            dim INTEGER NOT NULL,
+            vector BLOB NOT NULL,          -- float32 little-endian, dim*4 bytes
+            text_hash TEXT,                -- hash of the embedded text (skip re-embed)
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (kind, ref_id)
+        )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_embeddings_kind ON embeddings(kind)"
+    )
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS memory_utility (
+            kind TEXT NOT NULL,
+            ref_id INTEGER NOT NULL,
+            recalls INTEGER DEFAULT 0,     -- times this item was surfaced to the agent
+            hits INTEGER DEFAULT 0,        -- recalls after which a verified finding followed
+            last_recalled TIMESTAMP,
+            PRIMARY KEY (kind, ref_id)
+        )
+    """)
+
     conn.commit()
     logger.info("Memory database initialized at %s", MEMORY_DB)
 
@@ -891,6 +918,123 @@ class MemoryManager:
             knowledge_entries.append(entry)
 
         return knowledge_entries
+
+    def upsert_embedding(
+        self,
+        kind: str,
+        ref_id: int,
+        model: str,
+        vector: bytes,
+        dim: int,
+        text_hash: str | None = None,
+    ) -> None:
+        if not self.conn:
+            return
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO embeddings (kind, ref_id, model, dim, vector, text_hash, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(kind, ref_id) DO UPDATE SET
+                model = excluded.model,
+                dim = excluded.dim,
+                vector = excluded.vector,
+                text_hash = excluded.text_hash,
+                updated_at = CURRENT_TIMESTAMP
+        """,
+            (kind, int(ref_id), model, int(dim), vector, text_hash),
+        )
+        self.conn.commit()
+
+    def get_embedding(self, kind: str, ref_id: int) -> dict | None:
+        if not self.conn:
+            return None
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT kind, ref_id, model, dim, vector, text_hash FROM embeddings "
+            "WHERE kind = ? AND ref_id = ?",
+            (kind, int(ref_id)),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def get_embeddings(
+        self, kind: str, model: str | None = None, limit: int = 100000
+    ) -> list[dict]:
+        if not self.conn:
+            return []
+        cursor = self.conn.cursor()
+        if model:
+            cursor.execute(
+                "SELECT kind, ref_id, model, dim, vector FROM embeddings "
+                "WHERE kind = ? AND model = ? LIMIT ?",
+                (kind, model, limit),
+            )
+        else:
+            cursor.execute(
+                "SELECT kind, ref_id, model, dim, vector FROM embeddings "
+                "WHERE kind = ? LIMIT ?",
+                (kind, limit),
+            )
+        return [dict(r) for r in cursor.fetchall()]
+
+    def delete_embeddings_for_refs(self, kind: str, ref_ids: list[int]) -> None:
+        """Durable forgetting: remove vectors for the given references."""
+        if not self.conn or not ref_ids:
+            return
+        cursor = self.conn.cursor()
+        # executemany keeps the statement constant: no SQL text is built from
+        # input, and large ref lists cannot hit SQLite's variable limit.
+        cursor.executemany(
+            "DELETE FROM embeddings WHERE kind = ? AND ref_id = ?",
+            [(kind, ref_id) for ref_id in ref_ids],
+        )
+        self.conn.commit()
+
+    def bump_utility(
+        self,
+        kind: str,
+        ref_ids: list[int],
+        *,
+        hit: bool = False,
+    ) -> None:
+        if not self.conn or not ref_ids:
+            return
+        cursor = self.conn.cursor()
+        for ref_id in ref_ids:
+            if hit:
+                cursor.execute(
+                    """
+                    INSERT INTO memory_utility (kind, ref_id, recalls, hits, last_recalled)
+                    VALUES (?, ?, 0, 1, CURRENT_TIMESTAMP)
+                    ON CONFLICT(kind, ref_id) DO UPDATE SET
+                        hits = hits + 1,
+                        last_recalled = CURRENT_TIMESTAMP
+                """,
+                    (kind, int(ref_id)),
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO memory_utility (kind, ref_id, recalls, hits, last_recalled)
+                    VALUES (?, ?, 1, 0, CURRENT_TIMESTAMP)
+                    ON CONFLICT(kind, ref_id) DO UPDATE SET
+                        recalls = recalls + 1,
+                        last_recalled = CURRENT_TIMESTAMP
+                """,
+                    (kind, int(ref_id)),
+                )
+        self.conn.commit()
+
+    def get_utility(self, kind: str) -> dict[int, dict]:
+        if not self.conn:
+            return {}
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT ref_id, recalls, hits, last_recalled FROM memory_utility WHERE kind = ?",
+            (kind,),
+        )
+        return {int(r["ref_id"]): dict(r) for r in cursor.fetchall()}
 
     def get_context_for_small_model(
         self,

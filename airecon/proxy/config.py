@@ -72,6 +72,11 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         180.0,
         "Total request timeout (seconds). 180s = 3 min. Increase to 300s for slow remote gateways or large models.",
     ),
+    "llm_provider": (
+        "openai",
+        "Wire protocol: openai uses /v1/chat/completions; anthropic uses /v1/messages. Both use openai_base_url, openai_model and openai_api_key.",
+    ),
+    "llm_anthropic_auth": ("x-api-key", "Anthropic authentication headers: x-api-key (native API), bearer or both (explicit gateway requirement)."),
     "llm_chunk_timeout": (
         180.0,
         "Per-chunk stream timeout (seconds). 180s stable for most models. Increase for slow networks.",
@@ -761,6 +766,12 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         True,
         "Enable generative fuzzing engine with genetic algorithm payload evolution.",
     ),
+    "intelligence_semantic_recall": (True, "Recall by vector similarity when embeddings are available, otherwise lexical matching."),
+    "intelligence_embeddings_enabled": (True, "Allow /v1/embeddings on the configured gateway; native Anthropic uses lexical fallback."),
+    "embedding_model": ("", "Exact embedding model on the configured gateway. Empty disables embeddings; no second provider is inferred."),
+    "intelligence_dedup_threshold": (0.90, "Vector similarity threshold for merging duplicate learned insights."),
+    "intelligence_utility_floor": (0.2, "Minimum recall-to-hit ratio for retaining old insights after enough recalls."),
+    "intelligence_insight_ttl_days": (90, "Days before an unused low-confidence insight can be retired."),
     "intelligence_generative_population_size": (
         50,
         "Population size for generative fuzzing genetic algorithm.",
@@ -807,7 +818,7 @@ DEFAULT_CONFIG = {key: value for key, (value, _) in _CONFIG_SCHEMA.items()}
 
 _CONFIG_CATEGORIES = [
     (
-        "LLM Backend (OpenAI-compatible / LiteLLM / vLLM / hosted)",
+        "LLM Backend (OpenAI-compatible / Anthropic Messages / LiteLLM / vLLM / hosted)",
         [
             "openai_base_url",
             "openai_api_key",
@@ -816,6 +827,8 @@ _CONFIG_CATEGORIES = [
             "openai_temperature",
             "openai_supports_thinking",
             "openai_supports_native_tools",
+            "llm_provider",
+            "llm_anthropic_auth",
         ],
     ),
     (
@@ -1120,6 +1133,8 @@ _ESSENTIAL_CONFIG_KEYS: set[str] = {
     "openai_max_tokens",
     "openai_temperature",
     "proxy_host",
+    "llm_provider",
+    "llm_anthropic_auth",
     "proxy_port",
     "llm_timeout",
     "llm_context_window",
@@ -1149,10 +1164,32 @@ _ESSENTIAL_CONFIG_KEYS: set[str] = {
     "memory_protected_context_max",
     "memory_compression_summary_chars",
     "memory_compression_input_per_msg_chars",
+    "intelligence_semantic_recall",
+    "intelligence_embeddings_enabled",
+    "embedding_model",
+    "intelligence_dedup_threshold",
+    "intelligence_utility_floor",
+    "intelligence_insight_ttl_days",
 }
 
 
-def _write_yaml_with_comments(config: dict, filepath: Path) -> None:
+def _replace_with_retry(tmp_name: str, filepath: Path) -> None:
+    """Retry transient Windows sharing locks without sacrificing atomicity."""
+    import time
+
+    for attempt in range(5):
+        try:
+            os.replace(tmp_name, filepath)
+            return
+        except PermissionError as exc:
+            if getattr(exc, "winerror", None) not in {5, 32, 33} or attempt == 4:
+                raise
+            time.sleep(0.1)
+
+
+def _write_yaml_with_comments(
+    config: dict, filepath: Path, *, preserve_keys: set[str] | None = None
+) -> None:
     from airecon._version import __version__
 
     filepath.parent.mkdir(parents=True, exist_ok=True)
@@ -1202,13 +1239,15 @@ def _write_yaml_with_comments(config: dict, filepath: Path) -> None:
     lines.append("#   - Anthropic Claude is easiest via OpenRouter or a LiteLLM gateway.")
     lines.append("")
 
-    # Only write essential keys
-    essential_keys = _ESSENTIAL_CONFIG_KEYS
+    # New files stay minimal; migrations/updates retain explicit valid options.
+    selected_keys = _ESSENTIAL_CONFIG_KEYS | ((preserve_keys or set()) & DEFAULT_CONFIG.keys())
     written_keys: set[str] = set()
 
-    for category, keys in _CONFIG_CATEGORIES:
+    categorized = {key for _, keys in _CONFIG_CATEGORIES for key in keys}
+    categories = [*_CONFIG_CATEGORIES, ("Additional Settings", sorted(selected_keys - categorized))]
+    for category, keys in categories:
         category_keys = [
-            k for k in keys if k in essential_keys and k not in written_keys
+            k for k in keys if k in selected_keys and k not in written_keys
         ]
         if not category_keys:
             continue
@@ -1223,27 +1262,9 @@ def _write_yaml_with_comments(config: dict, filepath: Path) -> None:
                 value = config[key]
                 comment = _CONFIG_SCHEMA.get(key, ("", ""))[1]
 
-                # Skip caido URL — always use default
-                if key == "caido_graphql_url":
-                    continue
-
-                if isinstance(value, str):
-                    if value.startswith("http") or ":" in value or value == "":
-                        value_str = f'"{value}"'
-                    else:
-                        value_str = value
-                elif isinstance(value, bool):
-                    value_str = "true" if value else "false"
-                elif value is None:
-                    value_str = "null"
-                elif isinstance(value, float):
-                    value_str = str(value)
-                else:
-                    value_str = str(value)
-
                 if comment:
                     lines.append(f"# {comment}")
-                lines.append(f"{key}: {value_str}")
+                lines.append(yaml.safe_dump({key: value}, sort_keys=False, allow_unicode=True).rstrip())
                 written_keys.add(key)
 
     # Atomic write: render to a temp file in the same dir, then os.replace().
@@ -1254,9 +1275,9 @@ def _write_yaml_with_comments(config: dict, filepath: Path) -> None:
         dir=str(filepath.parent), prefix=f".{filepath.name}.", suffix=".tmp"
     )
     try:
-        with os.fdopen(fd, "w") as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(payload)
-        os.replace(tmp_name, filepath)
+        _replace_with_retry(tmp_name, filepath)
     except Exception:
         with contextlib.suppress(Exception):
             os.unlink(tmp_name)
@@ -1272,6 +1293,8 @@ class Config:
     openai_temperature: float
     openai_supports_thinking: bool
     openai_supports_native_tools: bool
+    llm_provider: str
+    llm_anthropic_auth: str
 
     proxy_host: str
     proxy_port: int
@@ -1458,6 +1481,12 @@ class Config:
     intelligence_correlation_interval: int
     intelligence_learn_only_verified: bool
     intelligence_learn_min_confidence: float
+    intelligence_semantic_recall: bool
+    intelligence_embeddings_enabled: bool
+    embedding_model: str
+    intelligence_dedup_threshold: float
+    intelligence_utility_floor: float
+    intelligence_insight_ttl_days: int
     intelligence_generative_fuzzing_enabled: bool
     intelligence_generative_population_size: int
     intelligence_generative_max_generations: int
@@ -1492,7 +1521,7 @@ class Config:
 
         if config_file.exists():
             try:
-                with open(config_file, "r") as f:
+                with open(config_file, "r", encoding="utf-8") as f:
                     loaded = yaml.safe_load(f)
                     if loaded is None:
                         logger.warning(
@@ -1526,7 +1555,7 @@ class Config:
                                     },
                                 }
                                 _write_yaml_with_comments(
-                                    merged_for_write, config_file
+                                    merged_for_write, config_file, preserve_keys=set(user_config)
                                 )
                                 logger.info(
                                     "Config migrated to latest format at %s",
@@ -1756,6 +1785,9 @@ class Config:
             "verification_timeout": (5, 120),
             # Intelligence
             "intelligence_adaptive_min_observations": (1, 20),
+            "intelligence_dedup_threshold": (0.5, 1.0),
+            "intelligence_utility_floor": (0.0, 1.0),
+            "intelligence_insight_ttl_days": (1, 3650),
             "intelligence_generative_population_size": (10, 500),
             "intelligence_generative_max_generations": (1, 100),
             # Payload memory
@@ -1883,7 +1915,9 @@ def get_config(config_path: str | None = None) -> Config:
     if _config is None:
         with _config_init_lock:
             if _config is None:
-                _config = Config.load(config_path)
+                _config = Config.load(
+                    _config_path if _config_path != _get_config_path() else config_path
+                )
                 try:
                     _config_mtime = (
                         _config_path.stat().st_mtime if _config_path.exists() else 0.0
@@ -1917,7 +1951,9 @@ async def get_config_async(config_path: str | None = None) -> Config:
                 logger.debug("Config reload check failed: %s", e)
 
         if _config is None:
-            _config = Config.load(config_path)
+            _config = Config.load(
+                _config_path if _config_path != _get_config_path() else config_path
+            )
             try:
                 _config_mtime = (
                     _config_path.stat().st_mtime if _config_path.exists() else 0.0
@@ -1948,9 +1984,8 @@ def update_config_values(updates: dict[str, Any]) -> Config:
     for key, value in (updates or {}).items():
         if key in DEFAULT_CONFIG:
             current[key] = value
-    path = _get_config_path()
-    try:
-        _write_yaml_with_comments(current, Path(path))
-    except Exception as e:
-        logger.error("Failed to persist config updates: %s", e)
-    return reload_config()
+    path = _config_path or _get_config_path()
+    existing = yaml.safe_load(path.read_text(encoding="utf-8")) if path.exists() else {}
+    explicit = set(existing) if isinstance(existing, dict) else set()
+    _write_yaml_with_comments(current, path, preserve_keys=explicit | set(updates or {}))
+    return reload_config(str(path))

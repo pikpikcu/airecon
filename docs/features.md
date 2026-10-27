@@ -31,6 +31,11 @@
 
 ## Deep Thinking Model Support
 
+The client supports both OpenAI-compatible chat and native Anthropic Messages
+(`llm_provider: openai|anthropic`). Native Anthropic continuations preserve signed
+thinking and tool blocks. Output/context budgeting and invalid-tool rejection
+apply to both protocols; protocol support is not a guarantee of model quality.
+
 AIRecon supports reasoning models that generate internal thoughts (`<think>`) before producing a final answer. This is useful for complex tasks such as:
 
 - Planning multi-stage attack chains

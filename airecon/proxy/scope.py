@@ -6,6 +6,7 @@ import re
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from .config import APP_DIR_NAME, get_config
 
@@ -68,6 +69,40 @@ class ScopeGuard:
                 return False, reason, host
         return True, "", ""
 
+    def check_tool(self, tool_name: str, arguments: dict[str, Any]) -> tuple[bool, str, str]:
+        if not self.enabled:
+            return True, "", ""
+        # Check destinations, not notes, payloads, or search queries.
+        fields = {
+            "schemathesis_fuzz": ("schema_url", "base_url"),
+            "http_observe": ("url",),
+            "browser_action": ("url",),
+            "advanced_fuzz": ("target", "auth_login_url", "graphql_endpoints"),
+            "quick_fuzz": ("target",),
+            "deep_fuzz": ("target", "auth_login_url", "graphql_endpoints"),
+            "caido_send_request": ("host",),
+            "caido_automate": ("host",),
+            "spawn_agent": ("target",),
+            "run_parallel_agents": ("targets",),
+        }.get(tool_name, ())
+        for field in fields:
+            value = arguments.get(field, "")
+            for destination in value if isinstance(value, list) else [value]:
+                if not isinstance(destination, str) or not destination.strip():
+                    continue
+                destination = destination.strip()
+                if field == "schema_url" and not destination.lower().startswith(("http://", "https://")):
+                    continue  # Local schema file, not a host.
+                try:
+                    host = urlsplit(destination if "://" in destination else "//" + destination).hostname
+                except ValueError:
+                    return False, "invalid network destination", ""
+                if host:
+                    ok, reason = self.check_host(host)
+                    if not ok:
+                        return False, reason, host
+        return True, "", ""
+
 
 def get_scope_guard() -> ScopeGuard:
     cfg = get_config()
@@ -80,6 +115,18 @@ def get_scope_guard() -> ScopeGuard:
         denylist=_split(getattr(cfg, "scope_denylist", "")),
         mode=str(getattr(cfg, "scope_enforcement", "warn") or "warn"),
     )
+
+
+def check_network_tool_scope(tool_name: str, arguments: dict[str, Any]) -> str | None:
+    guard = get_scope_guard()
+    ok, reason, host = guard.check_tool(tool_name, arguments)
+    if not ok:
+        audit_log({"type": tool_name, "host": host, "in_scope": False,
+                   "reason": reason, "mode": guard.mode})
+        if guard.mode == "block":
+            return f"Tool blocked by scope guard: {reason}."
+        logger.warning("Scope advisory (%s): %s", tool_name, reason)
+    return None
 
 
 def _audit_path() -> Path:

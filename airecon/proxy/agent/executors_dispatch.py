@@ -12,6 +12,7 @@ from typing import Any, Callable
 from ..caido_client import CaidoClient
 from ..config import get_config, get_workspace_root
 from ..mcp import mcp_call_tool, mcp_list_tools, mcp_search_tools_payload
+from ..scope import check_network_tool_scope
 from .executors_catalog import (
     _AIRECON_TOOL_NAMES,
     _MAX_COMMAND_LENGTH,
@@ -63,6 +64,9 @@ class _DispatchExecutorMixin:
         arguments: dict[str, Any],
         on_output: Callable | None = None,
     ):
+        scope_error = check_network_tool_scope(tool_name, arguments)
+        if scope_error:
+            return False, 0.0, {"success": False, "error": scope_error}, None
         entry = self._TOOL_DISPATCH_MAP.get(tool_name)
         if entry is None:
             return None  # not a dispatched tool
@@ -437,6 +441,10 @@ class _DispatchExecutorMixin:
                 },
                 None,
             )
+
+        scope_error = check_network_tool_scope(tool_name, arguments)
+        if scope_error:
+            return False, 0.0, {"success": False, "error": scope_error}, None
 
         args_key = self._normalize_args_for_dedup(tool_name, arguments)
         count = self._executed_tool_counts.get(args_key, 0)

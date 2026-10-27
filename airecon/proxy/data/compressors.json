@@ -1,0 +1,30 @@
+{
+  "rtk": {
+    "version": "v1.1.0",
+    "license": "Apache-2.0 (OSS edition)",
+    "assets": {
+      "linux-x86_64": {
+        "url": "https://github.com/rtk-ai/rtk/releases/download/v1.1.0/rtk-oss-x86_64-unknown-linux-musl.tar.gz",
+        "sha256": "4dec94a64035e08189ae82fd5408fe4ae9ae27a665fc07e3e3ec3c4c2d8e8a3e"
+      },
+      "linux-aarch64": {
+        "url": "https://github.com/rtk-ai/rtk/releases/download/v1.1.0/rtk-oss-aarch64-unknown-linux-gnu.tar.gz",
+        "sha256": "57a4fac13d18da77f0577ea8b68def7934b934bf76d0a6e161f0bfd06b1e1078"
+      }
+    }
+  },
+  "caveman-engine": {
+    "version": "bin-v4.0.2",
+    "license": "Apache-2.0; upstream release includes third-party notices",
+    "assets": {
+      "linux-x86_64": {
+        "url": "https://github.com/JuliusBrussee/caveman/releases/download/bin-v4.0.2/caveman-engine_linux_amd64",
+        "sha256": "0b450e46732461a931bb86c78e0c8ea1b08d525fa2cf5aa4592d9c218edc46a4"
+      },
+      "linux-aarch64": {
+        "url": "https://github.com/JuliusBrussee/caveman/releases/download/bin-v4.0.2/caveman-engine_linux_arm64",
+        "sha256": "6b0915f8c2d83817fe5afce14c8a3cf9f959dfb12b2ccc53947bbf1ac47c37b4"
+      }
+    }
+  }
+}

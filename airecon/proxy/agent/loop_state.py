@@ -4,6 +4,8 @@ import asyncio
 import logging
 import time
 
+from ..context_budget import estimate_request_tokens
+
 from .loop_policy import should_preserve_active_target_for_subdomain
 from .session import SessionData, save_session
 
@@ -235,6 +237,7 @@ class _StateMixin:
             getattr(self, "_persisted_memory_finding_keys", set())
         )
         saved = 0
+        verified_saved = 0
 
         # Quality gate: the cross-session brain should learn only from VERIFIED /
         # high-confidence findings. Learning from unverified claims would make the
@@ -316,7 +319,16 @@ class _StateMixin:
             )
             persisted.add(signature)
             saved += 1
+            if vuln.get("verified") or vuln.get("replay_verified"):
+                verified_saved += 1
 
+        if verified_saved:
+            learning = getattr(self, "_adaptive_learning_engine", None)
+            if learning is not None:
+                try:
+                    learning.attribute_hit()
+                except Exception as exc:
+                    logger.debug("Could not attribute verified memory hit: %s", exc)
         self._persisted_memory_finding_keys = persisted  # type: ignore[attr-defined]
         return saved
 
@@ -377,6 +389,7 @@ class _StateMixin:
         sess_ctx = int(getattr(self._session, "adaptive_num_ctx", 0) or 0)
         sess_cap = int(getattr(self._session, "adaptive_num_predict_cap", 0) or 0)
         sess_crashes = int(getattr(self._session, "vram_crash_count", 0) or 0)
+        self._context_char_budget = max(0, int(getattr(self._session, "context_char_budget", 0) or 0))
 
         if sess_ctx > 0:
             if self._adaptive_num_ctx > 0:
@@ -399,6 +412,7 @@ class _StateMixin:
         if not self._session:
             return
         self._session.adaptive_num_ctx = max(0, int(self._adaptive_num_ctx or 0))
+        self._session.context_char_budget = max(0, int(getattr(self, "_context_char_budget", 0) or 0))
         self._session.adaptive_num_predict_cap = max(
             0, int(self._adaptive_num_predict_cap or 0)
         )
@@ -597,11 +611,7 @@ class _StateMixin:
                 )
 
     def _recompute_used_tokens_from_conversation(self) -> int:
-        text = "\n".join(
-            str(msg.get("content", ""))
-            for msg in self.state.conversation
-            if isinstance(msg, dict)
-        )
-        used = max(0, int(_estimate_tokens(text)))
+        used = estimate_request_tokens(self.state.conversation, getattr(self, "_tools_llm", None))
         self.state.token_usage["used"] = used
+        self.state.token_usage["estimate_basis"] = "serialized_utf8_bytes_div_3"
         return used

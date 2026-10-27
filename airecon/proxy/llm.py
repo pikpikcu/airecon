@@ -13,6 +13,15 @@ import httpx
 
 from .config import get_config
 from .memory import get_memory_manager
+from .llm_protocol import (
+    anthropic_error_status,
+    anthropic_lines,
+    anthropic_messages,
+    anthropic_tail_thinking,
+    anthropic_tools,
+)
+
+_ANTHROPIC_AUTH_MODES = ("x-api-key", "bearer", "both")
 
 logger = logging.getLogger("airecon.llm")
 
@@ -168,8 +177,69 @@ def _retry_wait_seconds(status_code: int, message: str, attempt: int) -> float:
 
 class LLMBackendHTTPError(RuntimeError):
     def __init__(self, status_code: int, message: str) -> None:
+        # Ollama can return HTTP 500 after truncating the user turn out of a
+        # tool-calling conversation. Replaying that payload cannot repair it.
+        self.is_context_error = any(marker in message.lower() for marker in (
+            "no user query found in messages", "context_length_exceeded",
+            "maximum context length", "context window exceeded",
+            "exceeds the context window", "prompt is too long", "input is too long",
+            "too many tokens",
+        ))
+        self.retryable = _is_retryable_status(status_code) and not self.is_context_error
+        if self.is_context_error and "no user query found in messages" in message.lower():
+            message += (
+                "\n\nBackend context/history error (non-retryable). Ollama can "
+                "drop the user turn when the server context window is too small. "
+                "Set server-side OLLAMA_CONTEXT_LENGTH or Modelfile PARAMETER "
+                "num_ctx to a size the server supports, verify context_length "
+                "via /api/ps, and match AIRecon's llm_context_window to it. "
+                "Ollama /v1 ignores the request's num_ctx; changing only the "
+                "client setting does not enlarge the server context. Also "
+                "ensure the conversation contains a non-empty user message. "
+                "Retrying the unchanged request will not fix this error."
+            )
         super().__init__(message)
         self.status_code = status_code
+
+
+class LLMToolCallError(RuntimeError):
+    """A model emitted an incomplete/invalid tool request, not an executable call."""
+
+    def __init__(self, tool_name: str, reason: str) -> None:
+        self.tool_name = tool_name
+        self.reason = reason
+        super().__init__(f"Invalid tool-call arguments for {tool_name}: {reason}")
+
+
+def _decode_tool_arguments(
+    name: str, raw: str, tools: list[dict[str, Any]] | None,
+) -> dict[str, Any]:
+    try:
+        arguments = json.loads(raw) if raw.strip() else {}
+    except json.JSONDecodeError as exc:
+        # Never silently replace malformed model output with an invented {}.
+        raise LLMToolCallError(name, "arguments must be a complete JSON object") from exc
+    if not isinstance(arguments, dict):
+        raise LLMToolCallError(name, "arguments must be a JSON object")
+    schema = next((
+        (tool.get("function") or {}).get("parameters") or {}
+        for tool in tools or [] if (tool.get("function") or {}).get("name") == name
+    ), {})
+    # Check the required top-level contract before emitting the completed batch.
+    # This is not a replacement for the agent's scope/security/schema validators.
+    properties = schema.get("properties") or {}
+    for key in schema.get("required") or []:
+        if key not in arguments or arguments[key] is None:
+            raise LLMToolCallError(name, f"missing required argument '{key}'")
+        if (properties.get(key) or {}).get("type") == "string":
+            value = arguments[key]
+            if not isinstance(value, str):
+                raise LLMToolCallError(name, f"required argument '{key}' must be a string")
+            if name == "execute" and key == "command" and not value.strip():
+                raise LLMToolCallError(name, "required argument 'command' must be a non-empty string")
+            if len(value) < (properties[key].get("minLength") or 0):
+                raise LLMToolCallError(name, f"required argument '{key}' is too short")
+    return arguments
 
 
 class LLMClient:
@@ -192,6 +262,15 @@ class LLMClient:
 
         self._api_key = (cfg.openai_api_key or "").strip()
         self._backend_name = "OpenAI-compatible"
+        provider = str(getattr(cfg, "llm_provider", "openai") or "openai").lower()
+        self._is_anthropic = provider in ("anthropic", "claude")
+        self._anthropic_auth = "x-api-key"
+        if self._is_anthropic:
+            self._backend_name = "Anthropic-compatible"
+            mode = str(getattr(cfg, "llm_anthropic_auth", "x-api-key") or "x-api-key").strip().lower()
+            if mode not in _ANTHROPIC_AUTH_MODES:
+                raise ValueError(f"llm_anthropic_auth must be one of {', '.join(_ANTHROPIC_AUTH_MODES)}")
+            self._anthropic_auth = mode
         self._supports_native_tools = bool(cfg.openai_supports_native_tools)
 
         # ── Deep-thinking support (restored for the OpenAI/gateway path) ──────
@@ -265,9 +344,58 @@ class LLMClient:
             logger.info("LLM httpx client initialized")
 
     # ── helpers ──────────────────────────────────────────────────────────────
+    def _endpoint(self) -> str:
+        return "/messages" if getattr(self, "_is_anthropic", False) else "/chat/completions"
+
+    def _wire_payload(self, messages: list[dict[str, Any]], stream: bool) -> dict[str, Any]:
+        if getattr(self, "_is_anthropic", False):
+            system, converted = anthropic_messages(messages)
+            payload: dict[str, Any] = {"model": self.model, "messages": converted, "stream": stream}
+            if system:
+                payload["system"] = system
+            return payload
+        return {"model": self.model, "messages": _to_openai_messages(messages), "stream": stream}
+
+    async def _wire_lines(self, response: Any, stop: Callable[[], bool] | None) -> AsyncIterator[str]:
+        if getattr(self, "_is_anthropic", False):
+            async for line in anthropic_lines(response, stop):
+                yield line
+        else:
+            async for line in response.aiter_lines():
+                yield line
+
+    async def embed(self, texts: list[str], model: str | None = None) -> list[list[float]] | None:
+        cfg = get_config()
+        embedding_model = model or getattr(cfg, "embedding_model", "")
+        if not embedding_model or not texts or not getattr(cfg, "intelligence_embeddings_enabled", True):
+            return None
+        if getattr(self, "_is_anthropic", False):
+            return None  # Native Anthropic has no OpenAI embeddings endpoint.
+        try:
+            await self._async_init()
+            response = await self._post("/embeddings", {"model": embedding_model, "input": texts}, 30.0)
+            rows = sorted(response.json().get("data", []), key=lambda row: row["index"])
+            if [row["index"] for row in rows] != list(range(len(texts))):
+                return None
+            import math
+            vectors = [[float(value) for value in row["embedding"]] for row in rows]
+            if not vectors or not vectors[0] or any(len(v) != len(vectors[0]) or not all(math.isfinite(x) for x in v) for v in vectors):
+                return None
+            return vectors
+        except (RuntimeError, httpx.HTTPError, ValueError, TypeError, KeyError) as exc:
+            logger.debug("Embedding unavailable: %s", type(exc).__name__)
+            return None
+
     def _auth_headers(self) -> dict[str, str]:
         headers = {"Content-Type": "application/json"}
-        if self._api_key:
+        if getattr(self, "_is_anthropic", False):
+            headers["anthropic-version"] = "2023-06-01"
+            mode = getattr(self, "_anthropic_auth", "x-api-key")
+            if self._api_key and mode in ("x-api-key", "both"):
+                headers["x-api-key"] = self._api_key
+            if self._api_key and mode in ("bearer", "both"):
+                headers["Authorization"] = f"Bearer {self._api_key}"
+        elif self._api_key:
             headers["Authorization"] = f"Bearer {self._api_key}"
         return headers
 
@@ -290,15 +418,17 @@ class LLMClient:
                     temperature = float(options["temperature"])
                 except (TypeError, ValueError):
                     pass
+        stripped = LLMClient._unsupported_params.get(self.model, set())
         if max_tokens and max_tokens > 0:
-            payload["max_tokens"] = int(max_tokens)
-        if temperature is not None:
+            token_key = "max_completion_tokens" if "max_tokens" in stripped else "max_tokens"
+            payload[token_key] = int(max_tokens)
+        if temperature is not None and "temperature" not in stripped:
             payload["temperature"] = float(temperature)
 
         # Local-gateway tuning. Strict clouds reject these; _maybe_degrade_
         # unsupported_param strips and retries. Ollama /v1 ignores num_ctx —
         # set it server-side (OLLAMA_CONTEXT_LENGTH / Modelfile).
-        if options:
+        if options and not getattr(self, "_is_anthropic", False):
             _stripped = LLMClient._unsupported_params.get(self.model, set())
             for _k in ("num_ctx", "num_keep", "repeat_penalty"):
                 _v = options.get(_k)
@@ -323,6 +453,14 @@ class LLMClient:
     def _apply_thinking(self, payload: dict[str, Any], think: bool) -> None:
         if not self._enable_thinking:
             return
+        if getattr(self, "_is_anthropic", False):
+            if think and self.model not in LLMClient._reasoning_unsupported:
+                maximum = int(payload.get("max_tokens", 0))
+                if maximum > 1024:
+                    budgets = {"low": 1024, "medium": 4096, "adaptive": 4096, "high": 16000}
+                    payload["thinking"] = {"type": "enabled", "budget_tokens": min(budgets.get(self._thinking_intensity, 4096), maximum - 1)}
+                    payload.pop("temperature", None)
+            return
         strat = self._thinking_strategy
         if strat == "reasoning_effort":
             # Reasoning models bill/latency-scale with effort; only request it
@@ -346,6 +484,7 @@ class LLMClient:
             "reasoning_effort" in b
             or "reasoning.effort" in b
             or "reasoning" in b
+            or "thinking" in b
         )
         if not mentions_reasoning:
             return False
@@ -369,6 +508,8 @@ class LLMClient:
         if not self._is_unsupported_reasoning_error(status_code, body):
             return False
         removed = False
+        if payload.pop("thinking", None) is not None:
+            removed = True
         if payload.pop("reasoning_effort", None) is not None:
             removed = True
         ctk = payload.get("chat_template_kwargs")
@@ -396,8 +537,8 @@ class LLMClient:
         )
         return m.group(1) if m else None
 
-    # Non-standard params we inject; safe to strip if a gateway rejects them.
-    _OPTIONAL_PARAMS = ("num_ctx", "num_keep", "repeat_penalty")
+    # Negotiable options only. Never silently remove tool schemas or limits.
+    _OPTIONAL_PARAMS = ("num_ctx", "num_keep", "repeat_penalty", "temperature", "stream_options")
 
     def _maybe_degrade_unsupported_param(
         self, payload: dict[str, Any], status_code: int, body: str
@@ -405,6 +546,8 @@ class LLMClient:
         if status_code != 400:
             return False
         body_l = (body or "").lower()
+        if not re.search(r"unsupported|unknown|unexpected|unrecognized|not\s+(?:supported|permitted)|extra inputs", body_l):
+            return False
         to_strip: set[str] = set()
         # Strip any optional param we sent whose name appears in the 400 body —
         # catches every provider wording (OpenAI/OpenRouter/Azure/vLLM).
@@ -412,8 +555,12 @@ class LLMClient:
             if k in payload and k.lower() in body_l:
                 to_strip.add(k)
         named = self._named_unsupported_param(body)
-        if named and named in payload and named not in ("model", "messages", "stream"):
-            to_strip.add(named)
+        if not getattr(self, "_is_anthropic", False) and "max_tokens" in payload and (named == "max_tokens" or "'max_tokens'" in body_l):
+            # OpenAI reasoning models require the replacement name; retain the
+            # configured output bound instead of falling back to an API default.
+            payload["max_completion_tokens"] = payload.pop("max_tokens")
+            LLMClient._unsupported_params.setdefault(self.model, set()).add("max_tokens")
+            return True
         if not to_strip:
             return False
         for k in to_strip:
@@ -528,22 +675,27 @@ class LLMClient:
     ) -> str:
         max_retries = max(0, max_retries)
         request_started = time.monotonic()
-        payload: dict[str, Any] = {
-            "model": self.model,
-            "messages": _to_openai_messages(messages),
-            "stream": False,
-        }
+        payload: dict[str, Any] = self._wire_payload(messages, False)
         self._apply_options(payload, options)
 
         try:
-            for attempt in range(max_retries + 1):
+            attempt = 0
+            while attempt <= max_retries:
                 try:
                     timeout = self._get_dynamic_timeout(operation)
-                    resp = await self._post("/chat/completions", payload, timeout)
+                    resp = await self._post(self._endpoint(), payload, timeout)
                     data = resp.json()
 
                     content: str | None = None
-                    if isinstance(data, dict):
+                    if getattr(self, "_is_anthropic", False) and isinstance(data, dict):
+                        if data.get("type") == "error" or data.get("error"):
+                            error = data.get("error") or {}
+                            message = error.get("message", "Anthropic error") if isinstance(error, dict) else "Anthropic error"
+                            raise LLMBackendHTTPError(anthropic_error_status(error), str(message))
+                        blocks = data.get("content")
+                        if isinstance(blocks, list):
+                            content = "".join(b.get("text", "") for b in blocks if isinstance(b, dict) and b.get("type") == "text")
+                    elif isinstance(data, dict):
                         choices = data.get("choices") or []
                         if choices:
                             content = (choices[0].get("message") or {}).get("content")
@@ -557,6 +709,7 @@ class LLMClient:
                         )
                         if attempt < max_retries:
                             await asyncio.sleep(2 ** (attempt + 1))
+                            attempt += 1
                             continue
                         raise RuntimeError(
                             "Invalid LLM response: missing choices[0].message.content"
@@ -574,7 +727,9 @@ class LLMClient:
                     return content or ""
 
                 except LLMBackendHTTPError as e:
-                    if _is_retryable_status(e.status_code) and attempt < max_retries:
+                    if self._maybe_degrade_unsupported_param(payload, e.status_code, str(e)):
+                        continue  # Finite parameter removal is not a transient retry.
+                    if e.retryable and attempt < max_retries:
                         _wait = _retry_wait_seconds(e.status_code, str(e), attempt)
                         logger.warning(
                             "LLM HTTP %d (retryable) — backing off %.1fs "
@@ -585,6 +740,7 @@ class LLMClient:
                             max_retries + 1,
                         )
                         await asyncio.sleep(_wait)
+                        attempt += 1
                         continue
                     raise
                 except RuntimeError:
@@ -592,11 +748,13 @@ class LLMClient:
                 except httpx.HTTPStatusError as e:
                     if 500 <= e.response.status_code < 600 and attempt < max_retries:
                         await asyncio.sleep(5 * (attempt + 1))
+                        attempt += 1
                         continue
                     raise
                 except (httpx.NetworkError, httpx.TimeoutException, asyncio.TimeoutError):
                     if attempt < max_retries:
                         await asyncio.sleep(2 ** (attempt + 1))
+                        attempt += 1
                         continue
                     raise
 
@@ -645,16 +803,13 @@ class LLMClient:
         stop_requested_fn: Callable[[], bool] | None = None,
     ) -> AsyncIterator[Any]:
         cfg = get_config()
-        payload: dict[str, Any] = {
-            "model": self.model,
-            "messages": _to_openai_messages(messages),
-            "stream": True,
-            "stream_options": {"include_usage": True},
-        }
+        payload: dict[str, Any] = self._wire_payload(messages, True)
+        if not getattr(self, "_is_anthropic", False):
+            payload["stream_options"] = {"include_usage": True}
         if tools and self._supports_native_tools:
             # AIRecon already builds tools in OpenAI function-schema shape
             # ({"type": "function", "function": {...}}), so pass them through.
-            payload["tools"] = tools
+            payload["tools"] = anthropic_tools(tools) if getattr(self, "_is_anthropic", False) else tools
         elif tools and not self._supports_native_tools:
             # Native tools disabled: omit `tools` (some Ollama templates reject
             # tool-parser generation) and fall back to text-mode <tool_call>.
@@ -663,27 +818,35 @@ class LLMClient:
                 len(tools),
             )
         self._apply_options(payload, options)
-        # Restore "Deep Thinking Model Support" on the OpenAI/gateway path: turn
-        # the agent's per-iteration `think` decision into a real reasoning
+        if getattr(self, "_is_anthropic", False):
+            open_turn = anthropic_tail_thinking(messages)
+            if open_turn is not None:
+                think = open_turn
+        # Map the agent's per-iteration `think` decision into a real reasoning
         # request (reasoning_effort or chat_template_kwargs.enable_thinking).
         self._apply_thinking(payload, think)
+
+        if "stream_options" in LLMClient._unsupported_params.get(self.model, set()):
+            payload.pop("stream_options", None)
 
         overall_timeout = cfg.llm_timeout
         chunk_timeout = cfg.llm_chunk_timeout
         request_started = time.monotonic()
 
-        for attempt in range(max_retries + 1):
+        attempt = 0
+        while attempt <= max(0, max_retries):
             tool_acc: dict[int, dict[str, str]] = {}
             tool_ids: dict[int, str] = {}
             usage: dict[str, Any] = {}
             produced_any = False
             finish_reason: str | None = None
+            provider_blocks = None
             try:
                 async with self._request_semaphore:
                     client = LLMClient._httpx_client
                     if client is None:
                         raise RuntimeError("HTTP client not initialized")
-                    url = f"{self._host}/chat/completions"
+                    url = f"{self._host}{self._endpoint()}"
                     timeout_obj = httpx.Timeout(
                         overall_timeout, connect=10.0, read=chunk_timeout, write=10.0
                     )
@@ -713,16 +876,17 @@ class LLMClient:
                             ):
                                 continue
                             logger.error(
-                                "LLM backend STREAM /chat/completions -> HTTP %d: %s",
+                                "LLM backend STREAM %s -> HTTP %d: %s",
+                                self._endpoint(),
                                 resp.status_code,
                                 body,
                             )
                             raise LLMBackendHTTPError(
                                 resp.status_code,
                                 f"{self._backend_name} returned HTTP "
-                                f"{resp.status_code} for /chat/completions: {body}",
+                                f"{resp.status_code} for {self._endpoint()}: {body}",
                             )
-                        async for raw_line in resp.aiter_lines():
+                        async for raw_line in self._wire_lines(resp, stop_requested_fn):
                             if stop_requested_fn and stop_requested_fn():
                                 return
                             if not raw_line:
@@ -736,10 +900,22 @@ class LLMClient:
                             try:
                                 evt = json.loads(data_str)
                             except json.JSONDecodeError:
-                                continue
+                                raise RuntimeError(f"{self._backend_name} sent invalid JSON in a stream event; response discarded") from None
+
+                            if evt.get("error"):
+                                error = evt["error"]
+                                message = error.get("message", "LLM streaming error") if isinstance(error, dict) else "LLM streaming error"
+                                if getattr(self, "_is_anthropic", False):
+                                    status = anthropic_error_status(error)
+                                else:
+                                    error_type = str(error.get("type", "")) if isinstance(error, dict) else ""
+                                    status = 429 if "rate_limit" in error_type else 500
+                                raise LLMBackendHTTPError(status, str(message))
 
                             if isinstance(evt.get("usage"), dict):
                                 usage = evt["usage"]
+                            if evt.get("_provider_blocks") is not None:
+                                provider_blocks = evt["_provider_blocks"]
 
                             choices = evt.get("choices") or []
                             if not choices:
@@ -795,24 +971,24 @@ class LLMClient:
                                 if fn.get("name"):
                                     slot["name"] = fn["name"]
                                 if fn.get("arguments"):
+                                    if not isinstance(fn["arguments"], str):
+                                        raise LLMToolCallError(slot["name"], "stream arguments must be JSON text")
                                     slot["args"] += fn["arguments"]
 
                 # Build the consolidated final chunk (LLM shape).
+                if stop_requested_fn and stop_requested_fn():
+                    return
+                if tool_acc and finish_reason in ("length", "max_tokens"):
+                    raise LLMToolCallError("tool batch", "tool-call response was truncated by the output length limit")
+                if tool_acc and finish_reason is None:
+                    raise LLMToolCallError("tool batch", "stream ended without a finish reason; tool batch may be truncated")
                 final_tool_calls: list[dict[str, Any]] = []
                 for idx in sorted(tool_acc):
                     slot = tool_acc[idx]
                     if not slot["name"]:
                         continue
                     raw_args = slot["args"].strip()
-                    try:
-                        parsed_args: Any = json.loads(raw_args) if raw_args else {}
-                    except json.JSONDecodeError:
-                        logger.warning(
-                            "Tool-call arguments were not valid JSON for %s: %r",
-                            slot["name"],
-                            raw_args[:200],
-                        )
-                        parsed_args = {}
+                    parsed_args = _decode_tool_arguments(slot["name"], raw_args, tools)
                     final_tool_calls.append(
                         {
                             "id": tool_ids.get(idx, f"call_{uuid.uuid4().hex[:24]}"),
@@ -824,6 +1000,8 @@ class LLMClient:
                     )
 
                 final_message: dict[str, Any] = {"role": "assistant", "content": ""}
+                if provider_blocks:
+                    final_message["_provider_blocks"] = provider_blocks
                 if final_tool_calls:
                     final_message["tool_calls"] = final_tool_calls
                     produced_any = True
@@ -870,7 +1048,7 @@ class LLMClient:
                 # (which often reset within seconds — honor the body's reset
                 # hint). 4xx client errors (bad model, rejected params, auth)
                 # won't resolve on retry, so fail fast.
-                if _is_retryable_status(e.status_code) and attempt < max_retries:
+                if e.retryable and attempt < max_retries and not produced_any:
                     _wait = _retry_wait_seconds(e.status_code, str(e), attempt)
                     logger.warning(
                         "LLM stream HTTP %d (retryable) — backing off %.1fs "
@@ -881,6 +1059,7 @@ class LLMClient:
                         max_retries + 1,
                     )
                     await asyncio.sleep(_wait)
+                    attempt += 1
                     continue
                 self._record_model_performance(
                     operation=operation,
@@ -902,8 +1081,9 @@ class LLMClient:
                 )
                 raise
             except httpx.HTTPStatusError as e:
-                if 500 <= e.response.status_code < 600 and attempt < max_retries:
+                if 500 <= e.response.status_code < 600 and attempt < max_retries and not produced_any:
                     await asyncio.sleep(5 * (attempt + 1))
+                    attempt += 1
                     continue
                 self._record_model_performance(
                     operation=operation,
@@ -914,8 +1094,9 @@ class LLMClient:
                 )
                 raise
             except (httpx.NetworkError, httpx.TimeoutException, asyncio.TimeoutError):
-                if attempt < max_retries:
+                if attempt < max_retries and not produced_any:
                     await asyncio.sleep(2 ** (attempt + 1))
+                    attempt += 1
                     continue
                 self._record_model_performance(
                     operation=operation,

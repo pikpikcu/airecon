@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased]
+
+- Integrate PR #129's native Anthropic Messages protocol, semantic cross-session
+  memory, failure-derived insights, utility tracking, and `/brain` interface.
+- Retain local scope enforcement, exact evidence artifacts, RTK/Caveman adapters,
+  serialized request budgeting and bounded smaller-request context recovery.
+- Preserve Anthropic signed thinking/tool continuations, reject incomplete or
+  invalid streams before tool execution, and account for native input/cache usage.
+- Make embedding recall asynchronous; separate recall counts from attributed
+  hits and retire persisted knowledge/vectors alongside in-memory entries.
+- Read/write config as UTF-8 and retry transient Windows sharing locks without
+  falling back to non-atomic truncating writes.
+- Direct source-script startup uses its own checkout rather than silently
+  importing an older installed package. Agent recovery has one transient retry
+  owner; local programming/protocol errors are not connection-backoff retries.
+- Clear TUI degraded status only after a usable completed LLM response, not merely
+  a successful health/model-list probe.
+
 ## [v1.7.1-beta] - 2026-06-15
 
 ### Added — Zero-FP verification on the LLM finding path
