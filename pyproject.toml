@@ -98,6 +98,12 @@ exclude = [
     "**/__pycache__",
 ]
 
+[tool.ruff.lint]
+# Pin the rule set the codebase is maintained against. Ruff 0.17 widened its
+# implicit defaults, which turned an unpinned CI install red without any code
+# change. Widen this list deliberately, not through a tool upgrade.
+select = ["E4", "E7", "E9", "F"]
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

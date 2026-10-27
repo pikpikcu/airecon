@@ -983,10 +983,11 @@ class MemoryManager:
         if not self.conn or not ref_ids:
             return
         cursor = self.conn.cursor()
-        placeholders = ",".join("?" * len(ref_ids))
-        cursor.execute(
-            f"DELETE FROM embeddings WHERE kind = ? AND ref_id IN ({placeholders})",
-            (kind, *ref_ids),
+        # executemany keeps the statement constant: no SQL text is built from
+        # input, and large ref lists cannot hit SQLite's variable limit.
+        cursor.executemany(
+            "DELETE FROM embeddings WHERE kind = ? AND ref_id = ?",
+            [(kind, ref_id) for ref_id in ref_ids],
         )
         self.conn.commit()
 

@@ -268,3 +268,21 @@ def test_get_insights_for_context_falls_back_when_no_vectors(tmp_path, monkeypat
     with patch.object(eng, "_load_insight_vectors", return_value=None):
         out = eng.get_insights_for_context(phase="RECON", tech_stack=["nginx"])
     assert [i.insight_id for i in out] == ["x"]
+
+
+def test_delete_embeddings_for_refs_removes_only_requested_rows():
+    import sqlite3
+
+    from airecon.proxy.memory import MemoryManager, _init_schema
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    _init_schema(conn)
+    manager = MemoryManager.__new__(MemoryManager)
+    manager.conn = conn
+    for kind, ref in (("insight", 1), ("insight", 2), ("insight", 3), ("knowledge", 1)):
+        manager.upsert_embedding(kind, ref, "fixture", b"\x00" * 8, 2)
+    manager.delete_embeddings_for_refs("insight", [1, 3, 999])
+    rows = conn.execute("SELECT kind, ref_id FROM embeddings ORDER BY kind, ref_id").fetchall()
+    assert [tuple(r) for r in rows] == [("insight", 2), ("knowledge", 1)]
+    conn.close()
