@@ -5,12 +5,14 @@ import logging
 import re
 import shlex
 import time
+import uuid
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urljoin, urlparse
 
 from .models import ToolExecution
 from ..config import get_workspace_root
+from ..scope import check_network_tool_scope
 
 logger = logging.getLogger("airecon.agent")
 
@@ -98,9 +100,6 @@ def _parse_set_cookie_headers(raw_http: str) -> dict[str, str]:
     return cookies
 
 
-# Common CSRF/authenticity token patterns found across frameworks. The LLM
-# is responsible for deciding *whether* to use a captured token on its next
-# request — Python only observes and surfaces the signal.
 _CSRF_META_RE = re.compile(
     r"""<meta[^>]+name\s*=\s*['"](?P<name>csrf[_-]?token|csrf-param|authenticity[_-]?token)['"][^>]*content\s*=\s*['"](?P<val>[^'"\s]{8,200})['"]""",
     re.IGNORECASE,
@@ -176,7 +175,6 @@ def _detect_rate_limit(status_code: int, headers: dict[str, str] | None) -> dict
         try:
             signal["retry_after_seconds"] = int(retry_after)
         except ValueError:
-            # HTTP-date form — LLM can parse if needed
             pass
     reset = lower.get("x-ratelimit-reset") or lower.get("ratelimit-reset")
     if reset:
@@ -279,6 +277,92 @@ class _ObserveExecutorMixin:
         tool_name: str,
         arguments: dict[str, Any],
     ) -> tuple[bool, float, dict[str, Any], str | None]:
+        follow = arguments.get("follow_redirects", False)
+        if str(follow).lower() != "true":
+            return await self._execute_http_observe_once(tool_name, arguments)
+
+        started = time.time()
+        hop_args = {**arguments, "follow_redirects": False}
+        raw_headers = hop_args.get("headers")
+        hop_args["headers"] = dict(raw_headers) if isinstance(raw_headers, dict) else {}
+        hop_args.pop("save_as", None)
+        hop_args.pop("compare_to", None)
+        visited: set[str] = set()
+        chain: list[dict[str, Any]] = []
+        result: dict[str, Any] = {}
+        for _ in range(6):
+            url = self._str_arg(hop_args, "url")
+            try:
+                parsed = urlparse(url)
+                if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+                    raise ValueError("HTTP redirects require an HTTP(S) URL with a host")
+                origin = (parsed.scheme.lower(), parsed.hostname.lower(), parsed.port or (443 if parsed.scheme.lower() == "https" else 80))
+                normalized = parsed._replace(fragment="").geturl()
+            except ValueError as exc:
+                return False, time.time() - started, {"success": False, "error": str(exc), "redirect_chain": chain}, None
+            if normalized in visited:
+                return False, time.time() - started, {"success": False, "error": "HTTP redirect loop detected", "redirect_chain": chain}, None
+            visited.add(normalized)
+            scope_error = check_network_tool_scope("http_observe", {"url": url})
+            if scope_error:
+                return False, time.time() - started, {"success": False, "error": scope_error, "redirect_chain": chain}, None
+
+            ok, _, result, _ = await self._execute_http_observe_once(tool_name, dict(hop_args))
+            status = result.get("status_code")
+            location = result.get("headers", {}).get("location")
+            chain.append({"url": url, "status_code": status})
+            if not ok:
+                result["redirect_chain"] = chain
+                return False, time.time() - started, result, None
+            if status not in {301, 302, 303, 307, 308} or not location:
+                break
+
+            method = (self._str_arg(hop_args, "method") or "GET").upper()
+            if (status == 303 and method != "HEAD") or (status in {301, 302} and method == "POST"):
+                hop_args["method"] = "GET"
+                hop_args.pop("body", None)
+                hop_args["headers"] = {
+                    key: value for key, value in (hop_args.get("headers") or {}).items()
+                    if str(key).lower() not in {"content-length", "content-type", "transfer-encoding"}
+                }
+            try:
+                next_url = urljoin(url, str(location))
+                destination = urlparse(next_url)
+                next_origin = (destination.scheme.lower(), (destination.hostname or "").lower(), destination.port or (443 if destination.scheme.lower() == "https" else 80))
+            except ValueError as exc:
+                return False, time.time() - started, {"success": False, "error": str(exc), "redirect_chain": chain}, None
+            if origin[0] == "https" and next_origin[0] == "http":
+                return False, time.time() - started, {"success": False, "error": "Refusing HTTPS downgrade redirect", "redirect_chain": chain}, None
+            if next_origin != origin:
+                if self._str_arg(hop_args, "body"):
+                    return False, time.time() - started, {"success": False, "error": "Refusing to forward a request body across origins", "redirect_chain": chain}, None
+                hop_args["headers"] = {}
+            hop_args["url"] = next_url
+        else:
+            return False, time.time() - started, {"success": False, "error": "HTTP redirect limit exceeded (5 hops)", "redirect_chain": chain}, None
+
+        result["redirect_chain"] = chain
+        save_as = self._str_arg(arguments, "save_as")
+        if save_as:
+            self.state.http_baselines[save_as] = {
+                key: result[key] for key in ("status_code", "status_line", "headers", "body", "body_size_bytes")
+            }
+            result["saved_as"] = save_as
+        compare_to = self._str_arg(arguments, "compare_to")
+        if compare_to:
+            baseline = self.state.http_baselines.get(compare_to)
+            if baseline is None:
+                result["diff_error"] = f"No baseline named '{compare_to}' found. Use save_as first."
+            else:
+                result["diff"] = self._diff_http_responses(baseline, result)
+                result["compared_to"] = compare_to
+        return True, time.time() - started, result, None
+
+    async def _execute_http_observe_once(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any],
+    ) -> tuple[bool, float, dict[str, Any], str | None]:
         self._last_output_file = None
         start_time = time.time()
 
@@ -303,12 +387,6 @@ class _ObserveExecutorMixin:
         save_as = self._str_arg(arguments, "save_as")
         compare_to = self._str_arg(arguments, "compare_to")
 
-        _follow_raw = arguments.get("follow_redirects", False)
-        follow_redirects = (
-            _follow_raw
-            if isinstance(_follow_raw, bool)
-            else str(_follow_raw).lower() == "true"
-        )
 
         _timeout_raw = arguments.get("timeout")
         if _timeout_raw is None:
@@ -326,19 +404,15 @@ class _ObserveExecutorMixin:
             "curl",
             "-s",
             "-i",
-            "-k",                 # pentest: skip TLS verify (self-signed / internal CA)
-            "--globoff",          # treat URL literally — [ ] { } in query strings are not globs
+            "-k",
+            "--globoff",
             "--max-time",
             str(req_timeout),
             "-X",
             method,
         ]
-        if not follow_redirects:
-            cmd_parts.append("--no-location")
+        cmd_parts.append("--no-location")
 
-        # Auto-attach per-host session cookies when the LLM hasn't already
-        # set a Cookie header. Realistic bug-bounty flows need authenticated
-        # state to persist across tool calls.
         _existing_cookie_hdr = any(str(k).lower() == "cookie" for k in headers)
         _host_key = _registrable_host(url)
         _session_snapshot = self.state.http_sessions.get(_host_key, {}) if _host_key else {}
@@ -386,14 +460,12 @@ class _ObserveExecutorMixin:
             exec_success = bool(exec_result.get("success", True))
             exit_code = exec_result.get("exit_code")
 
-            # If command failed but no error message, generate one from exit code / raw output
             if not exec_success and not exec_error:
                 if exit_code is not None and exit_code != 0:
                     exec_error = f"curl exited with code {exit_code}"
                 elif raw_output:
                     exec_error = raw_output.strip()[:200]
                 else:
-                    # Handle case where exit_code is None, 0, or empty
                     exit_code_str = (
                         str(exit_code) if exit_code is not None else "unknown"
                     )
@@ -428,8 +500,6 @@ class _ObserveExecutorMixin:
         if _injected_cookies:
             result["session_cookies_used"] = sorted(_session_cookies.keys())[:8]
 
-        # Harvest Set-Cookie headers from the response and merge into the
-        # per-host session jar so subsequent calls stay authenticated.
         harvested: dict[str, str] = {}
         if _host_key and exec_success:
             harvested = _parse_set_cookie_headers(raw_output)
@@ -439,9 +509,6 @@ class _ObserveExecutorMixin:
                 jar["updated_at_iter"] = getattr(self.state, "iteration", 0)
                 result["session_cookies_harvested"] = sorted(harvested.keys())[:8]
 
-        # CSRF / authenticity token harvest. We only observe what we see
-        # (meta tag, hidden form input, or common CSRF cookie) — the LLM
-        # decides whether to re-inject on its next state-changing request.
         if _host_key and exec_success:
             csrf_info = _extract_csrf_token(body_out[:6000], harvested)
             if csrf_info:
@@ -452,7 +519,6 @@ class _ObserveExecutorMixin:
                     "source": csrf_info.get("source", ""),
                 }
 
-        # Rate-limit signal — Python flags, LLM decides backoff strategy.
         _rl_signal = _detect_rate_limit(status_code, headers_out)
         if _rl_signal:
             result["rate_limit"] = _rl_signal
@@ -786,13 +852,22 @@ class _ObserveExecutorMixin:
         cmd_parts.append("--output-truncate false")
         active_target = self.state.active_target or "unknown"
         workspace_dir = shlex.quote(f"/workspace/{active_target}")
-        output_file = shlex.quote(
-            f"/workspace/{active_target}/output/schemathesis_results.txt"
-        )
+        run_id = uuid.uuid4().hex[:12]
+        output_file = f"/workspace/{active_target}/output/schemathesis_{run_id}.txt"
+        report_file = f"/workspace/{active_target}/output/schemathesis_{run_id}.json"
+        cmd_parts.extend(["--report json", "--report-json-path", shlex.quote(report_file)])
         joined_cmd = " ".join(cmd_parts)
-        full_cmd = f"cd {workspace_dir} && {joined_cmd} 2>&1 | tee {output_file}"
+        full_cmd = (
+            f"cd {workspace_dir} && {{ {joined_cmd} > {shlex.quote(output_file)} 2>&1; "
+            f"status=$?; cat {shlex.quote(output_file)}; exit \"$status\"; }}"
+        )
 
         try:
+            workspace_root = get_workspace_root().resolve()
+            host_output = (workspace_root / active_target / "output").resolve()
+            host_output.relative_to(workspace_root)
+            host_output.mkdir(parents=True, exist_ok=True)
+            host_report = host_output / f"schemathesis_{run_id}.json"
             exec_result = await self.engine.execute_tool(
                 "execute",
                 {"command": full_cmd, "timeout": 300},
@@ -801,31 +876,61 @@ class _ObserveExecutorMixin:
                 exec_result.get("stdout", "") or exec_result.get("result", "") or ""
             )
 
-            exec_error = exec_result.get("error") or exec_result.get("stderr") or ""
-            engine_ok = bool(exec_result.get("success", True))
-            success = engine_ok and (bool(stdout.strip()) or not bool(exec_error))
-
-            violations = stdout.count("FAILED") + stdout.count("not_a_server_error")
-            passed = stdout.count("PASSED")
-
             res_dict = {
-                "success": success,
-                "summary": f"Schemathesis completed: {passed} passed, {violations} potential violations.",
-                "violations": violations,
                 "output_file": output_file,
+                "report_file": report_file,
                 "raw_output": stdout[:3000],
             }
+            report = json.loads(host_report.read_text(encoding="utf-8"))
+            if not isinstance(report, dict):
+                raise ValueError("Schemathesis JSON report must be an object")
+            counts = report.get("test_cases") or {}
+            operations = report.get("operations") or {}
+            if not isinstance(counts, dict) or not isinstance(operations, dict):
+                raise ValueError("Invalid Schemathesis test counts")
+            generated = int(counts.get("generated", 0))
+            failed = int(counts.get("with_failures", 0))
+            violations = int(counts.get("unique_failures", 0))
+            passed = max(0, generated - failed - int(counts.get("without_checks", 0)))
+            failures = report.get("failures", [])
+            errors = report.get("errors", [])
+            exit_code = exec_result.get("exit_code")
+            success = (
+                report.get("complete") is True
+                and exit_code in (0, 1)
+                and report.get("exit_code") == exit_code
+                and (exit_code == 0 or bool(failures))
+                and not errors
+                and not operations.get("errored", 0)
+                and int(operations.get("tested", 0)) > 0
+                and generated > 0
+            )
+            res_dict.update({
+                "success": success,
+                "exit_code": exit_code,
+                "complete": report.get("complete") is True,
+                "passed": passed,
+                "violations": violations,
+                "test_cases": counts,
+                "failures": failures,
+                "errors": errors,
+                "summary": (
+                    f"Schemathesis completed: {passed} passed test cases, "
+                    f"{failed} failed test cases, {violations} unique violations."
+                    if success else "Schemathesis scan failed or was incomplete."
+                ),
+            })
             if not success:
-                res_dict["error"] = (
-                    exec_error[:500] if exec_error else "No output produced"
-                )
+                res_dict["error"] = str(errors or exec_result.get("error") or
+                                        "Incomplete run, no tested operations, or scanner execution error")[:500]
             try:
                 self._save_tool_output(tool_name, arguments, res_dict)
             except Exception as _e:
                 logger.debug("Could not save tool output: %s", _e)
         except Exception as e:
             logger.error("schemathesis_fuzz error: %s", e)
-            res_dict = {"success": False, "error": str(e)}
+            res_dict = {"success": False, "error": f"Schemathesis report unavailable or invalid: {e}",
+                        "output_file": output_file, "report_file": report_file}
             success = False
 
         duration = time.time() - start_time

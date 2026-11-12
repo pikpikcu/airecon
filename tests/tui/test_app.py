@@ -299,6 +299,19 @@ def test_mark_llm_degraded_ignored_when_idle():
     status.set_status.assert_not_called()
 
 
+def test_degraded_clears_only_on_completed_llm_recovery():
+    app = AIReconApp(show_startup_screen=False, auto_poll_services=False)
+    status = MagicMock()
+    app.query_one = MagicMock(return_value=status)
+    app._processing = True
+    app._mark_llm_degraded("fixture transient failure")
+    app._handle_llm_status({"recovered": False})
+    assert app._is_llm_degraded_active() is True
+    app._handle_llm_status({"recovered": True})
+    assert app._is_llm_degraded_active() is False
+    status.set_status.assert_called_with(llm_degraded=False)
+
+
 def test_history_entries_to_render_supports_tool_calls_and_tool_role():
     messages = [
         {"role": "user", "content": "scan example.com"},

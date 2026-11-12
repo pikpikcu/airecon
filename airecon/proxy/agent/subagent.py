@@ -55,7 +55,6 @@ class SubagentCoordinator:
         graph.llm = self.llm
         graph.engine = self.engine
 
-        # Inject parent context into the graph's shared session
         self._parent_context = parent_context
 
         try:
@@ -181,21 +180,15 @@ class ParallelAgentRunner:
 
                 evt_type = getattr(event, "type", "")
 
-                # Forward tool events for TUI card rendering
                 if evt_type in ("tool_start", "tool_end", "tool_output"):
                     self._forward_event(target, event)
                     tool_event_count += 1
 
-                # Forward all text events to TUI (no filtering)
                 elif evt_type == "text":
                     self._forward_event(target, event)
 
                 elif evt_type == "task_complete":
                     self._forward_event(target, event)
-
-                # Periodic heartbeat (every 15 events)
-                # if event_count % 15 == 0:
-                #    self._report_progress(target)
 
             vuln_count = (
                 len(coordinator.session.vulnerabilities) if coordinator.session else 0

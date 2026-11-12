@@ -12,7 +12,6 @@ from .session import session_to_context
 logger = logging.getLogger("airecon.agent.graph")
 
 
-# Load agent graph max iterations from config.py (was hardcoded)
 def _get_agent_graph_max_iters() -> dict[str, int]:
     from ..config import get_config as _get_config
 
@@ -145,7 +144,6 @@ class AgentGraph:
 def create_default_graph(
     target: str, prompt: str = "", recon_mode: str = "full"
 ) -> AgentGraph:
-
     g = AgentGraph(target, llm=None, engine=None)
     if recon_mode == "full":
         return _build_full_pipeline(g, target, prompt)
@@ -206,7 +204,6 @@ def _build_full_pipeline(g: AgentGraph, target: str, prompt: str) -> AgentGraph:
 
 
 def _build_single_task_node(g: AgentGraph, target: str, prompt: str) -> AgentGraph:
-
     if prompt:
         task_description = (
             f"{prompt}\n\n"

@@ -6,6 +6,7 @@ import re
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from .config import APP_DIR_NAME, get_config
 
@@ -25,6 +26,9 @@ def extract_hosts(text: str) -> list[str]:
     for m in _URL_HOST_RE.finditer(text):
         hosts.add(m.group(1).split(":", 1)[0].lower())
     for m in _BARE_HOST_RE.finditer(text):
+        prefix = text[:m.start()]
+        if prefix.endswith("/") and not re.search(r"[:/\\]/+$", prefix):
+            continue
         hosts.add(m.group(1).split(":", 1)[0].lower())
     return sorted(hosts)
 
@@ -68,6 +72,66 @@ class ScopeGuard:
                 return False, reason, host
         return True, "", ""
 
+    def check_tool(self, tool_name: str, arguments: dict[str, Any]) -> tuple[bool, str, str]:
+        if not self.enabled:
+            return True, "", ""
+
+        if tool_name.startswith("mcp_") and arguments.get("action") == "call_tool":
+            raw = arguments.get("arguments", {})
+            if isinstance(raw, str):
+                try:
+                    raw = json.loads(raw)
+                except ValueError:
+                    return False, "MCP arguments must be a JSON object", ""
+            if not isinstance(raw, dict):
+                return False, "MCP arguments must be a JSON object", ""
+            pending = [raw]
+            seen: set[int] = set()
+            while pending:
+                value = pending.pop()
+                if isinstance(value, str):
+                    checked = self.check_command(value)
+                    if not checked[0]:
+                        return checked
+                elif isinstance(value, (dict, list, tuple)) and id(value) not in seen:
+                    seen.add(id(value))
+                    if isinstance(value, dict):
+                        pending.extend(value.keys())
+                        pending.extend(value.values())
+                    else:
+                        pending.extend(value)
+            return True, "", ""
+
+        fields = {
+            "schemathesis_fuzz": ("schema_url", "base_url"),
+            "http_observe": ("url",),
+            "browser_action": ("url",),
+            "advanced_fuzz": ("target", "auth_login_url", "graphql_endpoints"),
+            "quick_fuzz": ("target",),
+            "deep_fuzz": ("target", "auth_login_url", "graphql_endpoints"),
+            "caido_send_request": ("host",),
+            "caido_automate": ("host",),
+            "spawn_agent": ("target",),
+            "run_parallel_agents": ("targets",),
+        }.get(tool_name, ())
+        for field in fields:
+            value = arguments.get(field, "")
+            for destination in value if isinstance(value, list) else [value]:
+                if not isinstance(destination, str) or not destination.strip():
+                    continue
+                destination = destination.strip()
+                if field == "schema_url" and not destination.lower().startswith(("http://", "https://")):
+                    continue
+                try:
+                    host = urlsplit(destination if "://" in destination else "//" + destination).hostname
+                except ValueError:
+                    return False, "invalid network destination", ""
+                if host:
+                    ok, reason = self.check_host(host)
+                    if not ok:
+                        return False, reason, host
+        return True, "", ""
+
 
 def get_scope_guard() -> ScopeGuard:
     cfg = get_config()
@@ -80,6 +144,22 @@ def get_scope_guard() -> ScopeGuard:
         denylist=_split(getattr(cfg, "scope_denylist", "")),
         mode=str(getattr(cfg, "scope_enforcement", "warn") or "warn"),
     )
+
+
+def check_network_tool_scope(tool_name: str, arguments: dict[str, Any]) -> str | None:
+    try:
+        guard = get_scope_guard()
+        ok, reason, host = guard.check_tool(tool_name, arguments)
+    except Exception as exc:
+        logger.error("scope guard failed closed for %s: %s", tool_name, exc)
+        return "Scope guard failed; tool was not run."
+    if not ok:
+        audit_log({"type": tool_name, "host": host, "in_scope": False,
+                   "reason": reason, "mode": guard.mode})
+        if guard.mode == "block":
+            return f"Tool blocked by scope guard: {reason}."
+        logger.warning("Scope advisory (%s): %s", tool_name, reason)
+    return None
 
 
 def _audit_path() -> Path:
@@ -95,5 +175,5 @@ def audit_log(event: dict[str, Any]) -> None:
         record = {"ts": round(time.time(), 3), **event}
         with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
-    except Exception as e:  # never let auditing break the agent
+    except Exception as e:
         logger.debug("audit log write failed: %s", e)

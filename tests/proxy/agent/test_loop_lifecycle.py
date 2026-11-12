@@ -352,7 +352,8 @@ class TestApplyLocalContextFallback:
                 self.state = AgentState()
                 self.state.conversation = [
                     {"role": "system", "content": "system"},
-                ] + [{"role": "user", "content": f"msg {i}"} for i in range(50)]
+                    {"role": "user", "content": "Scan example.test only."},
+                ] + [{"role": "assistant", "content": f"msg {i}"} for i in range(50)]
                 self.state.token_usage = {"used": 10000}
                 self._ctf_mode = False
 

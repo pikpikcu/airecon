@@ -31,9 +31,6 @@ _ESCALATION_PATTERNS_FILE = Path(__file__).parent.parent / "data" / "escalation_
 _DYNAMIC_CHAINS_FILE = Path.home() / ".airecon" / "learning" / "dynamic_chains.json"
 _LEARNED_PATTERNS_FILE = Path.home() / ".airecon" / "learning" / "learned_escalation_patterns.json"
 
-# ── Data loading (DRY: single function handles both templates and patterns) ──
-
-
 def _load_json_data(file_path: Path) -> dict[str, Any]:
     try:
         if file_path.exists():
@@ -69,7 +66,6 @@ def _load_escalation_patterns() -> list[dict[str, Any]]:
     raw = _load_json_data(_ESCALATION_PATTERNS_FILE)
     patterns.extend(raw.get("patterns", []))
     patterns.extend(raw.get("_learned_patterns", []))
-    # Load separately learned patterns
     learned = _load_json_data(_LEARNED_PATTERNS_FILE)
     patterns.extend(learned.get("patterns", []))
     return patterns
@@ -80,7 +76,7 @@ def _save_learned_escalation_pattern(pattern: dict[str, Any]) -> None:
     existing = _load_json_data(_LEARNED_PATTERNS_FILE)
     pattern_id = pattern.get(
         "id",
-        hashlib.md5(  # non-cryptographic identifier
+        hashlib.md5(
             json.dumps(pattern, sort_keys=True).encode(),
             usedforsecurity=False,
         ).hexdigest()[:12],
@@ -96,9 +92,6 @@ def _save_learned_escalation_pattern(pattern: dict[str, Any]) -> None:
 _EXPANSION_TEMPLATES = _load_escalation_templates()
 _ESCALATION_PATTERNS = _load_escalation_patterns()
 
-# ── Dynamic chains persistence ──────────────────────────────────────────
-
-
 def _load_dynamic_chains() -> dict[str, Any]:
     return _load_json_data(_DYNAMIC_CHAINS_FILE)
 
@@ -112,9 +105,6 @@ def _save_dynamic_chains(chains: dict[str, Any]) -> None:
 
 
 _DYNAMIC_CHAINS = _load_dynamic_chains()
-
-# ── Data classes ────────────────────────────────────────────────────────
-
 
 @dataclass
 class ChainStep:
@@ -162,9 +152,6 @@ class ExploitChain:
     def pending_steps(self) -> list[ChainStep]:
         return [s for s in self.steps if s.status == "pending"]
 
-# ── Category extraction — uses unified classifier, not hardcoded mapping ──
-
-
 def _extract_category_from_finding(finding: dict[str, Any]) -> str:
     finding_text = " ".join(
         str(finding.get(k, "")).lower()
@@ -177,7 +164,6 @@ def _extract_category_from_finding(finding: dict[str, Any]) -> str:
     if result.category != "UNKNOWN":
         return result.category
 
-    # Fallback: legacy keyword matching for backward compat during transition
     _LEGACY_KEYWORDS: dict[str, list[str]] = {
         "CREDENTIAL_EXPOSURE": ["credential", "password", "secret", "token", "api_key"],
         "QUERY_INJECTION": ["sql injection", "sqli", "nosql", "injection", "union select"],
@@ -196,9 +182,6 @@ def _extract_category_from_finding(finding: dict[str, Any]) -> str:
 
     return "UNKNOWN"
 
-# ── Step builder — DRY: single function handles dict/tuple/str formats ───
-
-
 def _build_step(step_id: int, step_entry: Any) -> ChainStep:
     if isinstance(step_entry, dict):
         return ChainStep(
@@ -209,9 +192,6 @@ def _build_step(step_id: int, step_entry: Any) -> ChainStep:
     if isinstance(step_entry, (list, tuple)) and len(step_entry) >= 2:
         return ChainStep(step_id=step_id, description=step_entry[0], tool_hint=step_entry[1])
     return ChainStep(step_id=step_id, description=str(step_entry), tool_hint="manual")
-
-# ── Chain generation ────────────────────────────────────────────────────
-
 
 def _generate_dynamic_chain(
     vulns: list[dict[str, Any]],
@@ -229,7 +209,7 @@ def _generate_dynamic_chain(
         return []
 
     chains: list[ExploitChain] = []
-    chain_seed = hashlib.md5(  # non-cryptographic identifier
+    chain_seed = hashlib.md5(
         f"{rng.random()}:{iteration}:{len(vulns)}".encode(),
         usedforsecurity=False,
     ).hexdigest()[:12]
@@ -535,8 +515,6 @@ def _build_workflow_context_chains(
 
     return chains[:max_chains]
 
-# ── Public API ──────────────────────────────────────────────────────────
-
 def plan_chains(
     vulnerabilities: list[dict[str, Any]],
     existing_chain_ids: set[str],
@@ -568,7 +546,6 @@ def plan_chains(
     if not candidates:
         return new_chains
 
-    # Dynamic chains from escalation patterns
     for chain in _generate_dynamic_chain(candidates, iteration):
         if len(new_chains) >= max_chains:
             break
@@ -576,7 +553,6 @@ def plan_chains(
             new_chains.append(chain)
             existing_chain_ids.add(chain.chain_id)
 
-    # Expansion chains per category
     categories: dict[str, list[dict[str, Any]]] = {}
     for vuln in candidates:
         cat = _extract_category_from_finding(vuln)
@@ -686,7 +662,6 @@ def plan_chains(
                     is_dynamic=True,
                 ))
         else:
-            # Last resort fallback when the ontology is fully exercised
             chain_id = f"generic_exploit_{iteration}"
             if chain_id not in existing_chain_ids:
                 new_chains.append(ExploitChain(

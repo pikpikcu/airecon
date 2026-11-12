@@ -16,7 +16,6 @@ class PathCompleter(Widget):
     DEFAULT_CSS = ""
 
     class Completed(Message):
-
         def __init__(self, path: str) -> None:
             self.path = path
             super().__init__()
@@ -76,7 +75,6 @@ class PathCompleter(Widget):
 
 def _list_entries(fragment: str) -> list[tuple[str, bool]]:
     if not fragment:
-
         base = Path.home()
         prefix = ""
     elif fragment == "/":

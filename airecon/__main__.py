@@ -4,6 +4,11 @@ import argparse
 import logging
 import sys
 
+if __package__ in (None, ""):
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from airecon._version import __version__
 
 logger = logging.getLogger("airecon.cli")
@@ -36,7 +41,6 @@ def _print_banner() -> None:
 
 
 def main() -> None:
-
     version = __version__
 
     parser = argparse.ArgumentParser(
@@ -575,8 +579,6 @@ def _unload_model_safely():
             print(_svc(f"{G}✓{X}", "SearXNG", "stopped"))
     except Exception as e:
         logger.debug("SearXNG shutdown failed: %s", e)
-
-    # Remote OpenAI-compatible gateways are stateless — no local VRAM to release.
 
     print(_row())
     print(f"  {C}╚{'═' * (W + 2)}╝{X}")

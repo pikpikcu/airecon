@@ -186,15 +186,10 @@ class CaptchaSolver:
                 return CaptchaSolver._extract_answer(data)
 
         try:
-            # Run the blocking urllib call in a worker thread so we never stall
-            # the asyncio event loop (this method is the fallback when aiohttp
-            # is unavailable, but it must still behave like a proper coroutine).
             return await asyncio.to_thread(_blocking_call)
         except Exception as exc:
             logger.debug("Vision (sync) call failed: %s", exc)
             return None
-
-    # ── CAPTCHA Analysis (fully LLM-driven, no hardcoded types) ──────────────
 
     async def analyse_captcha(
         self,
@@ -210,10 +205,8 @@ class CaptchaSolver:
             logger.warning("LLM did not return a CAPTCHA analysis")
             return {"captcha_present": False, "approach": "impossible"}
 
-        # Parse JSON from the LLM response
         parsed = _parse_llm_json(raw_answer)
         if not parsed:
-            # Fallback: treat unknown response as "couldn't determine"
             logger.warning(
                 "Failed to parse CAPTCHA analysis JSON: %r",
                 raw_answer[:200],
@@ -224,7 +217,6 @@ class CaptchaSolver:
                 "raw_analysis": raw_answer,
             }
 
-        # Normalise fields
         result = {
             "captcha_present": bool(parsed.get("captcha_present", False)),
             "provider": str(parsed.get("provider", "unknown")),
@@ -250,8 +242,6 @@ class CaptchaSolver:
 
         return result
 
-    # ── Main Solve Flow (vision-first, strategy-adaptive) ────────────────────
-
     async def solve_from_page(
         self,
         page_screenshot_b64: str,
@@ -266,9 +256,7 @@ class CaptchaSolver:
             "bypass_js": None,
         }
 
-        # Step 1 — Vision-first analysis (unless caller already knows the type)
         if captcha_type and captcha_type != "unknown":
-            # Caller provided a hint — use it to construct minimal analysis
             analysis = {
                 "captcha_present": True,
                 "provider": captcha_type,
@@ -291,7 +279,6 @@ class CaptchaSolver:
 
         result["captcha_type"] = analysis.get("provider", "unknown")
 
-        # Step 2 — Execute the chosen approach
         approach = analysis.get("approach", "impossible")
 
         if approach == "dom_bypass":
@@ -322,7 +309,6 @@ class CaptchaSolver:
                 )
                 return result
 
-        # Approach failed or impossible
         logger.warning(
             "CAPTCHA solving unsuccessful: provider=%s, approach=%s, reason=%s",
             result["captcha_type"],
@@ -332,17 +318,11 @@ class CaptchaSolver:
         result["method"] = approach
         return result
 
-    # ── Helper ───────────────────────────────────────────────────────────────
-
     def is_enabled(self) -> bool:
         return bool(self.captcha_model and self.captcha_model.strip())
 
 
-# ── Pure helper functions (no hardcoded CAPTCHA type dicts) ──────────────────
-
-
 def _parse_llm_json(raw: str) -> dict[str, Any] | None:
-    # Strip markdown code fences if present
     stripped = raw.strip()
     if stripped.startswith("```"):
         stripped = stripped.split("\n", 1)[-1]
@@ -353,7 +333,6 @@ def _parse_llm_json(raw: str) -> dict[str, Any] | None:
     try:
         return json.loads(stripped)
     except json.JSONDecodeError:
-        # Try to find JSON object in the raw text
         start = stripped.find("{")
         end = stripped.rfind("}")
         if start != -1 and end > start:
@@ -365,7 +344,6 @@ def _parse_llm_json(raw: str) -> dict[str, Any] | None:
 
 
 def _looks_like_widget_captcha(type_hint: str) -> bool:
-
     t = type_hint.lower()
     widget_keywords = (
         "captcha", "challenge", "turnstile", "widget",
@@ -377,7 +355,6 @@ def _looks_like_widget_captcha(type_hint: str) -> bool:
 
 
 def _guess_input_names(type_hint: str) -> list[str]:
-
     t = type_hint.lower()
     names: list[str] = []
     if "recaptcha" in t:
@@ -389,7 +366,6 @@ def _guess_input_names(type_hint: str) -> list[str]:
     names.append("captcha-token")
     names.append("captcha_response")
     names.append("validation_token")
-    # De-duplicate while preserving order
     seen = set()
     deduped = []
     for n in names:

@@ -162,7 +162,6 @@ def load_skill(
         try:
             content = skill_file.read_text(encoding="utf-8", errors="replace")
 
-            # Truncate if too long (similar to auto_load_skills_for_message)
             limit = (
                 5000 if skill_rel.startswith(("tools/", "reconnaissance/")) else 1500
             )
@@ -210,7 +209,6 @@ def load_skill(
     else:
         agent_state.skills_used = list(current_skills)
 
-    # Build context summary for the agent
     summary = (
         f"Loaded {len(loaded_skills)} skill(s): {', '.join(loaded_skills)}"
         if loaded_skills

@@ -36,7 +36,6 @@ logger = logging.getLogger("airecon.agent")
 
 class _MessageEntryMixin:
     async def _prepare_message_context(self, user_message: str):
-
         _file_refs = parse_refs(user_message)
         if _file_refs:
             user_message = strip_refs(user_message, _file_refs)

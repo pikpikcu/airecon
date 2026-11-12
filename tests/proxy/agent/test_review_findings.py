@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+from airecon.proxy.context_budget import ContextBudgetError, request_chars
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -41,7 +43,15 @@ class TestEnforceCharBudget:
 
     def _build_loop_with_conversation(self, messages):
         loop = _make_agent_loop()
-        loop.state.conversation = list(messages)
+        loop._tools_llm = []
+        loop.state.conversation = []
+        for index, original in enumerate(messages):
+            message = dict(original)
+            if message.get("role") == "tool":
+                call_id = f"fixture_{index}"
+                loop.state.conversation.append({"role": "assistant", "content": "", "tool_calls": [{"id": call_id, "function": {"name": message["name"], "arguments": {}}}]})
+                message["tool_call_id"] = call_id
+            loop.state.conversation.append(message)
         return loop
 
     def test_first_user_message_never_trimmed(self):
@@ -60,7 +70,8 @@ class TestEnforceCharBudget:
         )
 
         # Force a very small budget so compression is triggered
-        asyncio.run(loop._enforce_char_budget(num_ctx=100))
+        with pytest.raises(ContextBudgetError):
+            asyncio.run(loop._enforce_char_budget(num_ctx=100))
 
         # First user message must be completely intact
         user_msgs = [m for m in loop.state.conversation if m.get("role") == "user"]
@@ -69,8 +80,8 @@ class TestEnforceCharBudget:
             "First user message (scope/task) was trimmed — this causes scope loss"
         )
 
-    def test_subsequent_user_messages_can_be_trimmed(self):
-        """Follow-up user messages (not the first) are eligible for compression."""
+    def test_subsequent_user_instructions_are_never_trimmed_to_force_fit(self):
+        """Later scope/authorization instructions are mandatory, not rank candidates."""
         large_followup = "q" * 5000
         loop = self._build_loop_with_conversation(
             [
@@ -85,14 +96,13 @@ class TestEnforceCharBudget:
             ]
         )
 
-        asyncio.run(loop._enforce_char_budget(num_ctx=200))
+        with pytest.raises(ContextBudgetError):
+            asyncio.run(loop._enforce_char_budget(num_ctx=200))
 
         user_msgs = [m for m in loop.state.conversation if m.get("role") == "user"]
         # First user message always intact
         assert user_msgs[0]["content"] == "pentest target.com"
-        # Second user message may be trimmed (if budget was exceeded)
-        if len(user_msgs) > 1:
-            assert len(user_msgs[1]["content"]) <= len(large_followup)
+        assert user_msgs[1]["content"] == large_followup
 
     def test_no_compression_when_within_budget(self):
         """No messages are modified when total chars are within budget."""
@@ -106,7 +116,7 @@ class TestEnforceCharBudget:
         asyncio.run(loop._enforce_char_budget(num_ctx=131072))  # generous budget
 
         assert loop.state.conversation[1]["content"] == "pentest target.com"
-        assert loop.state.conversation[2]["content"] == "small result"
+        assert loop.state.conversation[-1]["content"] == "small result"
 
     def test_empty_conversation_does_not_crash(self):
         """No error if conversation is empty."""
@@ -115,7 +125,7 @@ class TestEnforceCharBudget:
         assert loop.state.conversation == []
 
     def test_budget_uses_num_ctx_minus_num_predict(self, monkeypatch):
-        """Budget = (num_ctx - num_predict) * 0.50, not num_ctx * 3.
+        """Wire-byte budget reserves output and safety margin, not the whole window.
 
         Regression test for the root-cause of hallucination at ~130K tokens:
         if budget used full num_ctx, LLM would silently truncate the system
@@ -125,7 +135,7 @@ class TestEnforceCharBudget:
 
         num_ctx = 10_000
         num_predict = 2_000
-        # Effective input budget = (10000 - 2000 - 0) * 0.50 = 4000 chars
+        # Conservative wire-byte budget = (10000 - 2000 - 256) * 3.
 
         # Build conversation with enough messages that truncation + compression kicks in
         big_tool_result = "x" * 25_000
@@ -145,11 +155,13 @@ class TestEnforceCharBudget:
         cfg_mock = MagicMock()
         cfg_mock.openai_max_tokens = num_predict
 
-        with patch("airecon.proxy.agent.loop.get_config", return_value=cfg_mock):
+        before = request_chars(loop.state.conversation, [])
+        with patch("airecon.proxy.agent.loop_context.get_config", return_value=cfg_mock):
             asyncio.run(loop._enforce_char_budget(num_ctx=num_ctx))
 
-        # Conversation should have been truncated
-        assert len(loop.state.conversation) < len(msgs)
+        after = request_chars(loop.state.conversation, [])
+        assert after < before
+        assert after <= (num_ctx - num_predict - 256) * 3
 
     def test_budget_uses_runtime_num_predict_when_provided(self):
         """Runtime adaptive num_predict should drive the budget when provided."""

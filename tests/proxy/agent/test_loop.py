@@ -268,8 +268,8 @@ class TestSubdomainWorkspacePreservation:
         assert self._would_switch("mail.example.com", "example.com") is False
 
     def test_partial_suffix_match_is_not_subdomain(self):
-        """'navigatemore.com' ends with 'e.com' but NOT 'target.example.com'."""
-        assert self._would_switch("navigatemore.com", "target.example.com") is True
+        """An unrelated domain is not a subdomain of the active target."""
+        assert self._would_switch("example.net", "target.example.com") is True
 
     def test_ip_as_extracted_is_different_domain(self):
         """IP is always treated as a different target, not a subdomain."""
@@ -311,7 +311,6 @@ async def test_standard_mode_scoped_request_keeps_scope_lock_disabled(agent_loop
     assert agent_loop._scope_lock_active is False
 
 
-
 @pytest.mark.asyncio
 async def test_wildcard_scope_moves_workspace_to_root_target(agent_loop, mocker):
     cfg = MagicMock()
@@ -320,8 +319,8 @@ async def test_wildcard_scope_moves_workspace_to_root_target(agent_loop, mocker)
     cfg.llm_context_window_small = 4096
     mocker.patch("airecon.proxy.agent.loop_message_entry.get_config", return_value=cfg)
 
-    agent_loop._tools_llm = [MagicMock()]
     agent_loop.state.active_target = "app.ringkas.co.id"
+    agent_loop._tools_llm = [{"type": "function", "function": {"name": "fixture", "parameters": {"type": "object"}}}]
     agent_loop._scope_anchor_target = "app.ringkas.co.id"
     mocker.patch.object(agent_loop, "_scan_workspace_state", return_value="")
 
@@ -566,11 +565,12 @@ def test_recompute_used_tokens_from_conversation_updates_live_counter(agent_loop
 
     used = agent_loop._recompute_used_tokens_from_conversation()
 
-    assert used == len("abc\ndefghi") // 4  # Changed from //3 to //4 for better non-English accuracy
+    assert used > len("abc\ndefghi") // 3  # Includes serialized role/framing overhead.
     assert agent_loop.state.token_usage["used"] == used
+    assert agent_loop.state.token_usage["estimate_basis"] == "serialized_utf8_bytes_div_3"
 
 
-def test_recompute_used_tokens_from_conversation_ignores_non_dict_messages(agent_loop):
+def test_recompute_used_tokens_from_conversation_matches_non_dict_wire_coercion(agent_loop):
     agent_loop.state.conversation = [
         {"role": "system", "content": "hello"},
         "not-a-dict",
@@ -579,7 +579,9 @@ def test_recompute_used_tokens_from_conversation_ignores_non_dict_messages(agent
 
     used = agent_loop._recompute_used_tokens_from_conversation()
 
-    assert used == len("hello\nworld") // 4  # Changed from //3 to //4 for better non-English accuracy
+    agent_loop.state.conversation.pop(1)
+    without_coerced_message = agent_loop._recompute_used_tokens_from_conversation()
+    assert used > without_coerced_message  # The wire converter sends the string as a user turn.
 
 
 # ---------------------------------------------------------------------------

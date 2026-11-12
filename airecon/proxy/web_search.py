@@ -186,7 +186,6 @@ async def web_search(query: str, max_results: int = 10, use_cache: bool = True) 
             return cached
 
     if searxng_url:
-
         try:
             from .searxng import get_shared_manager
             searxng_mgr = get_shared_manager()
@@ -229,7 +228,6 @@ async def web_search(query: str, max_results: int = 10, use_cache: bool = True) 
                 logger.debug("SearXNG recovery attempt raised: %s", _rec_err)
                 recovered = False
             if recovered:
-
                 result = await _searxng_search(query, max_results, searxng_url, engines)
                 if result.get("success"):
                     if effective_cache:

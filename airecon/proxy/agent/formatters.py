@@ -194,7 +194,6 @@ def _extract_security_hints(output: str) -> list[str]:
     return hints
 
 class _FormatterMixin:
-
     if TYPE_CHECKING:
         state: AgentState
     def _smart_format_tool_result(
@@ -204,7 +203,6 @@ class _FormatterMixin:
         success: bool,
         command: str = "",
     ) -> str:
-
         _ctf = getattr(self, "_ctf_mode", False)
         MAX_TOTAL = 1000 if _ctf else 12000
 
@@ -214,7 +212,6 @@ class _FormatterMixin:
             stdout_msg = result.get("stdout", "") or ""
             exit_code = result.get("exit_code")
 
-            # Format exit_code properly - show "unknown" if None or missing
             exit_code_str = str(exit_code) if exit_code is not None else "unknown"
             parts = [f"COMMAND FAILED (exit code: {exit_code_str})"]
             if error_msg.strip():
@@ -263,7 +260,6 @@ class _FormatterMixin:
                     "syntax error",
                 )
             ):
-
                 help_text = self._auto_help_lookup(tool_bin)
                 if help_text:
                     parts.append(
@@ -325,7 +321,6 @@ class _FormatterMixin:
                 or ("<html" in _stdout_head and "<body" in _stdout_head)
             )
             if _is_html:
-
                 stdout = re.sub(
                     r"<(script|style)[^>]*>.*?</(script|style)>",
                     " ",
@@ -343,7 +338,6 @@ class _FormatterMixin:
 
             _http_summary = _extract_http_response_summary(stdout)
             if _http_summary:
-
                 body = _http_summary + "\n\nRAW:\n" + stdout.strip()[:2000]
                 if len(body) > MAX_TOTAL:
                     body = body[:MAX_TOTAL] + "\n... (truncated)"
@@ -411,7 +405,7 @@ class _FormatterMixin:
             content = result["result"]
         else:
             content = json.dumps(result, default=str)
-        if len(content) > MAX_TOTAL:
+        if tool_name != "read_file" and len(content) > MAX_TOTAL:
             content = content[:MAX_TOTAL] + "\n... (truncated)"
         return content
 
@@ -510,7 +504,6 @@ class _FormatterMixin:
             return None
 
         def _blocking_lookup() -> str | None:
-
             import concurrent.futures
 
             try:
@@ -557,7 +550,6 @@ class _FormatterMixin:
                     usage_lines.append(stripped)
 
             if not flag_lines and not usage_lines:
-
                 return "\n".join(lines[:30])
 
             parts: list[str] = []

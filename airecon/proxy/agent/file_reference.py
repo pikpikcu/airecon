@@ -139,7 +139,6 @@ def strip_refs(message: str, refs: list[FileRef]) -> str:
         if ref.end > ref.start:
             result = result[:ref.start] + replacement + result[ref.end:]
         else:
-
             result = result.replace(ref.raw, replacement)
     return result
 
@@ -248,7 +247,6 @@ def _resolve_text(ref: FileRef, workspace_dir: Path) -> ResolvedRef:
     _docker_path = _docker_path_for(dest, fallback=Path("/workspace/uploads") / path.name)
 
     if size > _MAX_TEXT_FILE_SIZE:
-
         _text_block = _read_partial(path, max_bytes=_MAX_TEXT_FILE_SIZE)
     else:
         try:
@@ -359,7 +357,6 @@ Directory tree:
 def _walk_dir(base: Path):
     for item in sorted(base.rglob("*")):
         if item.is_file() and not item.is_symlink():
-
             parts = set(item.relative_to(base).parts[:-1])
             if parts & _SKIP_DIRS:
                 continue
@@ -400,7 +397,6 @@ def _copy_directory_to_uploads(
                 shutil.copy2(src_file, dst_file)
                 copied_files += 1
             except OSError as e:
-
                 logger.debug("Skipped file during directory copy: %s — %s", src_file, e)
                 skipped_files.append(str(rel))
     return dest_dir, copied_files, skipped_files
@@ -411,10 +407,8 @@ def _docker_path_for(path: Path, fallback: Path) -> Path:
         workspace_root = get_workspace_root()
         return Path("/workspace") / path.relative_to(workspace_root)
     except ValueError:
-
         return fallback
     except Exception as e:
-
         logger.warning("Operation failed: %s", e)
 
         logger.debug("_docker_path_for: unexpected error for %s, using fallback", path)

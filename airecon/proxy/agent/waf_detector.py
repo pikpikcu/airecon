@@ -136,7 +136,6 @@ def detect_waf_from_response(
         return None
 
     if waf_scores:
-
         detected_waf = max(
             waf_scores.items(),
             key=lambda kv: (kv[1], 0 if kv[0].lower() == "generic waf" else 1),
@@ -204,12 +203,10 @@ def merge_waf_profiles(
     )
 
     if prev and observed:
-
         merged.confidence = min(1.0, prev.confidence * 0.55 + observed.confidence * 0.75)
         merged.waf_name = observed.waf_name if observed.confidence >= prev.confidence else prev.waf_name
         merged.evidence = list(dict.fromkeys((prev.evidence + observed.evidence)))[:10]
     elif prev and not observed:
-
         if status_code in _BLOCK_STATUS_CODES:
             merged.confidence = min(1.0, prev.confidence + 0.05)
             merged.evidence = list(dict.fromkeys(prev.evidence + [f"Repeated block status code: {status_code}"]))[:10]

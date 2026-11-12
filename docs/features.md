@@ -31,6 +31,11 @@
 
 ## Deep Thinking Model Support
 
+The client supports both OpenAI-compatible chat and native Anthropic Messages
+(`llm_provider: openai|anthropic`). Native Anthropic continuations preserve signed
+thinking and tool blocks. Output/context budgeting and invalid-tool rejection
+apply to both protocols; protocol support is not a guarantee of model quality.
+
 AIRecon supports reasoning models that generate internal thoughts (`<think>`) before producing a final answer. This is useful for complex tasks such as:
 
 - Planning multi-stage attack chains
@@ -49,6 +54,7 @@ When enabled, AIRecon keeps the reasoning stream separate from final output. The
   - `auto` (default) detects from the model name — sends `reasoning_effort` to o-series/gpt-5/gemini-thinking/grok-reasoning/QwQ/DeepSeek-R1 and `chat_template_kwargs.enable_thinking` to Qwen3/GLM/vLLM-hosted models, and stays silent for plain models (gpt-4o, gemini-flash) that would reject reasoning params.
   - `off` never sends reasoning params (use for non-reasoning models).
   - `reasoning_effort` / `enable_thinking` force a specific strategy.
+- `llm_reasoning_replay: auto|always|off` — whether stored provider `reasoning_content` is sent back on assistant turns. `auto` sends it to DeepSeek API hosts and `deepseek/`-prefixed gateway models (their thinking mode rejects tool requests without it) and to any host+model that returned a 400 asking for it; other backends do not receive it, so it costs no context.
 
 For the documented use cases above to actually engage, point `openai_model` at a reasoning-capable model. A lightweight non-reasoning model (e.g. `gemini-*-flash`) will go straight to tool calls regardless of these settings.
 

@@ -11,13 +11,13 @@ from urllib.parse import urlparse
 from ..browser import browser_action
 from ..config import get_config, get_workspace_root
 from ..data_loader import load_tools_meta
+from ..scope import check_network_tool_scope
 from .executors_catalog import (
     _RESULT_TRUNCATION_THRESHOLD,
 )
 
 logger = logging.getLogger("airecon.agent")
 
-# ── Load browser config from tools_meta ────────────────────────────────
 _BROWSER_CONFIG = load_tools_meta().get("browser_config", {})
 _TRACKING_URL_PATTERNS = _BROWSER_CONFIG.get("tracking_url_patterns", [])
 _TRACKING_QUERY_PARAMS = _BROWSER_CONFIG.get("tracking_query_params", [])
@@ -32,13 +32,11 @@ def _is_tracking_or_asset_url(url: str) -> bool:
     for pattern in _COMPILED_TRACKING_PATTERNS:
         if pattern.search(url):
             return True
-    # Check for random-looking query params (tracking IDs, timestamps)
     parsed = urlparse(url)
     query = parsed.query.lower()
     param_count = sum(1 for p in _TRACKING_QUERY_PARAMS if p in query)
     if param_count >= 2:
         return True
-    # Check for very long random-looking path segments
     path = parsed.path
     if re.search(r"/[a-f0-9]{8,}-[a-f0-9]{4,}", path):
         return True
@@ -74,7 +72,6 @@ def _save_browser_artifact(
 
     saved_path = f"output/{filename}"
 
-    # Build the note message based on artifact type and extra data
     if artifact_type == "source":
         js_count = extra_data.get("js_count", 0) if extra_data else 0
         js_note = (
@@ -125,7 +122,10 @@ class _BrowserExecutorMixin:
     ) -> tuple[bool, float, dict[str, Any], str | None]:
         self._last_output_file = None
 
-        # ── Pre-filter: block tracking/analytics URLs before browser ──
+        scope_error = check_network_tool_scope(tool_name, arguments)
+        if scope_error:
+            return False, 0.0, {"success": False, "error": scope_error}, None
+
         action = arguments.get("action", "")
         url = arguments.get("url", "")
         if action == "goto" and url:
@@ -191,14 +191,12 @@ class _BrowserExecutorMixin:
             success = not (isinstance(result, dict) and "error" in result)
             if not success and isinstance(result, dict):
                 error_str = str(result.get("error", ""))
-                # Redirect loop — detect, register dead URL, give guidance
                 if "Too many redirects" in error_str or "redirect" in error_str.lower():
                     redirected_url = ""
                     _final_m = re.search(r"final URL:\s*(\S+)", error_str)
                     if _final_m:
                         redirected_url = _final_m.group(1)
 
-                    # Register the redirect target as a dead/blocked URL
                     if redirected_url and hasattr(self, "state"):
                         self.state.add_dead_host(redirected_url)
                         logger.info(
@@ -296,7 +294,7 @@ class _BrowserExecutorMixin:
                                 for log_entry in logs
                             )
                             extra = {"log_count": len(logs)}
-                        else:  # network
+                        else:
                             reqs = inner.get("network_requests", [])
                             content = (
                                 f"Total entries: {len(reqs)}\n{'=' * 60}\n\n"

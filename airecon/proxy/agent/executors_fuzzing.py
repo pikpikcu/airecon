@@ -376,20 +376,27 @@ class _FuzzingExecutorMixin:
                     auth_extra_fields,
                     login_url=auth_login_url,
                 )
-            async for _event in tester.stream_fuzz(
+            stream_errors: list[str] = []
+            completed = False
+            async for event in tester.stream_fuzz(
                 params=params, vuln_types=vuln_types
             ):
-                pass
+                if event.event_type == "error":
+                    stream_errors.append(str(event.data.get("message") or "Fuzzing failed"))
+                elif event.event_type == "complete":
+                    completed = True
+            if not completed:
+                stream_errors.append("Fuzzing stream ended before completion")
 
             phase2_findings: list[Any] = []
             phase3_findings: list[Any] = []
-            if enable_phase2:
+            if enable_phase2 and not stream_errors:
                 phase2_findings = await tester.fuzzer.run_phase2_advanced_tests(
                     ssrf_params=ssrf_params,
                     graphql_endpoints=graphql_endpoints,
                     race_params=race_params,
                 )
-            if enable_phase3:
+            if enable_phase3 and not stream_errors:
                 phase3_findings = await tester.fuzzer.run_phase3_advanced_tests(
                     store_params=store_params or params,
                     trigger_paths=trigger_paths,
@@ -403,17 +410,22 @@ class _FuzzingExecutorMixin:
             summary["phase2_findings"] = len(phase2_findings)
             summary["phase3_findings"] = len(phase3_findings)
 
+            success = not stream_errors
             res_dict = {
-                "success": True,
+                "success": success,
                 "summary": summary,
                 "findings": _format_findings(getattr(tester, "_findings", [])),
             }
+            if stream_errors:
+                res_dict["error"] = "; ".join(stream_errors)
+                res_dict["partial"] = True
             _record_tool_completion(
-                self, tool_name, arguments, res_dict, start_time, success=True
+                self, tool_name, arguments, res_dict, start_time, success=success
             )
         except Exception as e:
             logger.error("deep_fuzz error: %s", e)
-            res_dict = {"success": False, "error": str(e)}
+            res_dict = {"success": False, "error": str(e), "partial": tester is not None,
+                        "findings": _format_findings(getattr(tester, "_findings", []))}
             _record_tool_completion(
                 self, tool_name, arguments, res_dict, start_time, success=False
             )
@@ -427,7 +439,7 @@ class _FuzzingExecutorMixin:
                 except Exception as _e:
                     logger.debug("Could not close deep_fuzz tester")
 
-        return True, time.time() - start_time, res_dict, None
+        return success, time.time() - start_time, res_dict, None
 
     async def _execute_generate_wordlist_tool(
         self,

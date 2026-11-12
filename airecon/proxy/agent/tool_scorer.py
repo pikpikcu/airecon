@@ -12,7 +12,6 @@ from .vuln_classifier import get_classifier
 
 logger = logging.getLogger("airecon.agent.tool_scorer")
 
-# ── Load tool metadata ──────────────────────────────────────────────────────
 _TOOLS_META_PATH = Path(__file__).parent.parent / "data" / "tools_meta.json"
 _TOOLS_JSON_PATH = Path(__file__).parent.parent / "data" / "tools.json"
 try:
@@ -204,7 +203,6 @@ def _build_phase_appropriate() -> dict[str, set[str]]:
 
 
 def _build_phase_blocked() -> dict[str, set[str]]:
-
     all_phase_tools = _build_phase_appropriate()
     all_known = _collect_all_known_tools()
 
@@ -236,9 +234,6 @@ _KNOWN_TOOL_BINARIES: set[str] = _collect_shell_binary_names()
 _TOOL_VULN_LABEL_MAP: dict[str, set[str]] = _build_tool_vuln_label_map()
 _ALL_SKILLS: dict[str, str] = _load_all_skills()
 
-
-# Shell binary descriptions sourced from tools_meta.json["tool_descriptions"]
-# No hardcoded descriptions in Python code — all maintained in JSON.
 
 def _collect_shell_binary_descriptions() -> dict[str, str]:
     descriptions = _TOOLS_META.get("tool_descriptions", {})
@@ -480,9 +475,6 @@ def score_tool(
     is_blocked = tool_name.lower() in {t.lower() for t in blocked_tools}
     is_appropriate = tool_name.lower() in {t.lower() for t in appropriate_tools}
 
-    # FLEXIBILITY: Tool phase blocking is now ADVISORY not HARD.
-    # Novel discoveries can override phase restrictions.
-    # If session has many unconfirmed hypotheses (discovery mode), allow cross-phase tools.
     discovery_exception = False
     if is_blocked and session_evidence_count >= 3:
         discovery_exception = True
@@ -491,14 +483,11 @@ def score_tool(
         )
 
     if is_blocked and not discovery_exception:
-        # Hard block for tools inappropriate for this phase
         score = 0.0
         reasons.append(
             f"[PHASE BLOCKED] '{tool_name}' is not allowed in {phase_upper} phase"
         )
-        # Don't return yet - continue scoring
     elif is_blocked and discovery_exception:
-        # Boost score when discovery exception applies
         score = 0.6
         reasons.append(
             f"[CROSS-PHASE ALLOWED] Research mode active - using {tool_name} despite phase"
@@ -534,7 +523,6 @@ def score_tool(
             score += 0.05
             reasons.append("Not yet used this session — worth trying")
 
-    # ── Diversity penalty: penalize tools used recently ──────────────
     if recent_tool_names:
         recent_count = recent_tool_names.count(tool_name)
         window_size = len(recent_tool_names)
@@ -545,13 +533,11 @@ def score_tool(
             reasons.append(
                 f"DIVERSITY PENALTY: used {recent_count}/{window_size} recent calls ({frequency:.0%}) — score -{penalty:.2f}"
             )
-            # Hard block if tool dominates the window
             if frequency >= 0.6:
                 score = max(0.0, score - 0.3)
                 reasons.append(
                     "HEAVY PENALTY: tool dominates recent window — strongly prefer alternatives"
                 )
-        # Bonus for tools NOT yet used recently
         if (
             recent_count == 0
             and is_appropriate
@@ -567,7 +553,6 @@ def score_tool(
             score += 0.1
             reasons.append("DIVERSITY BONUS: not used recently — fresh approach")
 
-    # ── Vuln class coverage bonus: boost tools for untested vuln classes ──
     if tested_vuln_classes:
         tool_lower = tool_name.lower()
         tool_classes = _TOOL_VULN_LABEL_MAP.get(tool_lower, set())
@@ -750,7 +735,6 @@ def build_tool_recommendation_context(
         ]
         top_tools = sorted(callable_candidates, key=_tool_priority)[:15]
 
-        # Build a named→description lookup from the tool registry
         desc_map: dict[str, str] = dict(_CALLABLE_TOOL_DESCRIPTIONS)
         if tool_registry:
             for tdef in tool_registry:
@@ -765,7 +749,6 @@ def build_tool_recommendation_context(
             tl = tname.lower()
             desc = desc_map.get(tl, "")
             if desc:
-                # Truncate long descriptions
                 if len(desc) > 200:
                     desc = desc[:197] + "..."
                 callable_lines.append(f"    - {tname}: {desc}")
@@ -777,7 +760,6 @@ def build_tool_recommendation_context(
             guidance_lines.append("  Recommended callable tools for this phase:")
             guidance_lines.extend(callable_lines)
 
-        # Add known shell binaries accessible via execute(command='...')
         shell_binaries = _collect_shell_binary_descriptions()
         relevant_shells = _match_shells_for_phase(phase_upper)
         if relevant_shells:
@@ -850,7 +832,6 @@ def build_tool_recommendation_context(
             f"</failure_recovery>"
         )
 
-    # Skills catalog index — tell agent about available knowledge
     skill_entries = _build_skill_catalog_entries(
         phase_upper,
         context_tools=top_tools[:8],

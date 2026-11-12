@@ -18,8 +18,6 @@ logger = logging.getLogger("airecon.agent")
 
 
 class _LifecycleMixin:
-    # Attributes/methods provided by AgentLoop or sibling mixins — declared for
-    # the type checker only; no runtime effect.
     if TYPE_CHECKING:
         state: AgentState
         engine: Any
@@ -198,8 +196,6 @@ class _LifecycleMixin:
                         f"## MEMORY AUGMENTATION (from past sessions)\n{_memory_context}",
                     )
 
-                    # Inject tool performance patterns
-                    # Show the agent which tools historically succeed/fail
                     try:
                         tool_stats = memory.get_tool_statistics()
                         if isinstance(tool_stats, list) and tool_stats:
@@ -259,7 +255,6 @@ class _LifecycleMixin:
             os.environ.get("AIRECON_SESSION_ID") if not self._is_subagent else None
         )
         if _session_id:
-            # _loop_module = get_loop_module()
             self._session = _loop_module.load_session(_session_id) or SessionData(
                 session_id=_session_id,
                 target=target or "",
@@ -273,7 +268,6 @@ class _LifecycleMixin:
         self._sync_recovery_state_from_session()
         self._sync_token_usage_from_session()
 
-        # Cross-session persistence: load payload memory + adaptive learning
         if hasattr(self, "_load_session_persistence"):
             try:
                 loop = asyncio.get_event_loop()
@@ -287,7 +281,6 @@ class _LifecycleMixin:
             self.pipeline.set_ctf_mode(True)
 
     def reset(self) -> None:
-
         old_target = ""
         old_subdomains = []
         old_live_hosts = []
@@ -317,6 +310,8 @@ class _LifecycleMixin:
         self._vram_crash_count = 0
         self._adaptive_num_predict_cap = 0
         self._fatal_llm_error = ""
+        self._context_char_budget = 0
+        self._learning_distill_due = False
         self._context_check_task = None
 
         self._session = SessionData(target=old_target)
@@ -568,9 +563,6 @@ Current workflow: Follow phase transitions (RECON→ANALYSIS→EXPLOIT→REPORT)
         from ..llm import _CONTEXT_RESET_THRESHOLD
         from . import loop as _loop_module
 
-        # Remote OpenAI-compatible gateways are stateless: there is no server-side
-        # KV cache to poll (no LLM /api/ps). Drive context-pressure detection
-        # purely from our local token-usage estimate.
         used_estimate = int(self.state.token_usage.get("used", 0) or 0)
 
         cfg = _loop_module.get_config()

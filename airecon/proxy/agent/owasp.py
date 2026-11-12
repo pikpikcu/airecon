@@ -7,14 +7,7 @@ from ..data_loader import severity_to_int
 
 logger = logging.getLogger("airecon.dynamic_classifier")
 
-# ── Impact-level taxonomies (NOT keyword lists) ─────────────────────────────
-# These describe WHAT the attacker CAN DO, not WHAT WORDS appear.
-# A finding is classified by matching its OBSERVED EFFECT against these
-# impact signatures.  The matching is done via evidence structure analysis
-# rather than keyword presence.
-
 _IMPACT_SIGNATURES = [
-    # Signature 0: Attacker reads or exfiltrates data they shouldn't
     {
         "category": "DATA_EXPOSURE",
         "effect_verbs": {"read", "leak", "expose", "dump", "disclose", "enumerate",
@@ -24,7 +17,6 @@ _IMPACT_SIGNATURES = [
                             "response", "error", "stack", "trace", "backup", "log"},
         "severity_base": 3,
     },
-    # Signature 1: Attacker modifies state or data
     {
         "category": "STATE_MANIPULATION",
         "effect_verbs": {"modify", "change", "update", "overwrite", "delete", "create",
@@ -35,7 +27,6 @@ _IMPACT_SIGNATURES = [
                             "cookie", "session", "workflow", "step", "logic"},
         "severity_base": 4,
     },
-    # Signature 2: Attacker gains unauthorized access or privilege
     {
         "category": "UNAUTHORIZED_ACCESS",
         "effect_verbs": {"access", "login", "authenticate", "bypass", "elevate",
@@ -46,7 +37,6 @@ _IMPACT_SIGNATURES = [
                             "api", "endpoint", "resource", "object", "tenant"},
         "severity_base": 4,
     },
-    # Signature 3: System behaves incorrectly under unusual conditions
     {
         "category": "LOGIC_FLAW",
         "effect_verbs": {"skip", "bypass", "repeat", "replay", "race", "overflow",
@@ -57,7 +47,6 @@ _IMPACT_SIGNATURES = [
                             "limit", "threshold", "counter", "sequence", "step"},
         "severity_base": 3,
     },
-    # Signature 4: Attacker causes unintended network behavior
     {
         "category": "NETWORK_ABUSE",
         "effect_verbs": {"request", "fetch", "connect", "resolve", "scan", "probe",
@@ -67,7 +56,6 @@ _IMPACT_SIGNATURES = [
                             "proxy", "origin", "backend", "server"},
         "severity_base": 3,
     },
-    # Signature 5: Attacker causes resource exhaustion
     {
         "category": "RESOURCE_EXHAUSTION",
         "effect_verbs": {"exhaust", "consume", "flood", "bomb", "deplete", "overload",
@@ -77,7 +65,6 @@ _IMPACT_SIGNATURES = [
                             "cache", "buffer", "stack", "queue"},
         "severity_base": 2,
     },
-    # Signature 6: Information leakage about system internals
     {
         "category": "INFORMATION_DISCLOSURE",
         "effect_verbs": {"reveal", "show", "return", "display", "leak", "expose",
@@ -90,20 +77,16 @@ _IMPACT_SIGNATURES = [
 ]
 
 
-# ── OWASP mapping (kept for compliance reporting, NOT for classification) ───
-# Extended to include OWASP API Security 2023 and CWE mappings
 _OWL_MAPPING: dict[str, list[int]] = {
-    # Impact category → list of OWASP 2021 IDs it maps to
-    "DATA_EXPOSURE": [2, 4],           # Crypto Failures, Insecure Design
-    "STATE_MANIPULATION": [1, 3, 7],    # Access Control, Injection, Data Integrity
-    "UNAUTHORIZED_ACCESS": [1, 7],      # Access Control, Auth Failures
-    "LOGIC_FLAW": [4, 8],              # Insecure Design, Integrity Failures
-    "NETWORK_ABUSE": [5, 10],           # Misconfiguration, SSRF
-    "RESOURCE_EXHAUSTION": [5, 6],      # Misconfiguration, Outdated Components
-    "INFORMATION_DISCLOSURE": [2, 9],   # Crypto Failures, Logging Failures
+    "DATA_EXPOSURE": [2, 4],
+    "STATE_MANIPULATION": [1, 3, 7],
+    "UNAUTHORIZED_ACCESS": [1, 7],
+    "LOGIC_FLAW": [4, 8],
+    "NETWORK_ABUSE": [5, 10],
+    "RESOURCE_EXHAUSTION": [5, 6],
+    "INFORMATION_DISCLOSURE": [2, 9],
 }
 
-# OWASP API Security 2023 mapping
 _OWL_API_MAPPING: dict[str, list[str]] = {
     "DATA_EXPOSURE": ["API1:2023", "API3:2023", "API4:2023"],
     "UNAUTHORIZED_ACCESS": ["API1:2023", "API2:2023", "API5:2023"],
@@ -125,7 +108,6 @@ _OWL_LABELS: dict[str, str] = {
     "A08:2021": "Software and Data Integrity Failures",
     "A09:2021": "Security Logging and Monitoring Failures",
     "A10:2021": "Server-Side Request Forgery",
-    # OWASP API Security 2023
     "API1:2023": "Broken Object Level Authorization",
     "API2:2023": "Broken Authentication",
     "API3:2023": "Broken Object Property Level Authorization",
@@ -145,7 +127,6 @@ def _extract_effect_words(text: str) -> tuple[set[str], set[str]]:
     verbs = set()
     targets = set()
 
-    # Known verb set that describes attacker EFFECT
     all_verbs = set()
     for sig in _IMPACT_SIGNATURES:
         all_verbs.update(sig["effect_verbs"])
@@ -154,15 +135,12 @@ def _extract_effect_words(text: str) -> tuple[set[str], set[str]]:
         all_targets.update(sig["effect_targets"])
 
     for i, word in enumerate(words):
-        # Strip common punctuation
         cleaned = word.strip(".,;:()[]{}\"'`")
 
         if cleaned in all_verbs:
             verbs.add(cleaned)
 
-        # Targets: words that appear within 3 words of a verb
         if cleaned in all_targets:
-            # Check proximity to any recognized verb
             start = max(0, i - 4)
             end = min(len(words), i + 4)
             window = words[start:end]
@@ -183,8 +161,6 @@ def _classify_by_keyword(summary: str) -> list[str]:
         "proof of concept", "poc works", "replay_verified", "report_generated",
     ]
 
-    # Negative keyword suppression — checks for negation proximity to vuln keywords
-    # If a negative word appears near a vuln keyword, that specific vuln is suppressed
     _neg_words = [
         "not vulnerable", "false positive", "unverified", "needs verification",
         "potential vulnerability", "could be vulnerable", "might be vulnerable",
@@ -198,7 +174,6 @@ def _classify_by_keyword(summary: str) -> list[str]:
         if idx < 0:
             return False
 
-        # Check for vuln-specific negation patterns
         vuln_specific_neg = [
             f"no {vuln_kw}", f"not {vuln_kw}", f"no {vuln_kw.split()[0]}",
             f"{vuln_kw} not found", f"{vuln_kw} patched",
@@ -210,7 +185,6 @@ def _classify_by_keyword(summary: str) -> list[str]:
         local_window = summary_lower[max(0, idx - 40): idx + len(vuln_kw) + 80]
         local_positive = any(pos in local_window for pos in _positive_indicators)
 
-        # Check for generic negation words near the keyword (within 150 chars)
         for neg in _neg_words:
             neg_idx = summary_lower.find(neg)
             if neg_idx >= 0 and abs(idx - neg_idx) < 150:
@@ -218,14 +192,13 @@ def _classify_by_keyword(summary: str) -> list[str]:
 
         return False
 
-    # Keyword → OWASP mapping
     keyword_map = [
         (["sql injection", "sqli", "union select"], "A03:2021"),
         (["xss", "cross-site scripting", "script injection"], "A03:2021"),
         (["ssrf", "server-side request forgery", "169.254.169.254"], "A10:2021"),
         (["rce", "command injection", "code execution", "remote code execution"], "A03:2021"),
         (["log4j", "log4shell", "jndi"], "A03:2021"),
-        (["log4j", "log4shell"], "A06:2021"),  # Log4Shell is also a vulnerable component
+        (["log4j", "log4shell"], "A06:2021"),
         (["idor", "insecure direct object reference"], "A01:2021"),
         (["broken access", "access control"], "A01:2021"),
         (["misconfiguration", "misconfig", "default cred", "exposed", "directory listing"], "A05:2021"),
@@ -292,13 +265,10 @@ def _classify_by_impact(
         sig_verbs = sig["effect_verbs"]
         sig_targets = sig["effect_targets"]
 
-        # Verb overlap: how many of the finding's verbs appear in this signature
         verb_overlap = len(verbs & sig_verbs) / max(len(sig_verbs), 1)
 
-        # Target overlap: how many affected targets match
         target_overlap = len(targets & sig_targets) / max(len(sig_targets), 1)
 
-        # Combined score — verbs weighted higher because they define the attack type
         score = (verb_overlap * 0.65) + (target_overlap * 0.35)
 
         if score > best_score:
@@ -339,7 +309,6 @@ def _infer_impact_from_context(
     impacts: list[str] = []
 
     endpoint_lower = endpoint.lower() if endpoint else ""
-    # Impact inference based on endpoint role, not tech name matching
     if any(p in endpoint_lower for p in ("/admin", "/dashboard", "/manage", "/console")):
         impacts.append("Sensitive management interface affected")
 
@@ -349,7 +318,6 @@ def _infer_impact_from_context(
     if any(p in endpoint_lower for p in ("/upload", "/import", "/file")):
         impacts.append("File handling vector present")
 
-    # Impact inference from category
     impact_map = {
         "DATA_EXPOSURE": "Unauthorized data access or exfiltration",
         "STATE_MANIPULATION": "Application state or data integrity compromised",
@@ -390,8 +358,6 @@ def _generate_generic_recommendation(category: str, severity: int) -> str:
     return _generate_recommendation(category, severity)
 
 
-# ── Public API ───────────────────────────────────────────────────────────────
-
 def classify_vulnerability(
     summary: str,
     tags: list[str],
@@ -413,27 +379,23 @@ def classify_vulnerability(
             "recommendation": "Unable to classify — empty evidence summary",
         }
 
-    # Step 1: extract effect structure
     verbs, targets = _extract_effect_words(summary_text)
 
-    # Step 2: classify by impact
     category, severity_base = _classify_by_impact(verbs, targets)
 
-    # Fallback: if impact classification returned UNKNOWN, use keyword-based severity
     if category == "UNKNOWN":
         keyword_owasp = _classify_by_keyword(summary_text)
         if keyword_owasp:
-            # Map OWASP IDs to reasonable severity
             keyword_severity_map = {
-                "A03:2021": 4,  # Injection → High
-                "A01:2021": 4,  # Broken Access → High
-                "A10:2021": 4,  # SSRF → High
-                "A06:2021": 3,  # Vulnerable Components → Medium
-                "A05:2021": 2,  # Misconfiguration → Low
-                "A02:2021": 3,  # Crypto Failures → Medium
-                "API1:2023": 4,  # BOLA → High
-                "API3:2023": 3,  # Mass Assignment → Medium
-                "API5:2023": 4,  # BFLA → High
+                "A03:2021": 4,
+                "A01:2021": 4,
+                "A10:2021": 4,
+                "A06:2021": 3,
+                "A05:2021": 2,
+                "A02:2021": 3,
+                "API1:2023": 4,
+                "API3:2023": 3,
+                "API5:2023": 4,
             }
             for tag in keyword_owasp:
                 if tag.startswith("owasp:"):
@@ -443,7 +405,6 @@ def classify_vulnerability(
                         severity_base = sev
                         category = "KEYWORD_MATCH"
 
-    # Step 3: adjust severity
     confidence = 0.5
     if evidence:
         confidence = float(evidence.get("confidence", 0.5))
@@ -459,10 +420,8 @@ def classify_vulnerability(
         category, severity_base, confidence, has_exploit
     )
 
-    # Step 4: infer impact
     impact = _infer_impact_from_context(category, technology or [], endpoint)
 
-    # Build result
     semantic_features = {}
     if verbs:
         semantic_features["effect_verbs"] = sorted(verbs)
@@ -475,19 +434,16 @@ def classify_vulnerability(
         oid_str = f"{prefix}{oid % 100:02d}:2021"
         owasp_tags.append(f"owasp:{oid_str}")
 
-    # Also add keyword-based OWASP tags (supplements impact-based classification)
     keyword_owasp_tags = _classify_by_keyword(summary_text)
     for tag in keyword_owasp_tags:
         if tag not in owasp_tags:
             owasp_tags.append(tag)
 
-    # Also add tag-based OWASP tags (e.g., 'ssrf' tag → A10:2021)
     tag_owasp_tags = _classify_by_tag(tags)
     for tag in tag_owasp_tags:
         if tag not in owasp_tags:
             owasp_tags.append(tag)
 
-    # Build result tags: only add dynamic category if we actually classified something
     dynamic_tags = []
     if category != "UNKNOWN":
         dynamic_tags.append(f"dynamic:{category.lower()}")
@@ -496,7 +452,7 @@ def classify_vulnerability(
         "category": category,
         "severity": severity,
         "confidence": confidence,
-        "anomalies_detected": list(verbs),  # verbs ARE the detected anomalies
+        "anomalies_detected": list(verbs),
         "semantic_features": semantic_features,
         "impact": impact,
         "tags": tags + dynamic_tags + owasp_tags,
@@ -554,7 +510,6 @@ def evidence_risk_summary(evidence: list[dict[str, Any]]) -> dict[str, Any]:
 
     top_categories = sorted(category_counts.items(), key=lambda x: x[1], reverse=True)[:5]
 
-    # Count OWASP categories from tags
     owasp_counts: dict[str, int] = {}
     for item in evidence:
         for tag in item.get("tags", []):

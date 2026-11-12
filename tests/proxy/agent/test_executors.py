@@ -1,4 +1,5 @@
 import json
+import shlex
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -437,6 +438,25 @@ async def test_execute_code_analysis_tool_profiles_target_and_expands_rules(
 # ── schemathesis behavioral tests ─────────────────────────────────────────────
 
 
+@pytest.fixture
+def schemathesis_report_writer(tmp_path, monkeypatch):
+    monkeypatch.setattr("airecon.proxy.agent.executors_observe.get_workspace_root", lambda: tmp_path)
+
+    async def execute(tool, arguments):
+        parts = shlex.split(arguments["command"])
+        report_path = parts[parts.index("--report-json-path") + 1]
+        host_path = tmp_path / report_path.removeprefix("/workspace/")
+        host_path.parent.mkdir(parents=True, exist_ok=True)
+        host_path.write_text(json.dumps({
+            "complete": True, "exit_code": 1, "operations": {"tested": 1},
+            "test_cases": {"generated": 3, "with_failures": 1, "unique_failures": 1, "without_checks": 0},
+            "failures": [{"type": "ServerError", "count": 1}], "errors": [],
+        }))
+        return {"success": True, "exit_code": 1, "stdout": "❌ 1 failed", "stderr": ""}
+
+    return execute
+
+
 @pytest.mark.asyncio
 async def test_schemathesis_malformed_schema_url_dict(agent, mocker):
     """schema_url=dict must not crash — _str_arg coerces to '' → early return."""
@@ -448,17 +468,9 @@ async def test_schemathesis_malformed_schema_url_dict(agent, mocker):
 
 
 @pytest.mark.asyncio
-async def test_schemathesis_malformed_max_examples(agent, mocker):
+async def test_schemathesis_malformed_max_examples(agent, mocker, schemathesis_report_writer):
     """max_examples='abc' must fall back to 30, not raise ValueError."""
-    mock_exec = AsyncMock(
-        return_value={
-            "success": True,
-            "stdout": "1 PASSED",
-            "result": "1 PASSED",
-            "error": "",
-            "stderr": "",
-        }
-    )
+    mock_exec = AsyncMock(side_effect=schemathesis_report_writer)
     agent.engine = mocker.MagicMock()
     agent.engine.execute_tool = mock_exec
 
@@ -494,18 +506,9 @@ async def test_schemathesis_engine_failure_not_masked(agent, mocker):
 
 
 @pytest.mark.asyncio
-async def test_schemathesis_happy_path(agent, mocker):
+async def test_schemathesis_happy_path(agent, mocker, schemathesis_report_writer):
     """Normal successful run reports passes and violations."""
-    output = "PASSED\nPASSED\nFAILED\n"
-    mock_exec = AsyncMock(
-        return_value={
-            "success": True,
-            "stdout": output,
-            "result": output,
-            "error": "",
-            "stderr": "",
-        }
-    )
+    mock_exec = AsyncMock(side_effect=schemathesis_report_writer)
     agent.engine = mocker.MagicMock()
     agent.engine.execute_tool = mock_exec
 

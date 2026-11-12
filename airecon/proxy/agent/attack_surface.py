@@ -44,8 +44,6 @@ class AttackSurfaceTracker:
         self._endpoints: dict[str, _EndpointState] = {}
         self._max_no_finding_skip = max_no_finding_skip
 
-    # ── Recording ──────────────────────────────────────────────────
-
     def record_test(
         self,
         endpoint: str,
@@ -57,8 +55,6 @@ class AttackSurfaceTracker:
         state = self._endpoints.setdefault(normed, _EndpointState(endpoint=normed))
         state.record(vuln_type, tool_used)
         state.findings += findings
-
-    # ── Hint generation ────────────────────────────────────────────
 
     def build_coverage_hint(self) -> str | None:
         if not self._endpoints:
@@ -82,8 +78,6 @@ class AttackSurfaceTracker:
         )
         return header + "\n" + "\n".join(lines)
 
-    # ── Serialisation ──────────────────────────────────────────────
-
     def to_dict(self) -> dict[str, Any]:
         return {
             ep: {
@@ -103,8 +97,6 @@ class AttackSurfaceTracker:
                 attempts=info.get("attempts", 0),
             )
             self._endpoints[ep] = state
-
-    # ── Internals ──────────────────────────────────────────────────
 
     @staticmethod
     def _normalise_endpoint(endpoint: str) -> str:

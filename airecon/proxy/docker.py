@@ -43,8 +43,295 @@ EXECUTE_TOOL_DEF = {
 }
 
 
-def _validate_target_name(target: str) -> bool:
+_SANDBOX_WORKSPACE = "/workspace"
 
+_PATH_OPERAND_COMMANDS = frozenset({
+    "cd", "pushd", "ls", "dir", "tree", "stat", "file", "du",
+    "cat", "tac", "nl", "head", "tail", "less", "more", "wc", "sort", "uniq",
+    "md5sum", "sha1sum", "sha256sum", "xxd", "strings",
+    "mkdir", "rmdir", "rm", "cp", "mv", "touch", "ln", "chmod", "chown", "tee",
+    "source", ".",
+})
+_SCRIPT_INTERPRETERS = frozenset({
+    "python", "python2", "python3", "bash", "sh", "zsh", "node", "perl", "ruby", "php",
+})
+_OPAQUE_ARGUMENT_COMMANDS = frozenset({
+    "echo", "printf", "grep", "egrep", "fgrep", "rg", "ag", "ack", "pgrep", "pkill",
+    "sed", "awk", "gawk", "jq", "yq", "tr", "expr", "test", "[",
+    "ssh", "ps", "mount", "lsblk", "column", "getopt", "xargs", "env", "export",
+    "eval", "exec", "set",
+})
+_PATH_OPTIONS_BY_COMMAND: dict[str, frozenset[str]] = {
+    "curl": frozenset({
+        "-o", "--output", "--output-dir", "-D", "--dump-header",
+        "-c", "--cookie-jar", "-T", "--upload-file",
+    }),
+    "wget": frozenset({
+        "-O", "--output-document", "-o", "--output-file",
+        "-P", "--directory-prefix", "-i", "--input-file",
+    }),
+}
+_GENERIC_PATH_OPTIONS = frozenset({
+    "-o", "--output", "--output-file", "--output-dir",
+    "-oA", "-oN", "-oX", "-oG", "-oJ",
+    "-l", "--list", "-iL", "-w", "--wordlist",
+})
+_TRANSPARENT_PREFIXES = frozenset({
+    "sudo", "time", "nohup", "command",
+    "if", "then", "else", "elif", "do", "while", "until", "{", "!",
+})
+_ASSIGNMENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+_WORD_BREAK = " \t\n;|&()<>"
+
+
+def _skip_parameter(command: str, i: int) -> int:
+    end = command.find("}", i)
+    if end < 0 or any(ch in command[i:end] for ch in "'\"`\\ \t\n") or "$(" in command[i:end]:
+        return -1
+    return end + 1
+
+
+def _scan_word(command: str, i: int) -> int:
+    n = len(command)
+    while i < n:
+        c = command[i]
+        if c in _WORD_BREAK:
+            return i
+        if c == "\\":
+            i += 2
+        elif c == "'":
+            close = command.find("'", i + 1)
+            if close < 0:
+                return -1
+            i = close + 1
+        elif c == '"':
+            i += 1
+            while i < n and command[i] != '"':
+                if command[i] == "\\":
+                    i += 2
+                elif command[i] == "`" or command.startswith("$(", i):
+                    return -1
+                elif command.startswith("${", i):
+                    i = _skip_parameter(command, i)
+                    if i < 0:
+                        return -1
+                else:
+                    i += 1
+            if i >= n:
+                return -1
+            i += 1
+        elif c == "`" or command.startswith("$(", i):
+            return -1
+        elif command.startswith("$'", i):
+            i += 2
+            while i < n and command[i] != "'":
+                i += 2 if command[i] == "\\" else 1
+            if i >= n:
+                return -1
+            i += 1
+        elif command.startswith("${", i):
+            i = _skip_parameter(command, i)
+            if i < 0:
+                return -1
+        else:
+            i += 1
+    return n
+
+
+def _host_root_span(command: str, start: int, end: int, host_root: str) -> tuple[int, int] | None:
+    quote = ""
+    matched = 0
+    span_start = span_end = -1
+    start_quote = end_quote = ""
+    i = start
+    while i < end:
+        c = command[i]
+        raw = i
+        if quote == "'":
+            if c == "'":
+                quote = ""
+                i += 1
+                continue
+        elif quote == '"':
+            if c == '"':
+                quote = ""
+                i += 1
+                continue
+            if c in "$`":
+                return None
+            if c == "\\" and command[i + 1 : i + 2] in ("$", "`", '"', "\\"):
+                i += 1
+        elif c in "'\"":
+            quote = c
+            i += 1
+            continue
+        elif c == "\\":
+            i += 1
+            if i >= end or command[i] == "\n":
+                return None
+        elif c in "$`*?[{~":
+            return None
+        if matched == len(host_root):
+            if command[i] == "/" and start_quote == end_quote:
+                return span_start, span_end
+            return None
+        if command[i] != host_root[matched]:
+            return None
+        if matched == 0:
+            span_start, start_quote = raw, quote
+        matched += 1
+        if matched == len(host_root):
+            span_end, end_quote = i + 1, quote
+        i += 1
+    if matched == len(host_root) and start_quote == end_quote:
+        return span_start, span_end
+    return None
+
+
+def _command_operand_spans(
+    command: str, words: list[tuple[int, int]], host_root: str
+) -> list[tuple[int, int]]:
+    texts = [command[a:b] for a, b in words]
+    first = 0
+    while first < len(texts) and (
+        texts[first] in _TRANSPARENT_PREFIXES or _ASSIGNMENT_RE.match(texts[first])
+    ):
+        first += 1
+    if first >= len(texts):
+        return []
+    name = texts[first].rsplit("/", 1)[-1]
+    args = words[first + 1 :]
+    arg_texts = texts[first + 1 :]
+
+    candidates: list[tuple[int, int]] = [words[first]]
+    if name in _PATH_OPERAND_COMMANDS:
+        candidates.extend(args)
+    elif name == "find":
+        for arg, text in zip(args, arg_texts):
+            if text.startswith(("-", "(", "\\(", "!")):
+                break
+            candidates.append(arg)
+    else:
+        if name in _SCRIPT_INTERPRETERS:
+            candidates.extend(args[:1])
+        if name in _OPAQUE_ARGUMENT_COMMANDS:
+            options: frozenset[str] = frozenset()
+        else:
+            options = _PATH_OPTIONS_BY_COMMAND.get(name, _GENERIC_PATH_OPTIONS)
+        for idx, (a, b) in enumerate(args):
+            if idx and arg_texts[idx - 1] in options:
+                candidates.append((a, b))
+                continue
+            option, eq, _ = arg_texts[idx].partition("=")
+            if eq and option in options:
+                candidates.append((a + len(option) + 1, b))
+
+    spans = []
+    for a, b in candidates:
+        span = _host_root_span(command, a, b, host_root)
+        if span:
+            spans.append(span)
+    return spans
+
+
+def _host_operand_spans(command: str, host_root: str) -> list[tuple[int, int]]:
+    spans: list[tuple[int, int]] = []
+    words: list[tuple[int, int]] = []
+    heredocs: list[tuple[str, bool]] = []
+    expect = ""
+    i, n = 0, len(command)
+    while i < n:
+        c = command[i]
+        if c in " \t":
+            i += 1
+        elif command.startswith("\\\n", i):
+            i += 2
+        elif c == "\n":
+            spans.extend(_command_operand_spans(command, words, host_root))
+            words = []
+            i += 1
+            for delimiter, strip_tabs in heredocs:
+                while True:
+                    eol = command.find("\n", i)
+                    line = command[i:] if eol < 0 else command[i:eol]
+                    i = n if eol < 0 else eol + 1
+                    if (line.lstrip("\t") if strip_tabs else line) == delimiter:
+                        break
+                    if eol < 0:
+                        return spans
+            heredocs = []
+        elif c == "#":
+            eol = command.find("\n", i)
+            i = n if eol < 0 else eol
+        elif command.startswith("&>", i):
+            expect = "redirect"
+            i += 3 if command.startswith("&>>", i) else 2
+        elif c in ";|&()":
+            spans.extend(_command_operand_spans(command, words, host_root))
+            words = []
+            i += 1
+        elif c in "<>":
+            if command.startswith(("<(", ">("), i):
+                break
+            if command.startswith("<<<", i):
+                expect = "opaque"
+                i += 3
+            elif command.startswith("<<", i):
+                strip_tabs = command.startswith("<<-", i)
+                expect = "heredoc-tabs" if strip_tabs else "heredoc"
+                i += 3 if strip_tabs else 2
+            else:
+                i += 1
+                while i < n and command[i] in ">&|":
+                    i += 1
+                expect = "redirect"
+        else:
+            end = _scan_word(command, i)
+            if end < 0 or command[end : end + 1] == "(" or command[i:end] in ("case", "[["):
+                break
+            if expect.startswith("heredoc"):
+                delimiter = re.sub(r"['\"\\]", "", command[i:end])
+                heredocs.append((delimiter, expect == "heredoc-tabs"))
+            elif expect == "redirect":
+                span = _host_root_span(command, i, end, host_root)
+                if span:
+                    spans.append(span)
+            elif expect == "opaque":
+                pass
+            elif command[i:end].isdigit() and command[end : end + 1] in ("<", ">"):
+                pass
+            else:
+                words.append((i, end))
+            expect = ""
+            i = end
+    spans.extend(_command_operand_spans(command, words, host_root))
+    return spans
+
+
+def rewrite_host_workspace_paths(command: str, host_root: str | None = None) -> str:
+    if not command:
+        return command
+    if host_root is None:
+        try:
+            host_root = str(get_workspace_root()).rstrip("/")
+        except Exception as exc:  # pragma: no cover — config unavailable
+            logger.debug("Could not resolve workspace root for remap: %s", exc)
+            return command
+    else:
+        host_root = host_root.rstrip("/")
+    if not host_root or host_root == "/" or host_root not in command:
+        return command
+    parts: list[str] = []
+    pos = 0
+    for a, b in sorted(set(_host_operand_spans(command, host_root))):
+        parts.append(command[pos:a])
+        parts.append(_SANDBOX_WORKSPACE)
+        pos = b
+    parts.append(command[pos:])
+    return "".join(parts)
+
+
+def _validate_target_name(target: str) -> bool:
     if not target:
         return False
     if len(target) > 255:
@@ -70,9 +357,6 @@ class DockerEngine:
 
     def __init__(self) -> None:
         self.cfg = get_config()
-        # Honor the configured image name as the source of truth (falls back to
-        # the class default). Container naming stays on CONTAINER_PREFIX so this
-        # only affects which image is inspected/built/run.
         self.IMAGE_NAME = (self.cfg.docker_image or "").strip() or DockerEngine.IMAGE_NAME
         self._container_id: str | None = None
         self._container_name: str | None = None
@@ -328,7 +612,7 @@ class DockerEngine:
                     target
                 )
                 return False
-            
+
             await self.execute(
                 f"mkdir -p /workspace/{target}/command /workspace/{target}/output "
                 f"/workspace/{target}/tools /workspace/{target}/vulnerabilities",
@@ -336,7 +620,6 @@ class DockerEngine:
             )
 
         if not _recovery:
-
             async def _bg_apt_update() -> None:
                 try:
                     await self.execute("sudo apt-get update -y -qq", _retry=True)
@@ -462,7 +745,7 @@ class DockerEngine:
     def _is_container_gone(self, stderr: str) -> bool:
         lower = stderr.lower()
         for marker in self._CONTAINER_GONE_MARKERS:
-            if marker in lower:
+            if marker.lower() in lower:
                 logger.warning(
                     "Container-gone marker detected: %r | stderr snippet: %s",
                     marker,
@@ -470,6 +753,42 @@ class DockerEngine:
                 )
                 return True
         return False
+
+    async def _container_is_running(self) -> bool | None:
+        if not self._container_name or not shutil.which("docker"):
+            return None
+        proc = None
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "docker",
+                "inspect",
+                "-f",
+                "{{.State.Running}}",
+                self._container_name,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
+            state = stdout.decode(errors="replace").strip().lower()
+            if proc.returncode == 0 and state in {"true", "false"}:
+                return state == "true"
+            error = stderr.decode(errors="replace").lower()
+            if "no such object" in error or "no such container" in error:
+                return False
+            return None
+        except Exception as exc:
+            logger.debug("container running check failed: %s", exc)
+            return None
+        finally:
+            if proc is not None and proc.returncode is None:
+                with contextlib.suppress(ProcessLookupError):
+                    proc.kill()
+                await proc.wait()
+
+    async def _should_recover_container(self, stderr: str) -> bool:
+        if not self._is_container_gone(stderr):
+            return False
+        return await self._container_is_running() is False
 
     async def _log_container_postmortem(self) -> None:
         if not self._container_name:
@@ -567,6 +886,8 @@ class DockerEngine:
         on_output: Callable[[str], None] | None = None,
         _retry: bool = False,
     ) -> dict[str, Any]:
+        command = rewrite_host_workspace_paths(command)
+
         if not self._connected and self._recovery_lock.locked():
             try:
                 await asyncio.wait_for(
@@ -666,7 +987,6 @@ class DockerEngine:
             async def _read_stream(
                 stream: asyncio.StreamReader, is_stderr: bool
             ) -> None:
-
                 try:
                     while True:
                         line = await stream.read(1024 * 4)
@@ -691,7 +1011,7 @@ class DockerEngine:
                 if proc.stdout is None or proc.stderr is None:
                     logger.error("Process stdout/stderr not initialized")
                     raise RuntimeError("Process streams not available")
-                
+
                 await asyncio.wait_for(
                     asyncio.gather(
                         _read_stream(proc.stdout, False),
@@ -706,7 +1026,7 @@ class DockerEngine:
             stdout_str = "".join(stdout_chunks)
             stderr_str = "".join(stderr_chunks)
 
-            if self._is_container_gone(stderr_str):
+            if await self._should_recover_container(stderr_str):
                 if _retry:
                     if not self._postmortem_fired:
                         self._postmortem_fired = True
@@ -821,6 +1141,8 @@ class DockerEngine:
             }
 
         except asyncio.TimeoutError:
+            stdout_str = "".join(stdout_chunks)
+            stderr_str = "".join(stderr_chunks)
             try:
                 if proc is not None and proc.returncode is None:
                     logger.warning(
@@ -837,12 +1159,11 @@ class DockerEngine:
 
             try:
                 kill_cmd = (
-                    f"for pid in $(grep -rlZ '{_job_env}' /proc/*/environ 2>/dev/null "
+                    f"for pid in $(grep -l '{_job_env}' /proc/[0-9]*/environ 2>/dev/null "
                     f"| sed 's|/proc/||;s|/environ||'); do "
                     f'  kill -KILL -- -"$pid" 2>/dev/null; '
                     f'  kill -KILL "$pid" 2>/dev/null; '
-                    f"done; "
-                    "pkill -KILL -f 'wpscan|nuclei|nmap|masscan|gobuster|dirsearch|ffuf' 2>/dev/null || true"
+                    f"done; true"
                 )
                 kill_proc = await asyncio.create_subprocess_exec(
                     "docker",

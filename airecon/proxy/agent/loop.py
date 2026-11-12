@@ -40,8 +40,6 @@ from .session import SessionData, load_session, record_tested_endpoint  # noqa: 
 from .validators import _ValidatorMixin
 from .workspace import _WorkspaceMixin
 
-# ── Compatibility aliases: map old bare attr names to structured state ──
-# All 200+ references across mixin files resolve through these properties.
 _ANTI_LOOP_ATTRS = {
     "_no_tool_iterations",
     "_stagnation_iterations",
@@ -173,7 +171,10 @@ class AgentLoop(
         self.engine = engine
         self.state = AgentState()
         self._tools_llm: list[dict[str, Any]] | None = None
+        self._tools_budgeted: list[dict[str, Any]] | None = None
         self._last_output_file: str | None = None
+        self._context_char_budget = 0
+        self._learning_distill_due = False
         self._executed_tool_counts: dict[tuple[str, str], int] = {}
 
         self._executed_cmd_hashes: set[str] = set()
@@ -196,17 +197,14 @@ class AgentLoop(
         self._is_subagent: bool = False
         self.pipeline: PipelineEngine | None = None
 
-        # Session persistence
         self._session_persistence = None
 
-        # ── Structured runtime state (replaces 50+ bare instance variables) ──
         self._anti_loop = AntiLoopState()
         self._lifecycle = SessionLifecycleState()
         self._recovery = RecoveryState()
         self._scope = ScopeTrackingState()
         self._user_input = UserInputState()
 
-        # Config-driven defaults
         self._scope.max_browser_visits_per_domain = (
             get_config().agent_max_browser_visits_per_domain
         )
@@ -216,7 +214,6 @@ class AgentLoop(
         self._lifecycle.memory_health_interval = 10
         self._lifecycle.user_input_cooldown = 30.0
 
-        # Non-grouped lifecycle (has unique usage patterns)
         self._token_snapshot_task: asyncio.Task[None] | None = None
         self._request_times: deque[float] = deque(maxlen=10)
         self._last_saved_cumulative: int = 0
@@ -230,7 +227,6 @@ class AgentLoop(
         self._loaded_session_persistence_target: str = ""
         self._fuzzer_instance: Any = None
 
-        # Attack surface coverage tracker — prevents repetitive testing
         self._surface_tracker: Any = None
         try:
             from .attack_surface import AttackSurfaceTracker
@@ -387,13 +383,7 @@ class AgentLoop(
 
         return self._adaptive_learning_engine
 
-    # ── Transparent compatibility layer: map old bare attrs to structured state ──
-    # All 200+ references across mixin files (loop_cycle_llm.py, loop_exploration.py,
-    # loop_tool_cycle.py, loop_cycle_prelude.py, etc.) resolve through these proxies
-    # so that no edits to mixin files are needed.
-
     _ATTR_MAPS: dict[str, tuple[str, str]] = {
-        # old_attr: (state_name, field_name)
         "_no_tool_iterations": ("_anti_loop", "no_tool_iterations"),
         "_stagnation_iterations": ("_anti_loop", "stagnation_iterations"),
         "_consecutive_same_approach": ("_anti_loop", "consecutive_same_approach"),
@@ -459,7 +449,6 @@ class AgentLoop(
     def __setattr__(self, name: str, value: Any) -> None:
         if name in self._ATTR_MAPS:
             state_name, field_name = self._ATTR_MAPS[name]
-            # If state object doesn't exist yet (e.g. test mocks), fall back
             try:
                 state_obj = object.__getattribute__(self, state_name)
                 setattr(state_obj, field_name, value)
@@ -504,7 +493,6 @@ class AgentLoop(
                     self._session.session_id,
                 )
 
-                # Cross-session persistence: save payload memory + adaptive state
                 await self._save_session_persistence()
 
                 try:
@@ -667,7 +655,6 @@ class AgentLoop(
             persist = SessionPersistenceEngine(ws_root)
             self._session_persistence = persist
 
-            # Save payload memory from fuzzer
             payload_records = list(self._pending_payload_memory_records)
             if (
                 hasattr(self, "_fuzzer_instance")
@@ -680,7 +667,6 @@ class AgentLoop(
             if payload_records:
                 persist.save_payload_memory(self._session.target, payload_records)
 
-            # Save adaptive learning state
             if hasattr(self, "_adaptive_learning_engine"):
                 ale = self._adaptive_learning_engine
                 adaptive_state = {
@@ -738,18 +724,15 @@ class AgentLoop(
             persist = SessionPersistenceEngine(ws_root)
             self._session_persistence = persist
 
-            # Load payload memory into fuzzer
             records = persist.load_payload_memory(target)
             if records:
                 self._merge_payload_memory_records(records)
-                # Will be loaded when fuzzer is created
                 logger.info(
                     "Payload memory available: %d records for %s",
                     len(records),
                     target,
                 )
 
-            # Load adaptive learning state
             adaptive_state = persist.load_adaptive_state(target)
             if adaptive_state:
                 self._pending_adaptive_state = adaptive_state
@@ -1089,8 +1072,6 @@ class AgentLoop(
         session = self._session
         quality_scores = self._compute_quality_scores()
 
-        # Timeline fields: current phase, last tool/command, and a stuck flag so
-        # the UI can show what the agent is doing and whether it's retrying.
         try:
             _phase = self._get_current_phase().value
         except Exception as _e:

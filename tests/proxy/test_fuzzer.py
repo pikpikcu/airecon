@@ -401,3 +401,29 @@ class TestAdvancedPhaseProbes:
         assert any(f.vuln_type == "race_condition_possible" for f in findings)
         assert fuzzer.rate_limiter.request.await_count == 0
         await fuzzer.close()
+
+
+@pytest.mark.asyncio
+async def test_evolve_batch_keeps_vuln_type():
+    from unittest.mock import MagicMock
+
+    from airecon.proxy.fuzzer import Fuzzer, FuzzResult
+
+    fuzzer = Fuzzer.__new__(Fuzzer)
+    fuzzer.detected_wafs = []
+    engine = MagicMock()
+    result = FuzzResult(
+        target="https://example.com",
+        parameter="q",
+        payload="fixture",
+        vuln_type="fixture_type",
+        severity="info",
+        evidence="fixture",
+        confidence=0.9,
+        response_code=200,
+        response_length=1,
+        time_ms=1.0,
+    )
+    await fuzzer._evolve_payloads_batch(engine, [result], 0)
+    engine.evolve.assert_called_once()
+    assert engine.evolve.call_args.args[0] == "fixture_type"

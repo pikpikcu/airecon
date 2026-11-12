@@ -292,7 +292,6 @@ class AIReconApp(App):
             role = str(msg.get("role") or "assistant").strip().lower()
             content = cls._history_content_to_text(msg.get("content")).strip()
 
-            # Restore assistant tool-call intents even when content is empty.
             if role == "assistant" and not content and msg.get("tool_calls"):
                 for call in msg.get("tool_calls", []):
                     if not isinstance(call, dict):
@@ -375,6 +374,15 @@ class AIReconApp(App):
             self.query_one("#status-bar", StatusBar).set_status(llm_degraded=True)
         except Exception as e:
             logger.debug("Expected failure in _mark_llm_degraded set_status: %s", e)
+
+    def _handle_llm_status(self, event: dict) -> None:
+        if event.get("recovered") is not True:
+            return
+        self._llm_degraded_until = 0.0
+        try:
+            self.query_one("#status-bar", StatusBar).set_status(llm_degraded=False)
+        except Exception as exc:
+            logger.debug("Could not update recovered LLM status: %s", exc)
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -1509,10 +1517,10 @@ class AIReconApp(App):
                     self._last_sse_activity = time.monotonic()
 
                     event_type = str(event.get("type", "") or "").strip()
-                    
+
                     if event_type.startswith("subagent_"):
                         logger.info("TUI SSE event: type=%s, keys=%s", event_type, list(event.keys())[:10])
-                    
+
                     event_req_id = str(
                         event.get("request_id", _chat_request_id) or _chat_request_id
                     )
@@ -1552,6 +1560,9 @@ class AIReconApp(App):
                             if _now - self._last_scroll_time >= 0.3:
                                 chat.scroll_end(animate=False)
                                 self._last_scroll_time = _now
+
+                    elif event_type == "llm_status":
+                        self._handle_llm_status(event)
 
                     elif event_type == "thinking":
                         content = event.get("content", "")
@@ -1718,7 +1729,7 @@ class AIReconApp(App):
                         subagent_id = event.get("target", "") or event.get("subagent_id", "")
                         tool_id = str(event.get("tool_id", "0"))
                         content = event.get("content", "")
-                        
+
                         if content and subagent_id:
                             chat.subagent_append_tool_output(subagent_id, tool_id, content)
                             _now = time.monotonic()
@@ -1731,7 +1742,7 @@ class AIReconApp(App):
                         tool_id = str(event.get("tool_id", "0"))
                         success = event.get("success", False)
                         duration = event.get("duration", 0.0)
-                        
+
                         if subagent_id:
                             chat.subagent_update_tool_end(
                                 subagent_id, tool_id, success, duration, "", ""
@@ -2086,6 +2097,7 @@ class AIReconApp(App):
                 "- /think true|false     Enable/disable thinking\n"
                 "- /shell <command>      Run command in AIRecon Kali Docker shell\n"
                 "- /scope ...            Scope guard: allow/deny <hosts>, mode <off|warn|block>, show, clear\n"
+                "- /brain                Show cross-session memory and observed recall mode\n"
                 "- /reset                Reset conversation\n"
                 "- /clear                Clear chat display\n\n"
                 "Note: For authenticated MCP endpoint, use auth:user/pass or auth:apikey:<token> after URL."
@@ -2328,6 +2340,29 @@ class AIReconApp(App):
                     )
             except Exception as e:
                 chat.add_error_message(f"Scope request failed: {e}")
+            return
+
+        elif cmd == "/brain" or cmd.startswith("/brain "):
+            try:
+                response = await self._http.get("/api/brain", timeout=10.0)
+                data = response.json() if response.content else {}
+                if response.status_code != 200 or data.get("error"):
+                    chat.add_error_message(f"Brain unavailable: {data.get('error', response.text)}")
+                    return
+                summary = data.get("summary", {})
+                lines = ["[brain]",
+                         f"  insights:      {summary.get('total_insights', 0)}",
+                         f"  observations:  {summary.get('total_observations', 0)}",
+                         f"  tools tracked: {summary.get('total_tools_tracked', 0)}",
+                         f"  strategies:    {summary.get('total_patterns_learned', 0)}",
+                         f"  retrieval:     {data.get('retrieval_mode', 'lexical')}"]
+                for insight in data.get("insights", [])[:10]:
+                    lines.append(f"    [{insight.get('category')}] {insight.get('title')} "
+                                 f"(conf {float(insight.get('confidence', 0)):.2f}, "
+                                 f"recalls {insight.get('recalls', 0)}, hits {insight.get('hits', 0)})")
+                chat.add_assistant_message("\n".join(lines), markup=False)
+            except Exception as exc:
+                chat.add_error_message(f"Brain request failed: {exc}")
             return
 
         elif cmd.startswith("/mcp"):
@@ -2577,6 +2612,7 @@ class AIReconApp(App):
 - /models: List/switch OpenAI-compatible models.
 - /think true|false: Enable/disable thinking.
 - /shell <command>: Run command in AIRecon Kali Docker shell.
+- /brain: Show cross-session learning and the observed recall mode.
 - /reset: Reset conversation.
 - /clear: Clear chat history.
 
@@ -2640,20 +2676,13 @@ class AIReconApp(App):
         self.push_screen(QuitConfirmScreen(), _on_dismiss)
 
     async def action_quit(self) -> None:
-        # Always reach self.exit(), even if a cleanup step stalls — otherwise the
-        # app can hang on quit (the reported Ctrl+C → "yes" freeze).
         try:
-            # 1) Stop the local SSE stream worker FIRST so it releases the HTTP
-            #    connection. Closing self._http below while a stream is still
-            #    in-flight on the same client can block indefinitely.
             try:
                 if self._chat_worker and self._chat_worker.is_running:
                     self._chat_worker.cancel()
             except Exception as e:
                 logger.debug("Expected failure cancelling chat worker on quit: %s", e)
 
-            # 2) Tell the server to stop the agent — hard-bounded so a slow/stuck
-            #    server can never freeze the UI.
             try:
                 await asyncio.wait_for(self._http.post("/api/stop"), timeout=2.0)
             except Exception as e:
@@ -2662,11 +2691,6 @@ class AIReconApp(App):
             if self._status_task and not self._status_task.done():
                 self._status_task.cancel()
 
-            # Remote OpenAI-compatible backends (LiteLLM/vLLM/hosted) are
-            # stateless — there is no local model in VRAM to unload on quit.
-
-            # 3) Close the HTTP client, bounded so a lingering connection can't
-            #    block the shutdown.
             try:
                 await asyncio.wait_for(self._http.aclose(), timeout=2.0)
             except Exception as e:

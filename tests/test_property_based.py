@@ -15,7 +15,6 @@ pytestmark = pytest.mark.skipif(
 )
 
 if HAS_HYPOTHESIS:
-
     class TestUrlNormalization:
         """Property tests for URL normalization logic."""
 

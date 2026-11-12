@@ -14,18 +14,38 @@ class _BareUtils(_UtilsExecutorMixin):
 
 
 @pytest.mark.asyncio
-async def test_python_session_tool_self_heals_missing_runtime_state():
+async def test_python_session_tool_rejects_host_execution_fail_closed():
+    """python_session ran model code on the host via in-process exec/eval.
+
+    It is removed; any attempted call must be rejected with a structured
+    error BEFORE any code execution or runtime-state side effect.
+    """
     utils = object.__new__(_BareUtils)
 
-    success, _, result, _ = await utils._execute_python_session_tool(
-        "python_session",
+    for arguments in (
         {"code": "value = 7", "session_id": "tmp"},
-    )
+        {"code": "import os; os.system('true')"},
+        {},
+    ):
+        success, duration, result, output_file = (
+            await utils._execute_python_session_tool("python_session", arguments)
+        )
+        assert success is False
+        assert isinstance(duration, float)
+        assert output_file is None
+        assert result["success"] is False
+        assert "removed" in result["error"]
+        assert "execute" in result["error"]  # sandboxed alternative named
 
-    assert success is True
-    assert result["session_id"] == "tmp"
-    assert hasattr(utils, "_python_sessions")
-    assert "value" in result["session_state"]
+    # No session state was created by the rejected calls.
+    assert not hasattr(utils, "_python_sessions") or utils._python_sessions == {}
+
+
+def test_utils_runtime_state_self_heals_without_python_sessions():
+    utils = object.__new__(_BareUtils)
+    utils._ensure_utils_runtime_state()
+    assert hasattr(utils, "_thoughts_log")
+    assert utils._notes_manager is None  # no active target
 
 
 def test_agent_loop_initializes_utils_runtime_state():

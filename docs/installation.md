@@ -38,7 +38,12 @@
 
 ## 2. Set up an OpenAI-compatible LLM gateway
 
-AIRecon talks to one **OpenAI-compatible** `/v1/chat/completions` endpoint. Pick whichever fits you — the rest of AIRecon is identical:
+Native Anthropic Messages is also supported: set `llm_provider: anthropic` and
+`openai_base_url: https://api.anthropic.com/v1`, then configure the exact model
+and API key. OpenAI-compatible gateways remain the default. See the
+[protocol/authentication settings](configuration.md#3-llm-backend-settings).
+
+By default AIRecon uses an **OpenAI-compatible** `/v1/chat/completions` endpoint. Native Anthropic uses `/v1/messages` instead. Pick whichever fits your configured protocol:
 
 - **Local / offline** — run a local OpenAI-compatible gateway, vLLM, or LiteLLM on your machine. a local gateway (e.g. via a proxy) can serve a local Ollama, so you keep a fully private setup. Default base URL: `http://localhost:20128/v1`.
 - **Hosted** — any OpenAI/Anthropic/Gemini-compatible gateway. You'll set `openai_api_key`.

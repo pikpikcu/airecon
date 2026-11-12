@@ -192,3 +192,70 @@ def test_browser_action_execute_js_parallel_contract(mocker):
 
     execute_js.assert_called_once_with("return document.title", None, parallel=True)
     assert result["ok"] is True
+
+
+def test_solve_captcha_schedules_bypass_on_browser_loop(monkeypatch):
+    from airecon.proxy.browser import BrowserTabManager
+
+    instance = BrowserTabManager()
+    page = MagicMock()
+
+    async def screenshot(**kwargs):
+        return b"png"
+
+    async def content():
+        return "<html></html>"
+
+    async def evaluate(js):
+        return {"success": True, "js": js}
+
+    page.screenshot = screenshot
+    page.content = content
+    page.evaluate = evaluate
+    launched = MagicMock()
+    launched.current_page_id = "tab1"
+    launched.pages = {"tab1": page}
+    launched._loop = object()
+    instance._ensure_launched = MagicMock(return_value=launched)
+
+    async def solve_from_page(**kwargs):
+        return {"bypass_js": "return 1", "success": False}
+
+    solver = MagicMock()
+    solver.timeout = 1
+    solver.solve_from_page = solve_from_page
+    monkeypatch.setattr(
+        "airecon.proxy.browser.get_config",
+        lambda: MagicMock(
+            openai_base_url="http://fixture.invalid",
+            openai_model="fixture",
+            openai_api_key="",
+            llm_timeout=1,
+        ),
+    )
+    monkeypatch.setattr(
+        "airecon.proxy.agent.captcha_solver.CaptchaSolver",
+        lambda **kwargs: solver,
+    )
+    scheduled = []
+
+    def fake_threadsafe(coro, loop):
+        scheduled.append(getattr(getattr(coro, "cr_code", None), "co_name", ""))
+        fut = MagicMock()
+        name = scheduled[-1]
+        if name == "screenshot":
+            fut.result.return_value = b"png"
+        elif name == "content":
+            fut.result.return_value = "<html></html>"
+        elif name == "evaluate":
+            fut.result.return_value = {"success": True}
+        else:
+            fut.result.return_value = {"bypass_js": "return 1", "success": False}
+        coro.close()
+        return fut
+
+    monkeypatch.setattr("asyncio.run_coroutine_threadsafe", fake_threadsafe)
+    result = instance.solve_captcha("fixture")
+    assert "evaluate" in scheduled
+    assert result.get("success") is True
+    assert "solved" in result.get("message", "")

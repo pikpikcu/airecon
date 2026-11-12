@@ -72,6 +72,11 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         180.0,
         "Total request timeout (seconds). 180s = 3 min. Increase to 300s for slow remote gateways or large models.",
     ),
+    "llm_provider": (
+        "openai",
+        "Wire protocol: openai uses /v1/chat/completions; anthropic uses /v1/messages. Both use openai_base_url, openai_model and openai_api_key.",
+    ),
+    "llm_anthropic_auth": ("x-api-key", "Anthropic authentication headers: x-api-key (native API), bearer or both (explicit gateway requirement)."),
     "llm_chunk_timeout": (
         180.0,
         "Per-chunk stream timeout (seconds). 180s stable for most models. Increase for slow networks.",
@@ -104,6 +109,16 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         "reasoning_effort=force reasoning_effort. "
         "enable_thinking=force the vLLM/SGLang chat-template flag (explicit "
         "opt-in for local Qwen3/GLM-style deployments).",
+    ),
+    "llm_reasoning_replay": (
+        "auto",
+        "Whether stored provider reasoning_content is sent back on assistant "
+        "turns: auto|always|off. auto=send it to DeepSeek API hosts and "
+        "deepseek/-prefixed gateway models (their thinking mode rejects tool "
+        "requests without it) and to any host+model whose backend rejected a "
+        "request for missing reasoning_content; other "
+        "backends do not get it, so it costs no context. always=send it to every "
+        "OpenAI-compatible backend. off=never send it.",
     ),
     "llm_max_concurrent_requests": (
         1,
@@ -448,7 +463,6 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         100,
         "Max iterations for REPORT phase.",
     ),
-    # Phase dynamic settings (previously hardcoded in Python files)
     "pipeline_output_parser_max_items_recon": (
         200,
         "Max items for RECON phase in output parser.",
@@ -525,7 +539,6 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         100,
         "Max iterations for reporter node in agent graph.",
     ),
-    # Phase tool budgets (previously in tools_meta.json)
     "pipeline_tool_budget_recon_quick_fuzz": (
         10,
         "Tool budget: quick_fuzz for RECON phase.",
@@ -590,7 +603,6 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         2,
         "Tool budget: quick_fuzz for REPORT phase.",
     ),
-    # Phase confidence thresholds (previously in tools_meta.json)
     "pipeline_confidence_threshold_recon": (
         0.6,
         "Confidence threshold for RECON phase transition.",
@@ -651,7 +663,6 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         0.75,
         "MIN_CONFIDENCE_FOR_PRESERVATION threshold for agent state model.",
     ),
-    # Causal observation confidence (moved from tools_meta.json)
     "causal_confidence_technology_detected": (
         0.86,
         "Confidence for technology_detected causal observation.",
@@ -761,6 +772,12 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         True,
         "Enable generative fuzzing engine with genetic algorithm payload evolution.",
     ),
+    "intelligence_semantic_recall": (True, "Recall by vector similarity when embeddings are available, otherwise lexical matching."),
+    "intelligence_embeddings_enabled": (True, "Allow /v1/embeddings on the configured gateway; native Anthropic uses lexical fallback."),
+    "embedding_model": ("", "Exact embedding model on the configured gateway. Empty disables embeddings; no second provider is inferred."),
+    "intelligence_dedup_threshold": (0.90, "Vector similarity threshold for merging duplicate learned insights."),
+    "intelligence_utility_floor": (0.2, "Minimum recall-to-hit ratio for retaining old insights after enough recalls."),
+    "intelligence_insight_ttl_days": (90, "Days before an unused low-confidence insight can be retired."),
     "intelligence_generative_population_size": (
         50,
         "Population size for generative fuzzing genetic algorithm.",
@@ -805,9 +822,33 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
 
 DEFAULT_CONFIG = {key: value for key, (value, _) in _CONFIG_SCHEMA.items()}
 
+_MODE_SETTINGS: dict[str, tuple[frozenset[str], str]] = {
+    "llm_reasoning_replay": (frozenset({"auto", "always", "off"}), "always"),
+    "llm_thinking_request_mode": (
+        frozenset({"auto", "off", "reasoning_effort", "enable_thinking"}), "auto",
+    ),
+}
+
+
+def _normalize_mode_setting(key: str, value: Any) -> str:
+    allowed, on_value = _MODE_SETTINGS[key]
+    text = str(value).strip().lower()
+    if text in allowed:
+        return text
+    if text in ("false", "no"):
+        return "off"
+    if text in ("true", "on", "yes"):
+        return on_value
+    default = str(DEFAULT_CONFIG[key])
+    logger.warning(
+        "Config: '%s' value %r is invalid (expected one of %s) — using default %r",
+        key, value, ", ".join(sorted(allowed)), default,
+    )
+    return default
+
 _CONFIG_CATEGORIES = [
     (
-        "LLM Backend (OpenAI-compatible / LiteLLM / vLLM / hosted)",
+        "LLM Backend (OpenAI-compatible / Anthropic Messages / LiteLLM / vLLM / hosted)",
         [
             "openai_base_url",
             "openai_api_key",
@@ -816,6 +857,8 @@ _CONFIG_CATEGORIES = [
             "openai_temperature",
             "openai_supports_thinking",
             "openai_supports_native_tools",
+            "llm_provider",
+            "llm_anthropic_auth",
         ],
     ),
     (
@@ -828,6 +871,7 @@ _CONFIG_CATEGORIES = [
             "llm_enable_thinking",
             "llm_thinking_mode",
             "llm_thinking_request_mode",
+            "llm_reasoning_replay",
             "llm_max_concurrent_requests",
         ],
     ),
@@ -1110,9 +1154,6 @@ def get_workspace_root() -> Path:
     return _workspace_root_cache
 
 
-# ── Essential keys that get written to config.yaml ──────────────────────────
-# Only these are written to config.yaml. All other values stay as defaults
-# in config.py to keep the config file clean and minimal.
 _ESSENTIAL_CONFIG_KEYS: set[str] = {
     "openai_base_url",
     "openai_api_key",
@@ -1120,6 +1161,8 @@ _ESSENTIAL_CONFIG_KEYS: set[str] = {
     "openai_max_tokens",
     "openai_temperature",
     "proxy_host",
+    "llm_provider",
+    "llm_anthropic_auth",
     "proxy_port",
     "llm_timeout",
     "llm_context_window",
@@ -1149,10 +1192,31 @@ _ESSENTIAL_CONFIG_KEYS: set[str] = {
     "memory_protected_context_max",
     "memory_compression_summary_chars",
     "memory_compression_input_per_msg_chars",
+    "intelligence_semantic_recall",
+    "intelligence_embeddings_enabled",
+    "embedding_model",
+    "intelligence_dedup_threshold",
+    "intelligence_utility_floor",
+    "intelligence_insight_ttl_days",
 }
 
 
-def _write_yaml_with_comments(config: dict, filepath: Path) -> None:
+def _replace_with_retry(tmp_name: str, filepath: Path) -> None:
+    import time
+
+    for attempt in range(5):
+        try:
+            os.replace(tmp_name, filepath)
+            return
+        except PermissionError as exc:
+            if getattr(exc, "winerror", None) not in {5, 32, 33} or attempt == 4:
+                raise
+            time.sleep(0.1)
+
+
+def _write_yaml_with_comments(
+    config: dict, filepath: Path, *, preserve_keys: set[str] | None = None
+) -> None:
     from airecon._version import __version__
 
     filepath.parent.mkdir(parents=True, exist_ok=True)
@@ -1202,13 +1266,14 @@ def _write_yaml_with_comments(config: dict, filepath: Path) -> None:
     lines.append("#   - Anthropic Claude is easiest via OpenRouter or a LiteLLM gateway.")
     lines.append("")
 
-    # Only write essential keys
-    essential_keys = _ESSENTIAL_CONFIG_KEYS
+    selected_keys = _ESSENTIAL_CONFIG_KEYS | ((preserve_keys or set()) & DEFAULT_CONFIG.keys())
     written_keys: set[str] = set()
 
-    for category, keys in _CONFIG_CATEGORIES:
+    categorized = {key for _, keys in _CONFIG_CATEGORIES for key in keys}
+    categories = [*_CONFIG_CATEGORIES, ("Additional Settings", sorted(selected_keys - categorized))]
+    for category, keys in categories:
         category_keys = [
-            k for k in keys if k in essential_keys and k not in written_keys
+            k for k in keys if k in selected_keys and k not in written_keys
         ]
         if not category_keys:
             continue
@@ -1223,40 +1288,19 @@ def _write_yaml_with_comments(config: dict, filepath: Path) -> None:
                 value = config[key]
                 comment = _CONFIG_SCHEMA.get(key, ("", ""))[1]
 
-                # Skip caido URL — always use default
-                if key == "caido_graphql_url":
-                    continue
-
-                if isinstance(value, str):
-                    if value.startswith("http") or ":" in value or value == "":
-                        value_str = f'"{value}"'
-                    else:
-                        value_str = value
-                elif isinstance(value, bool):
-                    value_str = "true" if value else "false"
-                elif value is None:
-                    value_str = "null"
-                elif isinstance(value, float):
-                    value_str = str(value)
-                else:
-                    value_str = str(value)
-
                 if comment:
                     lines.append(f"# {comment}")
-                lines.append(f"{key}: {value_str}")
+                lines.append(yaml.safe_dump({key: value}, sort_keys=False, allow_unicode=True).rstrip())
                 written_keys.add(key)
 
-    # Atomic write: render to a temp file in the same dir, then os.replace().
-    # A concurrent reader therefore never observes a half-written/truncated file
-    # (which would parse as empty/None and trigger a spurious reset-to-defaults).
     payload = "\n".join(lines) + "\n"
     fd, tmp_name = tempfile.mkstemp(
         dir=str(filepath.parent), prefix=f".{filepath.name}.", suffix=".tmp"
     )
     try:
-        with os.fdopen(fd, "w") as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(payload)
-        os.replace(tmp_name, filepath)
+        _replace_with_retry(tmp_name, filepath)
     except Exception:
         with contextlib.suppress(Exception):
             os.unlink(tmp_name)
@@ -1272,6 +1316,8 @@ class Config:
     openai_temperature: float
     openai_supports_thinking: bool
     openai_supports_native_tools: bool
+    llm_provider: str
+    llm_anthropic_auth: str
 
     proxy_host: str
     proxy_port: int
@@ -1285,6 +1331,7 @@ class Config:
     llm_enable_thinking: bool
     llm_thinking_mode: str
     llm_thinking_request_mode: str
+    llm_reasoning_replay: str
     llm_max_concurrent_requests: int
 
     docker_image: str
@@ -1366,7 +1413,6 @@ class Config:
     browser_oauth_callback_timeout_ms: int
     browser_totp_fill_timeout_ms: int
     browser_screenshot_timeout_ms: int
-    # CAPTCHA vision is routed through the OpenAI-compatible gateway (openai_model)
     waf_bypass_timeout: int
     fuzzer_threads: int
     fuzzer_timeout: int
@@ -1458,6 +1504,12 @@ class Config:
     intelligence_correlation_interval: int
     intelligence_learn_only_verified: bool
     intelligence_learn_min_confidence: float
+    intelligence_semantic_recall: bool
+    intelligence_embeddings_enabled: bool
+    embedding_model: str
+    intelligence_dedup_threshold: float
+    intelligence_utility_floor: float
+    intelligence_insight_ttl_days: int
     intelligence_generative_fuzzing_enabled: bool
     intelligence_generative_population_size: int
     intelligence_generative_max_generations: int
@@ -1492,7 +1544,7 @@ class Config:
 
         if config_file.exists():
             try:
-                with open(config_file, "r") as f:
+                with open(config_file, "r", encoding="utf-8") as f:
                     loaded = yaml.safe_load(f)
                     if loaded is None:
                         logger.warning(
@@ -1526,7 +1578,7 @@ class Config:
                                     },
                                 }
                                 _write_yaml_with_comments(
-                                    merged_for_write, config_file
+                                    merged_for_write, config_file, preserve_keys=set(user_config)
                                 )
                                 logger.info(
                                     "Config migrated to latest format at %s",
@@ -1622,9 +1674,6 @@ class Config:
     def load_with_defaults(cls, raw: dict) -> Config:
         known_fields = {f.name for f in dataclasses.fields(cls)}
         merged = {k: DEFAULT_CONFIG[k] for k in known_fields if k in DEFAULT_CONFIG}
-        # Scan-profile layer: a named bundle of overrides applied between defaults
-        # and the user's explicit config. The profile changes the baseline; the
-        # user's config.yaml still wins over it. Data-driven via scan_profiles.json.
         _profile_name = str(
             raw.get("scan_profile", merged.get("scan_profile", "standard"))
             or "standard"
@@ -1639,6 +1688,10 @@ class Config:
                 "Config: ignoring unknown fields (possibly from an older config): %s",
                 ", ".join(sorted(unknown)),
             )
+
+        for key in _MODE_SETTINGS:
+            if key in merged:
+                merged[key] = _normalize_mode_setting(key, merged[key])
 
         for key in list(merged):
             default_val = DEFAULT_CONFIG.get(key)
@@ -1674,19 +1727,16 @@ class Config:
                     merged[key] = default_val
 
         _BOUNDS_RULES: dict[str, tuple[float | None, float | None]] = {
-            # LLM config
             "openai_temperature": (0.0, 1.2),
             "openai_max_tokens": (64, 200000),
             "llm_context_window": (2048, 262144),
             "llm_context_window_small": (2048, 131072),
             "llm_max_concurrent_requests": (1, 8),
-            # Timeouts
             "llm_timeout": (10.0, 1800.0),
             "llm_chunk_timeout": (30.0, 1200.0),
             "command_timeout": (30.0, 7200.0),
             "per_tool_timeout_seconds": (10.0, 3600.0),
             "response_timing_alert_threshold_ms": (1000, 300000),
-            # Ratios & intensities
             "agent_exploration_intensity": (0.1, 1.0),
             "agent_exploration_temperature": (0.0, 1.0),
             "agent_phase_creative_temperature": (0.0, 1.0),
@@ -1695,10 +1745,8 @@ class Config:
             "evidence_similarity_threshold": (0.3, 0.95),
             "verification_min_certified_confidence": (0.5, 1.0),
             "verification_min_report_confidence": (0.3, 0.95),
-            # Ports
             "proxy_port": (1, 65535),
             "browser_cdp_port": (1, 65535),
-            # Iterations & limits
             "agent_max_tool_iterations": (50, 5000),
             "agent_ctf_max_iterations": (20, 1000),
             "agent_repeat_tool_call_limit": (1, 10),
@@ -1712,7 +1760,6 @@ class Config:
             "agent_max_browser_visits_per_domain": (1, 20),
             "agent_command_hash_cache_limit": (500, 50000),
             "agent_max_empty_retries": (1, 10),
-            # Browser timeouts (ms)
             "browser_connect_timeout_ms": (500, 30000),
             "browser_navigation_timeout_ms": (5000, 300000),
             "browser_login_form_wait_ms": (1000, 60000),
@@ -1720,8 +1767,6 @@ class Config:
             "browser_oauth_callback_timeout_ms": (5000, 120000),
             "browser_totp_fill_timeout_ms": (1000, 30000),
             "browser_screenshot_timeout_ms": (1000, 30000),
-            # CAPTCHA — no numeric validation needed for model name
-            # Pipeline
             "pipeline_recon_max_iterations": (50, 2000),
             "pipeline_analysis_max_iterations": (50, 2000),
             "pipeline_exploit_max_iterations": (50, 3000),
@@ -1729,7 +1774,6 @@ class Config:
             "pipeline_recon_min_subdomains": (0, 50),
             "pipeline_recon_min_urls": (0, 20),
             "pipeline_recon_soft_timeout": (10, 500),
-            # Model constants
             "model_max_tool_iterations": (10, 500),
             "model_max_tool_history": (10, 500),
             "model_max_objectives": (10, 200),
@@ -1737,7 +1781,6 @@ class Config:
             "model_max_causal_observations": (100, 10000),
             "model_max_tool_result_chars": (5000, 200000),
             "model_min_confidence_for_preservation": (0.1, 0.99),
-            # Fuzzer
             "fuzzer_threads": (1, 50),
             "fuzzer_timeout": (1, 120),
             "fuzzer_quick_max_payloads_per_type": (1, 100),
@@ -1745,23 +1788,21 @@ class Config:
             "fuzzer_deep_timeout_seconds": (30.0, 1800.0),
             "fuzzer_advanced_max_payloads": (1, 200),
             "fuzzer_waf_bypass_limit": (1, 50),
-            # Rate limiter
             "rate_limiter_base_delay": (0.0, 60.0),
             "rate_limiter_max_delay": (1.0, 600.0),
             "rate_limiter_max_retries": (1, 30),
             "rate_limiter_http_timeout": (5, 120),
             "rate_limiter_abort_threshold": (3, 50),
-            # Verification
             "verification_max_replays": (1, 20),
             "verification_timeout": (5, 120),
-            # Intelligence
             "intelligence_adaptive_min_observations": (1, 20),
+            "intelligence_dedup_threshold": (0.5, 1.0),
+            "intelligence_utility_floor": (0.0, 1.0),
+            "intelligence_insight_ttl_days": (1, 3650),
             "intelligence_generative_population_size": (10, 500),
             "intelligence_generative_max_generations": (1, 100),
-            # Payload memory
             "payload_memory_max_records": (100, 100000),
             "payload_memory_ttl_days": (1, 365),
-            # Misc
             "waf_bypass_timeout": (5, 300),
             "observe_request_timeout": (5, 120),
             "llm_status_timeout": (1.0, 30.0),
@@ -1822,7 +1863,6 @@ class Config:
             recon_mode = str(DEFAULT_CONFIG["agent_recon_mode"])
         merged["agent_recon_mode"] = recon_mode
 
-        # Validate required fields
         if not merged.get("openai_base_url"):
             logger.error(
                 "openai_base_url is REQUIRED. Set it in ~/.airecon/config.yaml "
@@ -1883,7 +1923,9 @@ def get_config(config_path: str | None = None) -> Config:
     if _config is None:
         with _config_init_lock:
             if _config is None:
-                _config = Config.load(config_path)
+                _config = Config.load(
+                    _config_path if _config_path != _get_config_path() else config_path
+                )
                 try:
                     _config_mtime = (
                         _config_path.stat().st_mtime if _config_path.exists() else 0.0
@@ -1917,7 +1959,9 @@ async def get_config_async(config_path: str | None = None) -> Config:
                 logger.debug("Config reload check failed: %s", e)
 
         if _config is None:
-            _config = Config.load(config_path)
+            _config = Config.load(
+                _config_path if _config_path != _get_config_path() else config_path
+            )
             try:
                 _config_mtime = (
                     _config_path.stat().st_mtime if _config_path.exists() else 0.0
@@ -1932,8 +1976,6 @@ def reload_config(config_path: str | None = None) -> Config:
     global _config, _config_mtime, _config_path
     _config = None
     _config_mtime = 0.0
-    # Allow a full reload to re-point at a different config file instead of
-    # staying stuck on the first sticky path for the lifetime of the process.
     if config_path is not None:
         _config_path = _get_config_path(config_path)
     return get_config(config_path)
@@ -1941,16 +1983,14 @@ def reload_config(config_path: str | None = None) -> Config:
 
 def update_config_values(updates: dict[str, Any]) -> Config:
     cfg = get_config()
-    # Start from current effective values for every known key, then apply updates.
     current: dict[str, Any] = {
         k: getattr(cfg, k) for k in DEFAULT_CONFIG if hasattr(cfg, k)
     }
     for key, value in (updates or {}).items():
         if key in DEFAULT_CONFIG:
             current[key] = value
-    path = _get_config_path()
-    try:
-        _write_yaml_with_comments(current, Path(path))
-    except Exception as e:
-        logger.error("Failed to persist config updates: %s", e)
-    return reload_config()
+    path = _config_path or _get_config_path()
+    existing = yaml.safe_load(path.read_text(encoding="utf-8")) if path.exists() else {}
+    explicit = set(existing) if isinstance(existing, dict) else set()
+    _write_yaml_with_comments(current, path, preserve_keys=explicit | set(updates or {}))
+    return reload_config(str(path))

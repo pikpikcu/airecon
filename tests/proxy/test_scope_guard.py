@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from airecon.proxy.scope import (
     ScopeGuard,
     audit_log,
@@ -51,6 +53,31 @@ def test_mode_off_and_warn_never_block():
 def test_empty_allowlist_allows_everything():
     g = ScopeGuard(allowlist=[], denylist=[], mode="block")
     assert g.check_command("nmap https://anything.test")[0] is True
+
+
+@pytest.mark.parametrize("command", [
+    "cat output/scan.txt",
+    "python3 tools/filter.py",
+    "cat /workspace/example.com/output/hosts.json",
+    "curl https://api.example.com/export/error.json -o output/response.json",
+])
+def test_scope_does_not_treat_path_components_as_hosts(command):
+    guard = ScopeGuard(allowlist=["example.com"], denylist=[], mode="block")
+    assert guard.check_command(command)[0] is True
+
+
+@pytest.mark.parametrize("command", [
+    "curl outside.example.org/path/file.json",
+    "curl https://outside.example.org/path/file.json",
+    "curl ftp://outside.example.org/path/file.json",
+    "curl http:/outside.example.org/path/file.json",
+    "curl http:///outside.example.org/path/file.json",
+    "curl //outside.example.org/path/file.json",
+    r"curl https:\/\/outside.example.org/path/file.json",
+])
+def test_scope_still_checks_network_authorities_with_paths(command):
+    guard = ScopeGuard(allowlist=["example.com"], denylist=[], mode="block")
+    assert guard.check_command(command)[0] is False
 
 
 def test_audit_log_writes_jsonl(tmp_path, monkeypatch):

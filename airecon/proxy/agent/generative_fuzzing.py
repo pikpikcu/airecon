@@ -133,7 +133,6 @@ _MUTATION_OPERATORS: dict[str, callable] = {
 
 @dataclass
 class PayloadGenome:
-
     payload: str
     vuln_type: str
     fitness: float = 0.0
@@ -151,7 +150,6 @@ class PayloadGenome:
 
 
 class GenerativeFuzzingEngine:
-
     def __init__(
         self,
         population_size: int = 50,
@@ -175,7 +173,6 @@ class GenerativeFuzzingEngine:
                 PayloadGenome(payload=p, vuln_type=vuln_type, generation=0)
                 for p in payloads
             ]
-            # Pad to population_size with mutated variants
             while len(self.population[vuln_type]) < self.population_size:
                 parent = rng.choice(payloads)
                 mutated = self._mutate(parent, vuln_type)
@@ -202,7 +199,6 @@ class GenerativeFuzzingEngine:
         if vuln_type not in self.population:
             return []
 
-        # Update fitness scores
         fitness_map = {r["payload"]: r.get("fitness", 0.0) for r in test_results}
         waf_map = {r["payload"]: r.get("waf", "") for r in test_results}
 
@@ -221,10 +217,8 @@ class GenerativeFuzzingEngine:
                         genome.payload[:60],
                     )
 
-        # Sort by fitness
         self.population[vuln_type].sort(key=lambda g: g.fitness, reverse=True)
 
-        # Track best payloads
         best = [
             g for g in self.population[vuln_type][: self.elite_count] if g.fitness > 0.3
         ]
@@ -246,7 +240,6 @@ class GenerativeFuzzingEngine:
             top_payloads,
         )
 
-        # Create next generation
         next_gen = self._create_next_generation(vuln_type)
         logger.debug(
             "[GenFuzz] Next generation created: %d genomes for vuln_type=%s",
@@ -294,7 +287,6 @@ class GenerativeFuzzingEngine:
 
         next_gen: list[PayloadGenome] = []
 
-        # Elitism: keep top performers
         for genome in current[: self.elite_count]:
             next_gen.append(
                 PayloadGenome(
@@ -309,9 +301,7 @@ class GenerativeFuzzingEngine:
                 )
             )
 
-        # Crossover and mutation
         while len(next_gen) < self.population_size:
-            # Tournament selection
             parent1 = self._tournament_select(current)
             parent2 = self._tournament_select(current)
 
@@ -328,7 +318,6 @@ class GenerativeFuzzingEngine:
             else:
                 child_payload = rng.choice(current).payload if current else "test"
 
-            # Mutate
             if rng.random() < self.mutation_rate:
                 child_payload, mutation_name = self._mutate_with_name(
                     child_payload, vuln_type

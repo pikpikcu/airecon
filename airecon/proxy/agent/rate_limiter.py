@@ -16,7 +16,6 @@ rng = random.SystemRandom()
 
 
 class AdaptiveRateLimiter:
-
     _RESPONSE_EWMA_ALPHA = 0.3
     _CONGESTION_EWMA_ALPHA = 0.4
     _SUCCESS_WINDOW = 30
@@ -54,7 +53,6 @@ class AdaptiveRateLimiter:
             follow_redirects=True,
         )
 
-        # Per-domain state
         self.domain_delays: dict[str, float] = {}
         self.last_request_time: dict[str, float] = {}
         self.rate_limit_hits: dict[str, int] = {}
@@ -62,17 +60,11 @@ class AdaptiveRateLimiter:
         self.consecutive_connect_errors: dict[str, int] = {}
         self.aborted_domains: set[str] = set()
 
-        # Advanced tracking: EWMA response latency
         self._response_latency_ewma: dict[str, float] = {}
-        # Congestion signal: 0.0 (clear) -> 1.0 (saturated)
         self._congestion_signal: dict[str, float] = {}
-        # Rolling success/failure tracking
         self._success_log: dict[str, deque[bool]] = {}
-        # Track consecutive successes to probe for faster rate
         self._consecutive_successes: dict[str, int] = {}
-        # Baseline latency: minimum observed per domain
         self._baseline_latency_ms: dict[str, float] = {}
-        # Slow-start: start conservative, ramp down delay as we learn
         self._slow_start_done: dict[str, bool] = {}
 
         self.domain_locks: dict[str, asyncio.Lock] = {}
@@ -123,7 +115,6 @@ class AdaptiveRateLimiter:
                     await self._handle_503(response, domain)
                     continue
 
-                # Success — reset consecutive failure counters
                 self.consecutive_rate_limits[domain] = 0
                 self.consecutive_connect_errors[domain] = 0
 
@@ -220,7 +211,7 @@ class AdaptiveRateLimiter:
             self.rate_limit_hits[domain] = hit_count
 
             ewma = self._response_latency_ewma.get(domain, 100.0)
-            latency_factor = max(1.0, ewma / 200.0)  # scale to ~200ms baseline
+            latency_factor = max(1.0, ewma / 200.0)
             delay = min(
                 self.base_delay * (2 ** hit_count) * latency_factor,
                 self.max_delay,
@@ -337,7 +328,6 @@ class AdaptiveRateLimiter:
 
     def get_all_stats(self) -> dict[str, dict[str, Any]]:
         return {k: self.get_domain_stats(k) for k in set(list(self.domain_delays.keys()) + list(self._success_log.keys()))}
-
 
     def set_rate_limit(self, domain: str, requests_per_second: float) -> None:
         if requests_per_second > 0:

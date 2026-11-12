@@ -166,7 +166,6 @@ def _resolve_report_workspace_target(target: str, active_target: str | None) -> 
         active_clean = _sanitize_target_name(active_token)
 
     if active_clean:
-
         if _is_filesystem_like_target(target) or not target_clean:
             return active_clean
 
@@ -212,7 +211,6 @@ def create_vulnerability_report(
     _verification_confidence: float | None = None,
     _evidence_artifacts: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-
     validation_errors = _validate_required_fields(
         title=title,
         description=description,
@@ -292,10 +290,6 @@ def create_vulnerability_report(
     filepath = os.path.join(vuln_dir, filename)
     report_id = slug
 
-    # Finding lifecycle label derived from runtime verification. Deterministic
-    # taxonomy (not a technique heuristic): reproduced/corroborated => VALIDATED,
-    # attempted-but-inconclusive or evidence-only => SUSPECTED, otherwise
-    # INFORMATIONAL.
     _vstatus = str(_verification_status or "").strip()
     _vs_up = _vstatus.upper()
     if _vs_up in ("CERTIFIED", "VALIDATED", "CONFIRMED"):
@@ -369,8 +363,6 @@ def create_vulnerability_report(
         if _legend:
             md_content += f"- **Note**: {_legend}\n"
 
-    # Persisted machine-captured proof: concrete request/response records from
-    # runtime replay, so the finding is reproducible/defensible beyond PoC text.
     _evidence = [e for e in (_evidence_artifacts or []) if isinstance(e, dict)]
     evidence_filename = f"{slug}.evidence.json"
     if _evidence:

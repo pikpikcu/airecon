@@ -1297,9 +1297,6 @@ class SessionData:
         default_factory=lambda: BoundedList(maxlen=1000)
     )
 
-    # Rolling buffer of RAW chat turns (user/assistant/tool) preserved across
-    # compaction so a resumed session can replay real history even after the main
-    # conversation was compressed into summaries.
     recent_turns: list[dict[str, Any]] = field(
         default_factory=lambda: BoundedList(maxlen=400)
     )
@@ -1338,6 +1335,7 @@ class SessionData:
 
     adaptive_num_ctx: int = 0
     adaptive_num_predict_cap: int = 0
+    context_char_budget: int = 0
     vram_crash_count: int = 0
 
     def __post_init__(self) -> None:
@@ -1431,6 +1429,7 @@ class SessionData:
         )
         self.token_last_used = _coerce_non_negative_int(self.token_last_used)
         self.adaptive_num_ctx = _coerce_non_negative_int(self.adaptive_num_ctx)
+        self.context_char_budget = _coerce_non_negative_int(self.context_char_budget)
         self.adaptive_num_predict_cap = _coerce_non_negative_int(
             self.adaptive_num_predict_cap
         )
@@ -1581,6 +1580,7 @@ def load_session(session_id: str) -> SessionData | None:
             if isinstance(data.get("waf_profiles", {}), dict)
             else {},
             adaptive_num_ctx=_coerce_non_negative_int(data.get("adaptive_num_ctx", 0)),
+            context_char_budget=_coerce_non_negative_int(data.get("context_char_budget", 0)),
             adaptive_num_predict_cap=_coerce_non_negative_int(
                 data.get("adaptive_num_predict_cap", 0)
             ),
@@ -2033,10 +2033,6 @@ def update_from_parsed_output(
             return has_signal and (has_context or len(candidate) >= 35)
         return has_signal and (has_context or len(candidate) >= 30)
 
-    # Resolve the engagement scope once so out-of-scope third-party URLs
-    # (google.com, login.microsoftonline.com, w3.org, CDNs, example.org) never
-    # pollute the testable attack surface — the dominant reason analysis/exploit
-    # looked "dumb" regardless of model. An explicit allowlist is honored.
     _scope_allow: list[str] = []
     try:
         from ..scope import get_scope_guard
@@ -2102,13 +2098,10 @@ def update_from_parsed_output(
 
         if url_token:
             url = _normalize_url(url_token.rstrip(".,;:)]}>\"'"))
-            # Only ingest in-scope URLs into the testable surface; third-party
-            # hosts (OAuth providers, CDNs, w3.org, example.org) are noise.
             if not _in_scope(url):
                 continue
             if url not in session.urls:
                 session.urls.append(url)
-            # Live hosts: URLs from probing tools (httpx, etc.) ARE confirmed live
             if url not in session.live_hosts:
                 session.live_hosts.append(url)
 
@@ -2120,9 +2113,6 @@ def update_from_parsed_output(
         hp_match = _HOST_PORT_RE.match(item_stripped)
         if hp_match:
             host, port_str = hp_match.group(1), hp_match.group(2)
-            # NOTE: open ports are keyed by host/IP from a scan the agent
-            # explicitly ran (a domain target resolves to an IP), so these are
-            # NOT scope-filtered — only discovered URLs/injection points are.
             if port_str.isdigit():
                 port = int(port_str)
                 session.open_ports.setdefault(host, [])

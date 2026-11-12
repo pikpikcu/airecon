@@ -10,22 +10,17 @@ from typing import Any
 
 logger = logging.getLogger("airecon.agent.semantic")
 
-# Semantic deduplication — prevents repetitive testing at the vulnerability-intent level
-# Unlike syntactic dedup (command hash), this maps tool calls to "what am I actually testing?"
-
-
 @dataclass
 class VulnIntent:
-    vuln_class: str          # e.g., "sql_injection", "xss", "idor"
-    target_endpoint: str     # e.g., "/api/users", "/login"
-    target_parameter: str    # e.g., "id", "username", ""
-    test_variant: str        # e.g., "union_based", "blind", "dom_based", "standard"
+    vuln_class: str
+    target_endpoint: str
+    target_parameter: str
+    test_variant: str
     success: bool = False
     attempt_count: int = 0
 
 
 class SemanticDeduplicator:
-    # Vuln detection patterns loaded from unified_patterns.json
     _vuln_patterns: dict[str, Any] | None = None
 
     @classmethod
@@ -78,7 +73,6 @@ class SemanticDeduplicator:
                 if re.search(pattern, cmd_lower, re.IGNORECASE):
                     return vuln_class
 
-        # Check for tool names that imply specific vuln classes
         for tool, vuln_class in self._get_tool_vuln_map().items():
             if tool in cmd_lower:
                 return vuln_class
@@ -100,11 +94,9 @@ class SemanticDeduplicator:
         endpoint = ""
         parameter = ""
 
-        # Extract URL
         url_match = re.search(r"(https?://[^\s\"'<>]+)", command)
         if url_match:
             url = url_match.group(1)
-            # Parse endpoint path
             try:
                 from urllib.parse import urlparse, parse_qs
                 parsed = urlparse(url)
@@ -179,7 +171,6 @@ class SemanticDeduplicator:
             msg += f" {existing.attempt_count}x without success. Try different vector."
             return True, msg
 
-        # Allow re-test but track it
         return False, f"[SEMANTIC TRACKING] {existing.vuln_class} attempt #{existing.attempt_count + 1} on same target"
 
     def record_test(self, intent: VulnIntent, success: bool = False) -> None:
@@ -192,7 +183,6 @@ class SemanticDeduplicator:
         existing.success = existing.success or success
         existing.attempt_count += 1
 
-        # Prune old entries if history too large
         if len(self._tested_intents) > self._max_history:
             oldest_keys = list(self._tested_intents.keys())[:50]
             for key in oldest_keys:
@@ -233,7 +223,6 @@ class SemanticDeduplicator:
         return untested
 
 
-# Global instance for use in agent loop
 _deduplicator: SemanticDeduplicator | None = None
 
 

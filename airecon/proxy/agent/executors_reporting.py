@@ -13,15 +13,8 @@ from ..reporting import create_vulnerability_report
 
 logger = logging.getLogger("airecon.agent")
 
-# ── False-positive regex rules loaded once from verification_patterns.json ─
 _fp_compiled: list[tuple[str, re.Pattern[str]]] = []
 
-# Map free-text report claims → verification vuln_type keys that have a
-# deterministic runtime confirmator in verification.py. Order matters: first
-# match wins. Vuln classes NOT listed here (IDOR, auth bypass, CSRF, business
-# logic, race conditions, …) are intentionally never blocked by active replay —
-# they are validated by evidence grounding, keeping the agent free to report
-# novel/stateful findings rather than forcing a rigid, monotonous checklist.
 _RUNTIME_VERIFY_KEYWORDS: list[tuple[str, re.Pattern[str]]] = [
     ("sql_injection", re.compile(
         r"sql\s*injection|sqli|union\s+select|error[\s-]based|boolean[\s-]based|"
@@ -40,9 +33,6 @@ _RUNTIME_VERIFY_KEYWORDS: list[tuple[str, re.Pattern[str]]] = [
         r"\bxss\b|cross[\s-]*site\s*scripting|reflected\s+(?:script|payload)", re.IGNORECASE)),
 ]
 
-# Vuln types where a stateless GET replay reliably reproduces a true positive.
-# Only these may produce an active-verification BLOCK, and only under strict
-# guards (confident extraction, GET method, live endpoint, clean negative test).
 _REPLAY_RELIABLE_TYPES: frozenset[str] = frozenset({
     "xss", "sql_injection", "ssti", "path_traversal",
     "command_injection", "open_redirect", "ssrf", "xxe",
@@ -78,7 +68,6 @@ class _ReportingExecutorMixin:
         start_time = time.time()
 
         try:
-            # ── Pre-report verification: catch false positives before file is written ──
             _verification_block = self._verify_before_report(arguments)
             if _verification_block:
                 logger.warning("[Zero-FP] Report BLOCKED: %s", _verification_block)
@@ -93,7 +82,6 @@ class _ReportingExecutorMixin:
                     None,
                 )
 
-            # ── Active runtime verification: re-test the live target ──────────
             _runtime = await self._runtime_verify_report(arguments)
             if _runtime.get("blocked"):
                 logger.warning(
@@ -242,9 +230,6 @@ class _ReportingExecutorMixin:
                         vuln["report_generated"] = True
                         if flag:
                             vuln["flag"] = flag
-                        # Stamp active-verification outcome onto the finding so
-                        # supervision/quality scoring and future report-readiness
-                        # reflect what was actually re-tested at runtime.
                         if _runtime.get("ran"):
                             _existing_conf = float(
                                 vuln.get("verified_confidence", 0.0) or 0.0
@@ -263,7 +248,6 @@ class _ReportingExecutorMixin:
                         report_title[:120],
                     )
 
-                # Record to attack surface tracker
                 try:
                     _tracker = getattr(self, "_surface_tracker", None)
                     if _tracker and report_title:
@@ -305,10 +289,6 @@ class _ReportingExecutorMixin:
         self.state.tool_counts["exec"] += 1
         self.state.tool_counts["total"] += 1
         return success, duration, result, self._last_output_file
-
-    # ------------------------------------------------------------------
-    # Pre-report false-positive prevention — data-driven, no hardcoded vuln types
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _token_set(text: str) -> set[str]:
@@ -450,11 +430,9 @@ class _ReportingExecutorMixin:
         poc_code = str(arguments.get("poc_script_code", "")).strip()
         title = str(arguments.get("title", "")).strip()
 
-        # 1. PoC is mandatory for any report
         if not poc_code:
             return "PoC script/code is required but missing in report arguments."
 
-        # 2. Match against FP indicators from verification_patterns.json (data-driven)
         combined = f"{title} {poc_desc} {poc_code}"
         for pattern_str, compiled_regex in _load_fp_indicators():
             if compiled_regex.search(combined):
@@ -467,13 +445,7 @@ class _ReportingExecutorMixin:
         if readiness_block:
             return readiness_block
 
-        return None  # no blocking reason found
-
-    # ------------------------------------------------------------------
-    # Active runtime verification — re-tests the live target before a report
-    # is written. Corroborates true positives and stamps session findings;
-    # blocks ONLY deterministically-reproducible types that fail to reproduce.
-    # ------------------------------------------------------------------
+        return None
 
     def _infer_runtime_vuln_type(self, arguments: dict[str, Any]) -> str | None:
         blob = "\n".join(
@@ -545,7 +517,7 @@ class _ReportingExecutorMixin:
 
         vuln_type = self._infer_runtime_vuln_type(arguments)
         if not vuln_type:
-            return out  # novel / stateful class — corroborate via evidence only
+            return out
 
         target_url = self._extract_http_target(arguments)
         if not target_url:
@@ -553,7 +525,7 @@ class _ReportingExecutorMixin:
 
         param, confident = self._extract_injection_param(arguments, target_url)
         if not param:
-            return out  # no injection point to actively test
+            return out
 
         method = str(arguments.get("method", "") or "").strip().upper()
 
@@ -584,9 +556,6 @@ class _ReportingExecutorMixin:
         out["replay_success"] = bool(vres.replay_success)
         out["confidence"] = float(vres.verified_confidence)
         out["tier"] = int(vres.verification_tier)
-        # Machine-captured proof (payload/status/length per replay attempt) so the
-        # report can persist concrete request/response evidence, not just the
-        # model's PoC text.
         out["evidence"] = [
             ev for ev in vres.evidence_bundle if isinstance(ev, dict)
         ][:25]
@@ -595,9 +564,6 @@ class _ReportingExecutorMixin:
             or ("CONFIRMED" if vres.replay_success else "RUNTIME-INCONCLUSIVE")
         )
 
-        # Only the endpoint was actually exercised by GET replay if we saw a
-        # live (<400) response. Authed/POST-only/unreachable routes must NOT
-        # be treated as disproof of the finding.
         endpoint_live = any(
             isinstance(ev, dict)
             and isinstance(ev.get("status"), int)

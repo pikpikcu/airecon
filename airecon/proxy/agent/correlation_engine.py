@@ -12,15 +12,12 @@ from typing import Any
 
 logger = logging.getLogger("airecon.agent.correlation_engine")
 
-# ── Relationship types (NOT vulnerability classes) ──────────────────────────
-# These describe HOW two findings relate, not WHAT the findings are.
-
-REL_SPATIAL = "spatial"           # Same host/endpoint
-REL_INPUT = "input_shared"        # Same parameter/parameter subset
-REL_DATA_FLOW = "data_flow"       # Output of A feeds input of B
-REL_TRUST = "trust_boundary"       # A weakens trust that B exploits
-REL_SEQUENTIAL = "sequential"      # A must happen before B
-REL_AMPLIFICATION = "amplification"  # A + B together > sum of parts
+REL_SPATIAL = "spatial"
+REL_INPUT = "input_shared"
+REL_DATA_FLOW = "data_flow"
+REL_TRUST = "trust_boundary"
+REL_SEQUENTIAL = "sequential"
+REL_AMPLIFICATION = "amplification"
 
 
 @dataclass
@@ -35,12 +32,11 @@ class Finding:
     evidence: str = ""
     tags: list[str] = field(default_factory=list)
     related_findings: list[str] = field(default_factory=list)
-    # Extended metadata for correlation
     affected_hosts: list[str] = field(default_factory=list)
     affected_params: list[str] = field(default_factory=list)
-    outputs_produced: list[str] = field(default_factory=list)  # data obtained
-    inputs_required: list[str] = field(default_factory=list)   # data needed
-    trust_level_change: str = ""  # "none", "gained", "reduced", "escalated"
+    outputs_produced: list[str] = field(default_factory=list)
+    inputs_required: list[str] = field(default_factory=list)
+    trust_level_change: str = ""
 
 
 @dataclass
@@ -52,7 +48,7 @@ class AttackChain:
     combined_severity: int
     reasoning: str
     attack_path: str
-    relation_types: list[str] = field(default_factory=list)  # HOW they relate
+    relation_types: list[str] = field(default_factory=list)
 
 
 class CorrelationEngine:
@@ -83,22 +79,19 @@ class CorrelationEngine:
         evidence: str = "",
         tags: list[str] | None = None,
     ) -> str:
-        finding_id = hashlib.md5(  # non-cryptographic identifier
+        finding_id = hashlib.md5(
             f"{vuln_class}:{endpoint}:{parameter}:{description[:50]}".encode(),
             usedforsecurity=False,
         ).hexdigest()[:12]
 
-        # Extract hosts from endpoint
         affected_hosts: list[str] = []
         if endpoint:
             host_match = re.search(r"(?:https?://)?([a-zA-Z0-9][-a-zA-Z0-9]*(?:\.[a-zA-Z0-9][-a-zA-Z0-9]*)+)", endpoint)
             if host_match:
                 affected_hosts.append(host_match.group(1))
 
-        # Extract params from parameter field and description
         affected_params = [parameter] if parameter else []
 
-        # Infer trust level change from vuln_class
         trust_change = "none"
         vc_lower = vuln_class.lower()
         if any(kw in vc_lower for kw in ("auth", "access", "privilege", "bypass", "escalat")):
@@ -130,13 +123,10 @@ class CorrelationEngine:
         if len(self._findings) < 2:
             return []
 
-        # Build relationship graph
         edges = self._build_relationship_graph()
 
-        # Find paths through the graph (chains of length 2+)
         raw_chains = self._find_chains(edges)
 
-        # Deduplicate and score
         unique_chains = self._deduplicate_chains(raw_chains)
         unique_chains.sort(key=lambda c: c.combined_severity, reverse=True)
 
@@ -158,27 +148,22 @@ class CorrelationEngine:
     def _find_relations(self, a: Finding, b: Finding) -> list[str]:
         relations: list[str] = []
 
-        # 1. Spatial: same host or endpoint
         if a.endpoint and b.endpoint:
-            # Same exact endpoint, or same host
             if a.endpoint == b.endpoint:
                 relations.append(REL_SPATIAL)
             elif a.affected_hosts and b.affected_hosts:
                 if set(a.affected_hosts) & set(b.affected_hosts):
                     relations.append(REL_SPATIAL)
 
-        # 2. Input: same parameter
         if a.parameter and b.parameter and a.parameter == b.parameter:
             relations.append(REL_INPUT)
 
-        # 3. Data flow: A outputs something B needs
         if a.outputs_produced and b.inputs_required:
             a_outputs = set(a.outputs_produced)
             b_inputs = set(b.inputs_required)
             if a_outputs & b_inputs:
                 relations.append(REL_DATA_FLOW)
 
-        # 4. Trust boundary: one finding reduces trust, another exploits it
         if a.trust_level_change in ("reduced", "gained") and \
            b.trust_level_change in ("escalated", "gained"):
             relations.append(REL_TRUST)
@@ -187,8 +172,6 @@ class CorrelationEngine:
             if REL_TRUST not in relations:
                 relations.append(REL_TRUST)
 
-        # 5. Amplification: two moderate-severity findings on related surfaces
-        # that together create a higher-impact scenario
         if a.severity >= 2 and b.severity >= 2:
             combined_score = self._estimate_combined_severity([a, b])
             if combined_score >= max(a.severity, b.severity) + 1:
@@ -200,24 +183,20 @@ class CorrelationEngine:
     def _estimate_combined_severity(findings: list[Finding]) -> int:
         max_sev = max(f.severity for f in findings)
 
-        # Multiple independent attack vectors on same surface = higher risk
         endpoints = {f.endpoint for f in findings if f.endpoint}
         params = {f.parameter for f in findings if f.parameter}
-        
+
         if len(endpoints) == 1 and len(params) > 1:
-            # Multiple params on same endpoint = compounded attack surface
             return min(5, max_sev + min(2, len(params) - 1))
 
         if len(findings) >= 3:
-            # Chain of 3+ findings = multi-step attack = higher severity
             has_auth = any("auth" in f.vuln_class or "access" in f.vuln_class
                           for f in findings)
             has_data = any("data" in f.vuln_class or "disclosure" in f.vuln_class
                           or "exposure" in f.vuln_class for f in findings)
             has_execution = any("inject" in f.vuln_class or "rce" in f.vuln_class
                                or "code" in f.vuln_class for f in findings)
-            
-            # If chain covers recon→exploit→impact, maximum severity
+
             if has_auth and has_data:
                 return min(5, max_sev + 2)
             if has_auth and has_execution:
@@ -232,11 +211,10 @@ class CorrelationEngine:
         edges: list[tuple[str, str, str]],
         max_length: int = 5,
     ) -> list[AttackChain]:
-        # Build adjacency list
         adjacency: dict[str, list[tuple[str, str]]] = defaultdict(list)
         for a, b, rel in edges:
             adjacency[a].append((b, rel))
-            adjacency[b].append((a, rel))  # undirected for initial discovery
+            adjacency[b].append((a, rel))
 
         chains: list[AttackChain] = []
         visited_global: set[frozenset] = set()
@@ -277,7 +255,6 @@ class CorrelationEngine:
         max_sev = max(f.severity for f in findings)
         combined_sev = self._estimate_combined_severity(findings)
 
-        # Build human-readable reasoning from actual findings
         finding_types = [f.vuln_class for f in findings]
         unique_relations = list(set(relations))
 
@@ -289,7 +266,7 @@ class CorrelationEngine:
             REL_SEQUENTIAL: "must be exploited in sequence",
             REL_AMPLIFICATION: "severity amplifies when combined",
         }
-        
+
         relation_strs = [
             relation_explanations.get(r, r)
             for r in unique_relations
@@ -312,7 +289,7 @@ class CorrelationEngine:
         if len(finding_types) > 3:
             name += f" (+{len(finding_types) - 3} more)"
 
-        chain_id = hashlib.md5(  # non-cryptographic identifier
+        chain_id = hashlib.md5(
             json.dumps(sorted(path)).encode(),
             usedforsecurity=False,
         ).hexdigest()[:12]
@@ -344,8 +321,6 @@ class CorrelationEngine:
                 seen_sets.append(finding_set)
 
         return unique
-
-    # ── Learning (unchanged — this part was fine) ────────────────────────────
 
     def learn_successful_chain(self, chain: AttackChain, outcome: str) -> None:
         findings = [self._findings[fid] for fid in chain.findings if fid in self._findings]
@@ -399,7 +374,6 @@ class CorrelationEngine:
         }
 
 
-# Global instance
 _engine: CorrelationEngine | None = None
 
 

@@ -30,8 +30,6 @@ FLAG_PATTERN = re.compile(r"flag\{[^}]+\}", re.IGNORECASE)
 _THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 _THINK_OPEN_RE = re.compile(r"<think>(?!</think>).*$", re.DOTALL | re.IGNORECASE)
 _MIN_SEVERITY_FOR_PRESERVATION = 4
-# FLEXIBILITY: Lower confidence floor to 0.30 to capture emerging/novel patterns
-# Novel discoveries often start with low confidence before validation
 _CONF_FLOOR = 0.30
 
 
@@ -419,9 +417,6 @@ class CausalState:
         return state
 
 
-# ── Runtime state grouping (replaces 50+ bare instance vars in loop.py) ──
-
-
 @dataclass
 class AntiLoopState:
     no_tool_iterations: int = 0
@@ -554,14 +549,6 @@ class AgentState:
 
     http_baselines: dict[str, dict[str, Any]] = field(default_factory=dict)
 
-    # Per-host HTTP session state. Key: registrable host (e.g. "example.com").
-    # Value: {"cookies": {name: value}, "bearer": str|None,
-    #         "updated_at_iter": int, "rate_limit_until_iter": int,
-    #         "csrf": {"token": str, "field": str, "source": str}}.
-    # Used by http_observe to preserve auth across calls in realistic
-    # authenticated bug-bounty flows. LLM controls login explicitly;
-    # Python just carries the cookie jar, flags rate limits, and harvests
-    # CSRF tokens so the LLM can re-inject them on state-changing requests.
     http_sessions: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     hypothesis_queue: list[dict[str, Any]] = field(default_factory=list)
@@ -585,7 +572,6 @@ class AgentState:
         tool_calls: list[dict[str, Any]] | None = None,
         thinking: str | None = None,
     ) -> None:
-
         if role == "assistant" and content and "<think" in content:
             content = _THINK_BLOCK_RE.sub("", content)
 
@@ -1044,7 +1030,6 @@ class AgentState:
         )
         max_ev = _get_model_limits()["max_evidence"]
         if len(self.evidence_log) > max_ev:
-
             def _evidence_score(e: dict) -> float:
                 conf = float(e.get("confidence", 0.0))
                 sev = severity_to_int(e.get("severity", 3))
@@ -1608,9 +1593,6 @@ class AgentState:
         if ephemeral_system:
             ephemeral_system = [ephemeral_system[-1]]
 
-        # Keep the FRESHEST message of each protected type rather than blindly the
-        # last two — so scope, pinned findings, recovery state and the compression
-        # summary all survive even when several protected messages accumulated.
         if protected_system:
             try:
                 _max_protected = int(
@@ -1624,7 +1606,7 @@ class AgentState:
                 _key = next(
                     (p for p in PROTECTED_PREFIXES if _c.startswith(p)), "_other"
                 )
-                _latest_by_type[_key] = _msg  # latest of each type wins
+                _latest_by_type[_key] = _msg
             protected_system = list(_latest_by_type.values())[-max(1, _max_protected):]
 
         limits = _get_context_limits()
@@ -1633,6 +1615,8 @@ class AgentState:
         )
         for i in range(compress_boundary):
             msg = other_messages[i]
+            if msg.get("_protected") or msg.get("name") == "read_file":
+                continue
             content = msg.get("content", "")
             role = msg.get("role", "")
 
@@ -1660,6 +1644,7 @@ class AgentState:
             m
             for m in other_messages
             if m.get("role") == "assistant" and not m.get("tool_calls")
+            and not m.get("_protected")
         ]
         if len(assistant_text_only) > 3:
             dropped_text_ids = set(id(m) for m in assistant_text_only[1:-2])
@@ -1685,12 +1670,9 @@ class AgentState:
 
         must_keep = []
         can_trim = []
-        first_user_seen = False
-
         for msg in other_messages:
-            if msg.get("role") == "user" and not first_user_seen:
+            if (msg.get("role") == "user" and not msg.get("_tool_result")) or msg.get("_protected"):
                 must_keep.append(msg)
-                first_user_seen = True
             else:
                 can_trim.append(msg)
 
@@ -1741,7 +1723,10 @@ class AgentState:
             ),
         }
 
-        rebuilt = must_keep + ([separator] if dropped_count > 0 else []) + trimmed
+        original_order = {id(msg): i for i, msg in enumerate(other_messages)}
+        rebuilt = sorted(must_keep + trimmed, key=lambda msg: original_order[id(msg)])
+        if dropped_count > 0:
+            rebuilt.insert(0, separator)
         repaired = self._repair_tool_pairs(
             core_system + ephemeral_system + protected_system + rebuilt
         )
@@ -1773,6 +1758,30 @@ class AgentState:
                 if cid:
                     result_call_ids.add(cid)
 
+        answered_by_user: set[str] = set()
+        span_call_ids: list[str] = []
+        span_user_results = 0
+
+        def _flush_span() -> None:
+            answered_by_user.update(span_call_ids[:span_user_results])
+
+        for msg in messages:
+            if msg.get("role") == "assistant":
+                _flush_span()
+                span_call_ids = []
+                span_user_results = 0
+                for tc in msg.get("tool_calls") or []:
+                    cid = (
+                        tc.get("id", "")
+                        if isinstance(tc, dict)
+                        else getattr(tc, "id", "") or ""
+                    )
+                    if cid:
+                        span_call_ids.append(cid)
+            elif msg.get("_tool_result") and msg.get("role") == "user":
+                span_user_results += 1
+        _flush_span()
+
         orphaned_results = result_call_ids - surviving_call_ids
         if orphaned_results:
             messages = [
@@ -1802,14 +1811,20 @@ class AgentState:
                             else getattr(tc, "id", "") or ""
                         )
                         if cid in missing_results:
+                            if cid in answered_by_user:
+                                stub_content = (
+                                    "[Tool result follows in the next message]"
+                                )
+                            else:
+                                stub_content = (
+                                    "[Tool result unavailable — "
+                                    "earlier context was compressed]"
+                                )
                             patched.append(
                                 {
                                     "role": "tool",
                                     "tool_call_id": cid,
-                                    "content": (
-                                        "[Tool result unavailable — "
-                                        "earlier context was compressed]"
-                                    ),
+                                    "content": stub_content,
                                 }
                             )
                             logger.debug(
@@ -2072,16 +2087,22 @@ class AgentState:
 
         carry_forward_context = "\n".join(carry_forward_lines).strip()
 
-        non_system = [m for m in self.conversation if m.get("role") != "system"]
+        preserved_users = [
+            m for m in self.conversation
+            if m.get("role") != "system" and (
+                (m.get("role") == "user" and not m.get("_tool_result"))
+                or m.get("_protected")
+            )
+        ]
+        non_system = [m for m in self.conversation if m.get("role") != "system" and m not in preserved_users]
         if len(non_system) <= keep_recent + 1:
             return
 
         system_msgs = [m for m in self.conversation if m.get("role") == "system"]
-        first_user = non_system[0]
-        to_compress = non_system[1 : len(non_system) - keep_recent]
+        to_compress = non_system[: len(non_system) - keep_recent]
         keep_tail = non_system[len(non_system) - keep_recent :]
 
-        if len(to_compress) < 5:
+        if not to_compress:
             return
 
         CHUNK_SIZE = 10
@@ -2255,10 +2276,6 @@ class AgentState:
                     },
                 ]
 
-                # Model-agnostic compression cap: scale from the configured
-                # gateway timeout (slow models/gateways get more headroom),
-                # bounded to a sane 20–45s band. No model-name hardcoding —
-                # llm.complete already applies its own per-op dynamic timeout.
                 try:
                     _cfg_timeout = float(getattr(get_config(), "llm_timeout", 120.0) or 120.0)
                 except (TypeError, ValueError):
@@ -2375,7 +2392,7 @@ class AgentState:
                     summaries.extend(chunk)
 
         before = len(self.conversation)
-        self.conversation = system_msgs + [first_user] + summaries + keep_tail
+        self.conversation = system_msgs + preserved_users + summaries + keep_tail
         logger.info(
             "Memory compressed (%s): %d messages → %d summaries (%d → %d total)",
             phase,

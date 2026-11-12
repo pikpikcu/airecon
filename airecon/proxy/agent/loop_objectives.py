@@ -23,11 +23,6 @@ from .owasp import classify_owasp, severity_for_evidence
 from .pipeline import _PHASE_TOOL_BUDGETS, PipelinePhase
 from .vuln_classifier import get_classifier
 
-# ── Tool-budget thresholds ────────────────────────────────────────────────────
-# These are derived from pentesting reality, not arbitrary policy:
-# - RECON/ANALYSIS: 8 calls before low-yield warning; WAF/rate-limit can skew results
-# - EXPLOIT: 14 calls + 0.05 floor — iterative WAF bypass legitimately needs more probes
-# - Evidence-growth exemption: agent making real progress → suppress pivot pressure
 _BUDGET_DEFAULT_MIN_CALLS: int   = 8
 _BUDGET_DEFAULT_THRESHOLD: float = 0.08
 _BUDGET_EXPLOIT_MIN_CALLS: int   = 14
@@ -159,7 +154,6 @@ def _load_exploit_heavy_tools() -> frozenset[str]:
         return frozenset()
 
 
-# ── Phase objectives — loaded from prompts/phases/*.txt ──
 _PHASE_PROMPTS_DIR = Path(__file__).parent.parent / "prompts" / "phases"
 
 
@@ -172,32 +166,28 @@ def _load_phase_objectives() -> dict[str, list[str]]:
         phase_name = phase_file.stem.upper()
         try:
             content = phase_file.read_text(encoding="utf-8")
-            # Extract key objectives from the prompt (first 5 non-empty lines after header)
             lines = [line.strip() for line in content.splitlines() if line.strip()]
-            # Skip header lines (usually [PIPELINE PHASE: ...] and OBJECTIVE:)
             obj_start = 0
             for i, line in enumerate(lines):
                 if line.startswith("OBJECTIVE:") or line.startswith("DIRECTIVE:"):
                     obj_start = i + 1
                     break
-            
-            # Take next 6 meaningful lines as objectives (up from 4 to get 5 for EXPLOIT)
+
             objs = []
             for line in lines[obj_start:obj_start+12]:
                 if line.startswith("<") or line.startswith("[") or not line:
                     continue
-                # Clean up bullet points and numbering
                 cleaned = line.lstrip("0123456789.-• ").strip()
-                if cleaned and len(cleaned) > 20:  # Only substantial objectives
+                if cleaned and len(cleaned) > 20:
                     objs.append(cleaned)
                 if len(objs) >= 6:
                     break
-            
+
             if objs:
                 objectives[phase_name] = objs
         except Exception as e:
             logger.debug("Failed to load phase objectives from %s: %s", phase_file.name, e)
-    
+
     return objectives
 
 
@@ -229,7 +219,6 @@ def _build_vuln_hypo_index() -> list[dict[str, Any]]:
 class _ObjectivesMixin:
     _vuln_hypo_index: list[dict[str, Any]] = _build_vuln_hypo_index()
 
-    # Phase objectives loaded from data file, not hardcoded
     _PHASE_OBJECTIVES: dict[str, list[str]] = _load_phase_objectives()
     _EXPLOIT_HEAVY_TOOLS: frozenset[str] = _load_exploit_heavy_tools()
 
@@ -304,7 +293,6 @@ class _ObjectivesMixin:
                 dynamic.append(
                     "Convert highest-severity confirmed exploit into reproducible PoC evidence"
                 )
-            # Add extra dynamic objectives for EXPLOIT phase to ensure >= 5 done
             if s.injection_points:
                 dynamic.append(
                     "Test all discovered injection points with targeted payloads"
@@ -750,11 +738,9 @@ class _ObjectivesMixin:
                 severity=_s,
             )
 
-            # Continuous correlation: trigger on every new finding
             try:
                 from .correlation_engine import get_correlation_engine
                 engine = get_correlation_engine()
-                # Add finding to correlation engine for continuous discovery
                 engine.add_finding(
                     vuln_class="flag_capture",
                     severity=_s,
@@ -825,9 +811,6 @@ class _ObjectivesMixin:
                 severity=_s,
             )
 
-        # ── Port evidence + service inference ────────────────────────────────
-        # Extract open ports from nmap-style output (e.g. "3306/tcp open mysql")
-        # and enrich each with service/vuln context from port_correlations.json.
         _port_service_re = re.compile(
             r"\b(\d{1,5})/(tcp|udp)\s+open(?:\s+(\S+))?", re.IGNORECASE
         )
@@ -860,7 +843,6 @@ class _ObjectivesMixin:
                 severity=_s,
             )
 
-            # Form a targeted hypothesis when we have correlated vuln data.
             if corr and vuln_list:
                 suggested_tools = corr.get("tools", [])
                 first_tool = suggested_tools[0] if suggested_tools else f"nmap -sV -p {port_num}"
@@ -878,7 +860,6 @@ class _ObjectivesMixin:
                     tags=["network", service_name.lower(), "service-inference"],
                 )
 
-        # Fallback: capture raw port/IP:port patterns not matched by the nmap regex
         _raw_port_re = re.compile(
             r"\b\d{1,5}/(?:tcp|udp)\b|\b(?:\d{1,3}\.){3}\d{1,3}:\d{1,5}\b",
             re.IGNORECASE,
@@ -990,18 +971,14 @@ class _ObjectivesMixin:
         if success:
             self._auto_form_hypotheses(phase, tool_name, arguments, blob)
 
-        # ── Evidence cross-reference ────────────────────────────────────────
-        # Track tags across tool calls. If 2+ different tools produce evidence
-        # with the same tags, that signal is independently corroborated.
         self._check_evidence_corroboration(phase, tool_name)
 
     def _check_evidence_corroboration(self, phase: str, current_tool: str) -> None:
         if not self.state or len(self.state.evidence_log) < 2:
             return
 
-        # Build: tag → set of tools that produced it
         tag_tools: dict[str, set[str]] = {}
-        for ev in self.state.evidence_log[-40:]:  # scan recent 40 entries
+        for ev in self.state.evidence_log[-40:]:
             src = str(ev.get("source_tool", "")).strip()
             for tag in ev.get("tags", []):
                 tag_str = str(tag).strip().lower()
@@ -1011,7 +988,6 @@ class _ObjectivesMixin:
                 ):
                     tag_tools.setdefault(tag_str, set()).add(src)
 
-        # Tags corroborated by 2+ different tools
         _already_noted: set[str] = getattr(self, "_corroborated_tags", set())
         for tag, tools in tag_tools.items():
             if len(tools) >= 2 and tag not in _already_noted:
@@ -1036,15 +1012,6 @@ class _ObjectivesMixin:
 
         self._corroborated_tags = _already_noted  # type: ignore[attr-defined]
 
-    # ── Hypothesis verification (cross-evidence) ───────────────────────
-    # When a hypothesis is marked 'confirmed', this checks whether at least
-    # two independent pieces of evidence (different source tools, shared
-    # endpoint/tag/keyword with the claim) actually back it. If so, the
-    # hypothesis is promoted to 'verified' — a stricter signal than
-    # 'confirmed' which the LLM may set on its own judgement. Generic:
-    # no hardcoded vuln patterns. Python structures the check; LLM still
-    # writes the claim and interprets the verdict.
-
     def _verify_confirmed_hypotheses(self) -> list[str]:
         if not self.state:
             return []
@@ -1062,14 +1029,12 @@ class _ObjectivesMixin:
             hid = str(hyp.get("id", "")).strip()
             if not hid or hid in _already:
                 continue
-            # Skip if the hypothesis itself already records a verified marker
             if bool(hyp.get("verified")):
                 _already.add(hid)
                 continue
 
             claim_lower = str(hyp.get("claim", "")).lower()
             hyp_tags = {str(t).lower() for t in hyp.get("tags", []) if str(t).strip()}
-            # Derive keywords from the claim (skip short/common tokens)
             claim_keywords = {
                 w.strip(".,;:!?()[]{}\"'")
                 for w in claim_lower.split()
@@ -1133,10 +1098,6 @@ class _ObjectivesMixin:
         )
         return "\n".join(lines)
 
-    # ── Dynamic hypothesis index loaded from data/patterns.json ──────────
-    # Data-driven, NOT hardcoded. Each entry: (indicators_set, key, description, suggested_actions)
-    # Built at class-init time from the authoritative patterns JSON.
-
     @staticmethod
     def _load_vuln_hypo_index() -> list[dict[str, Any]]:
         _patterns_path = Path(__file__).parent.parent / "data" / "patterns.json"
@@ -1183,7 +1144,6 @@ class _ObjectivesMixin:
     def _load_vuln_hypo_patterns() -> list[tuple[re.Pattern, str, str]]:
         patterns: list[tuple[re.Pattern, str, str]] = []
 
-        # Source 1: unified pattern catalog hypothesis indicators
         try:
             for entry in load_vuln_hypothesis_legacy():
                 indicators = [
@@ -1211,7 +1171,6 @@ class _ObjectivesMixin:
         except Exception as exc:
             logger.debug("Failed to load hypothesis patterns from unified catalog: %s", exc)
 
-        # Source 2: system.txt §12 VULNERABILITY PRIORITY terms
         try:
             prompt_path = Path(__file__).parent.parent / "prompts" / "system.txt"
             if prompt_path.exists():
@@ -1263,7 +1222,6 @@ class _ObjectivesMixin:
         except Exception as exc:
             logger.debug("Failed to load hypothesis patterns from system prompt: %s", exc)
 
-        # Source 3: skills catalog — vulnerability skill file names
         try:
             skills_dir = Path(__file__).parent.parent / "skills" / "vulnerabilities"
             if skills_dir.is_dir():
@@ -1283,7 +1241,6 @@ class _ObjectivesMixin:
 
         return patterns
 
-    # Lazy-loaded — built on first access from data sources
     _cached_vuln_hypo_patterns: list[tuple[re.Pattern, str, str]] | None = None
 
     @property
@@ -1414,16 +1371,12 @@ class _ObjectivesMixin:
         calls    = int(eff.get("calls", 0.0))
         hit_rate = float(eff.get("hit_rate", 0.0))
 
-        # Evidence-growth exemption: if the evidence log has grown recently,
-        # the agent is making progress — suppress low-yield warnings regardless
-        # of the per-tool hit-rate so iterative probing is not cut short.
         recent_evidence = len(self.state.evidence_log)
         evidence_exemption = recent_evidence >= _BUDGET_EVIDENCE_EXEMPTION
 
         budget = _PHASE_TOOL_BUDGETS.get(phase, {}).get(tool_name)
 
         if budget is None:
-            # Unconstrained tool — only warn when clearly unproductive.
             if calls >= _min_calls and hit_rate < _warn_thresh and not evidence_exemption:
                 return (
                     f"[TOOL BUDGET] '{tool_name}' is low-yield in {phase} "
@@ -1434,8 +1387,6 @@ class _ObjectivesMixin:
 
         usage = self.state.get_phase_tool_count(phase, tool_name)
 
-        # Adjust effective budget by hit-rate: reward productive tools, warn on waste.
-        # Only apply adjustment after enough calls for a meaningful sample.
         effective_budget = budget
         if calls >= 4:
             if hit_rate < _warn_thresh and not evidence_exemption:

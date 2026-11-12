@@ -20,14 +20,11 @@ _TOOLS_DEF = load_tools()
 _RECON_HINTS: dict[str, str] = _TOOLS_META.get("recon_phase_hints", {})
 
 
-# Helper to get config with dynamic defaults from config.py
 def _get_phase_setting(name: str, default: Any) -> Any:
     cfg = _get_config()
     return getattr(cfg, name, default)
 
 
-# Live host validation is a genuine best-practice — kept as a single constant,
-# NOT because it's "hardcoded bias" but because it prevents dead-host waste.
 _LIVE_HOST_HINT: str = _RECON_HINTS.get(
     "live_host_validation",
     "CRITICAL: After subdomain enumeration, ALWAYS validate which hosts are alive before "
@@ -260,7 +257,6 @@ def _load_phase_transition_criteria(phase: PipelinePhase) -> list[str]:
     return list(_PHASE_CRITERIA_FALLBACK.get(phase.value, []))
 
 
-# Phase confidence thresholds loaded from config.py (moved from tools_meta.json)
 def _load_phase_confidence_thresholds() -> dict[PipelinePhase, float]:
     cfg = _get_config()
     return {
@@ -330,7 +326,6 @@ REPORT_PHASE_CONFIG = DEFAULT_PHASES[PipelinePhase.REPORT]
 _PHASE_ORDER = _normalize_phase_sequence(_TOOLS_META.get("phase_sequence"))
 
 
-# Phase tool budgets loaded from config.py (moved from tools_meta.json)
 def _load_phase_tool_budgets() -> dict[str, dict[str, int]]:
     cfg = _get_config()
     return {
@@ -411,15 +406,6 @@ _TOOL_ADVISORY_LEVELS: dict[str, dict[str, str]] = {
 }
 
 
-# ── Dynamic exploration hint generation ──────────────────────────────────────
-# Hints loaded from tools_meta.json → phase_exploration_hints
-# Replaces hardcoded hint lists.  Hints are generated per-session from:
-# 1. What the target LOOKS LIKE (tech stack, TLD, URL patterns)
-# 2. What has already been DONE (evidence log, tools used)
-# 3. What has NOT been tried yet
-#
-# This ensures no two targets get the same hint list.
-
 _HINT_POOLS: dict[str, list[str]] = _TOOLS_META.get("phase_exploration_hints", {})
 
 
@@ -433,7 +419,6 @@ def _generate_dynamic_hints(
     hints: list[str] = []
     phase_value = phase.value
 
-    # Get target context
     technologies = {}
     urls = []
     vuln_types_tested: set[str] = set()
@@ -443,7 +428,6 @@ def _generate_dynamic_hints(
     except AttributeError:
         pass
 
-    # Build tested vuln types
     for ev in evidence_log:
         tags = ev.get("tags", []) or []
         for tag in tags:
@@ -451,23 +435,18 @@ def _generate_dynamic_hints(
                 vuln_types_tested.add(tag.lower())
 
     if phase_value == "RECON":
-        # Stage hints based on what's been found so far
         has_subdomains = bool(getattr(session, "subdomains", []))
         has_live = bool(getattr(session, "live_hosts", []))
         if not has_subdomains:
-            # Early RECON: surface discovery
             pool = _HINT_POOLS["recon_osint"] + _HINT_POOLS["recon_surface"]
         elif has_subdomains and not has_live:
-            # Mid RECON: validation
             hints.append(
                 "You have subdomains — validate which are ALIVE before deeper scanning"
             )
             pool = _HINT_POOLS["recon_fingerprint"]
         else:
-            # Late RECON: depth
             pool = _HINT_POOLS["recon_surface"] + _HINT_POOLS["recon_fingerprint"]
 
-        # Add tech-specific hints if we know the stack
         if technologies:
             tech_names = list(technologies.keys())
             hints.append(
@@ -475,7 +454,6 @@ def _generate_dynamic_hints(
                 f"Research version-specific recon techniques for these technologies."
             )
 
-        # Rotate to ensure variety across iterations
         if pool:
             rotation = iteration % max(1, len(pool))
             n = min(3, len(pool))
@@ -485,10 +463,8 @@ def _generate_dynamic_hints(
             hints.extend(selected)
 
     elif phase_value == "ANALYSIS":
-        # Build hints from what we know about the target
         tech_names = list(technologies.keys())
 
-        # Auth-related if we have auth endpoints or sessions
         auth_keywords = {
             "login",
             "auth",
@@ -511,7 +487,6 @@ def _generate_dynamic_hints(
                 )
             )
 
-        # Tech-specific if we know the stack
         if tech_names:
             hints.append(
                 f"Technologies: {', '.join(tech_names[:4])}. "
@@ -524,7 +499,6 @@ def _generate_dynamic_hints(
                 )
             )
 
-        # Always include logic/approach hints
         hints.extend(
             random.sample(
                 _HINT_POOLS["analysis_logic"],
@@ -532,7 +506,6 @@ def _generate_dynamic_hints(
             )
         )
 
-        # Generic injection testing
         hints.extend(
             random.sample(
                 _HINT_POOLS["analysis_injection"],
@@ -540,7 +513,6 @@ def _generate_dynamic_hints(
             )
         )
 
-        # URL-pattern specific hints
         api_urls = [u for u in urls if "/api/" in str(u) or "/graphql" in str(u)]
         if api_urls:
             hints.append(
@@ -553,7 +525,6 @@ def _generate_dynamic_hints(
             hints.extend(api_specific)
 
     elif phase_value == "EXPLOIT":
-        # Exploitation should be guided by actual FINDINGS, not generic hints
         vuln_count = len(getattr(session, "vulnerabilities", []))
         if vuln_count == 0:
             hints.append(
@@ -566,7 +537,6 @@ def _generate_dynamic_hints(
                 f"and chaining related findings."
             )
 
-        # Add verification hints
         hints.extend(
             random.sample(
                 _HINT_POOLS["exploit_verify"],
@@ -574,7 +544,6 @@ def _generate_dynamic_hints(
             )
         )
 
-        # Add advanced hints if basic exploitation is failing
         _advanced_hints_failure_threshold = _get_phase_setting(
             "pipeline_advanced_hints_failure_threshold", 3
         )
@@ -586,11 +555,6 @@ def _generate_dynamic_hints(
                 )
             )
 
-    # Counterfactual injection: force assumption-challenging
-    # Adaptive frequency: scales based on engagement complexity
-    # - Simple targets: every X iterations (from config)
-    # - Complex targets (many vulns): every Y iterations (from config)
-    # - Stagnation: immediate trigger on 3+ consecutive failures
     vuln_count = len(getattr(session, "vulnerabilities", []) or [])
     _simple = _get_phase_setting("pipeline_counterfactual_interval_simple", 8)
     _complex = _get_phase_setting("pipeline_counterfactual_interval_complex", 5)
@@ -605,7 +569,6 @@ def _generate_dynamic_hints(
         if counterfactual:
             hints.append(counterfactual)
 
-    # Deduplicate
     unique = []
     seen: set[str] = set()
     for h in hints:
@@ -622,7 +585,6 @@ def _generate_counterfactual(
     vulns = getattr(session, "vulnerabilities", []) or []
     tech_names = list(technologies.keys()) if technologies else []
 
-    # Build counterfactual from actual session state, not from a static list
     counterfactuals = []
 
     if tech_names:
@@ -662,7 +624,6 @@ def _generate_counterfactual(
             "would be catastrophic? Test exactly that."
         )
 
-    # Rotate through available counterfactuals
     idx = int(session.scan_count or 0) % len(counterfactuals)
     return f"COUNTERFACTUAL CHALLENGE: {counterfactuals[idx]}"
 
@@ -681,7 +642,6 @@ class PipelineEngine:
 
         cfg = config if config is not None else _get_config()
 
-        # Load from config.py with dynamic defaults
         self._recon_min_subdomains: int = _get_phase_setting(
             "pipeline_recon_min_subdomains", 3
         )
@@ -694,7 +654,6 @@ class PipelineEngine:
             "pipeline_recon_hard_timeout", 60
         )
 
-        # Stagnation escape: max iterations per phase before forced transition
         self._exploit_max_iterations: int = getattr(
             cfg, "pipeline_exploit_max_iterations", 800
         )
@@ -705,7 +664,6 @@ class PipelineEngine:
             cfg, "pipeline_recon_max_iterations", 500
         )
 
-        # Track vuln count at phase entry to detect stagnation (no new vulns)
         self._phase_vuln_baseline: int = 0
 
         self._load_phase_prompts()
@@ -749,7 +707,7 @@ class PipelineEngine:
     def set_phase(self, phase: PipelinePhase) -> None:
         self.session.current_phase = phase.value
         self._phase_entry_iteration = self._current_iteration
-        self._previous_hints = []  # Reset hints on phase change
+        self._previous_hints = []
         logger.info("Pipeline phase set to: %s", phase.value)
 
     def set_ctf_mode(self, enabled: bool = True) -> None:
@@ -793,7 +751,6 @@ class PipelineEngine:
 
         iterations_in_phase = self._current_iteration - self._phase_entry_iteration
 
-        # Dynamic minimum: based on evidence collected, not just iteration count
         min_iterations = self._calculate_dynamic_min_iterations(current)
         if iterations_in_phase < min_iterations:
             logger.debug(
@@ -804,7 +761,6 @@ class PipelineEngine:
             )
             return False
 
-        # Hard cap: prevent infinite loops (loaded from config)
         _max_cap = _get_phase_setting("pipeline_max_iterations_cap", 350)
         MAX_PHASE_ITERATIONS = _max_cap
         if iterations_in_phase > MAX_PHASE_ITERATIONS:
@@ -816,7 +772,6 @@ class PipelineEngine:
             )
             return True
 
-        # Phase-specific transition logic (soft gates)
         if current == PipelinePhase.RECON:
             met_criteria = self._evaluate_criteria(current)
             has_any_data = bool(
@@ -826,10 +781,8 @@ class PipelineEngine:
                 or getattr(self.session, "live_hosts", [])
             )
 
-            # Check soft timeout: suggest transition but allow override
             if iterations_in_phase >= self._recon_soft_timeout:
                 if has_any_data:
-                    # Mandatory check: live_hosts_validated must be met to transition early
                     if "live_hosts_validated" in met_criteria:
                         logger.info(
                             "RECON soft timeout (%d iter) reached with data and mandatory met. Transitioning.",
@@ -837,7 +790,6 @@ class PipelineEngine:
                         )
                         return True
                     else:
-                        # Missing mandatory (e.g., live hosts); may continue until hard timeout
                         if iterations_in_phase >= self._recon_hard_timeout:
                             logger.warning(
                                 "RECON hard timeout (%d iter) with data but mandatory not met. Forcing transition.",
@@ -849,14 +801,12 @@ class PipelineEngine:
                         )
                         return False
                 else:
-                    # No data at all — force transition after soft timeout
                     logger.info(
                         "RECON soft timeout (%d iter) with no data; forcing transition.",
                         iterations_in_phase,
                     )
                     return True
 
-            # Flexible criteria: need ANY 2+ strong signals (was: need 3)
             has_subs = "subdomains_discovered" in met_criteria
             has_live = "live_hosts_validated" in met_criteria
             has_urls = "url_discovery_met" in met_criteria
@@ -887,7 +837,6 @@ class PipelineEngine:
                 )
                 return False
 
-        # For other phases: use confidence threshold (softer than before)
         met_criteria = self._evaluate_criteria(current)
         total = len(config.transition_criteria)
         coverage = len(met_criteria) / max(1, total) if total > 0 else 0
@@ -900,7 +849,6 @@ class PipelineEngine:
             total,
         )
 
-        # Lower confidence threshold (was 0.55-0.60, now 0.50-0.55)
         confidence = self._phase_transition_confidence(
             current,
             met_criteria=met_criteria,
@@ -921,7 +869,6 @@ class PipelineEngine:
 
     def _calculate_dynamic_min_iterations(self, phase: PipelinePhase) -> int:
         if phase == PipelinePhase.RECON:
-            # If we have some data, min 10 iter (cooldown); if nothing, min 20 iter
             has_data = bool(
                 getattr(self.session, "urls", [])
                 or getattr(self.session, "open_ports", {})
@@ -929,10 +876,8 @@ class PipelineEngine:
             )
             return 10 if has_data else 20
         elif phase == PipelinePhase.ANALYSIS:
-            # Min 3 iterations to analyze
             return 3
         elif phase == PipelinePhase.EXPLOIT:
-            # Min 2 iterations
             return 2
         return 5
 
@@ -1216,9 +1161,6 @@ class PipelineEngine:
             if getattr(session, "technologies", {}):
                 met.append("technologies_identified")
 
-            # FIX: Replace hardcoded _MEANINGFUL_TYPES with broader, extensible check
-            # Old: frozenset({"IDOR", "SSRF", "PATH_TRAVERSAL", "SQLi", "XSS", "AUTH", "BUSINESS_LOGIC", "RCE"})
-            # New: accept ANY non-trivial type_hint — not just the OWASP popular ones
             _ips = getattr(session, "injection_points", [])
             _has_meaningful = any(
                 p.get("type_hint") and str(p.get("type_hint", "")).strip() for p in _ips
@@ -1370,7 +1312,6 @@ class PipelineEngine:
         iterations_in_phase = self._current_iteration - self._phase_entry_iteration
         current_vulns = len(getattr(self.session, "vulnerabilities", []))
 
-        # ── Stagnation escape: force transition when iterations exhausted ──
         _stagnation_max = {
             PipelinePhase.RECON: self._recon_max_iterations,
             PipelinePhase.ANALYSIS: self._analysis_max_iterations,
@@ -1378,7 +1319,6 @@ class PipelineEngine:
         }.get(current, 999999)
         _stagnation_trigger = iterations_in_phase >= _stagnation_max
 
-        # Also trigger if no new vulns appeared in last X iterations (from config)
         _stag_vuln_iters = _get_phase_setting(
             "pipeline_stagnation_vuln_baseline_iterations", 30
         )
@@ -1495,16 +1435,10 @@ class PipelineEngine:
 
         skill_line = ""
 
-        # FIX: Replace hardcoded _PHASE_SKILL_HINTS with adaptive skill suggestions
-        # Old: "Phase skills: reconnaissance/, protocols/, tools/" (same for EVERY target)
-        # New: derive from what's been tested vs what hasn't, plus tech stack
         skill_hint = self._dynamic_skill_hint(current)
         if skill_hint:
             skill_line = f"\n{skill_hint}"
 
-        # FIX: Replace random sampling from static hint list with dynamic generation
-        # Old: random.sample(fixed_18_hints, 5) — same hints for every target
-        # New: _generate_dynamic_hints() builds hints from actual target context
         exploration_line = ""
         dynamic_hints = _generate_dynamic_hints(
             phase=current,
@@ -1516,11 +1450,9 @@ class PipelineEngine:
             else 0,
         )
 
-        # Avoid showing exactly the same hints as the previous prompt
         if dynamic_hints:
             new_hints = [h for h in dynamic_hints if h not in self._previous_hints]
             if len(new_hints) < len(dynamic_hints) // 2:
-                # Most hints are repeats — force variety by clearing previous
                 self._previous_hints = []
                 new_hints = dynamic_hints
             self._previous_hints = new_hints[:5]
@@ -1539,12 +1471,10 @@ class PipelineEngine:
         parts: list[str] = []
         phase_value = phase.value
 
-        # Load skills catalog
         skills_path = Path(__file__).parent.parent / "skills"
         if not skills_path.is_dir():
             return None
 
-        # What has been tested (from evidence + session vulns)
         tested: set[str] = set()
         try:
             for ev in self.state.evidence_log:
@@ -1559,7 +1489,6 @@ class PipelineEngine:
         except (AttributeError, Exception):
             pass
 
-        # What skill files exist in relevant directories
         phase_dirs = {
             "RECON": {"reconnaissance", "protocols"},
             "ANALYSIS": {"vulnerabilities", "frameworks", "technologies"},
@@ -1578,7 +1507,6 @@ class PipelineEngine:
                     untested_skills.append(rel)
 
         if untested_skills:
-            # Suggest 3 untested skills most relevant to current tech stack
             techs = getattr(self.session, "technologies", {}) or {}
             tech_names = list(techs.keys())
 
@@ -1589,7 +1517,6 @@ class PipelineEngine:
                 for tech in tech_names:
                     if tech.lower() in skill_lower:
                         score += 3
-                # Prioritize vulnerability skills in ANALYSIS and EXPLOIT
                 if (
                     phase_value in ("ANALYSIS", "EXPLOIT")
                     and "vulnerabilities" in skill_lower
@@ -1612,7 +1539,6 @@ class PipelineEngine:
                 else:
                     parts.append(f"Available skills for this phase: {untested_str}")
         else:
-            # All skills tested — suggest chaining
             parts.append(
                 "All phase skills have been tested — focus on chaining confirmed findings "
                 "into multi-step attack scenarios."

@@ -11,7 +11,9 @@ from typing import Any, Callable
 
 from ..caido_client import CaidoClient
 from ..config import get_config, get_workspace_root
+from ..docker import _host_operand_spans, rewrite_host_workspace_paths
 from ..mcp import mcp_call_tool, mcp_list_tools, mcp_search_tools_payload
+from ..scope import check_network_tool_scope
 from .executors_catalog import (
     _AIRECON_TOOL_NAMES,
     _MAX_COMMAND_LENGTH,
@@ -22,9 +24,10 @@ from .models import ToolExecution
 
 logger = logging.getLogger("airecon.agent")
 
+_RELATIVE_REMAINDER_RE = re.compile(r"/[A-Za-z0-9_.]")
+
 
 class _DispatchExecutorMixin:
-    # tool_name -> (method_name, needs_on_output)
     _TOOL_DISPATCH_MAP: dict[str, tuple[str, bool]] = {
         "advanced_fuzz": ("_execute_advanced_fuzz_tool", False),
         "quick_fuzz": ("_execute_quick_fuzz_tool", False),
@@ -45,7 +48,6 @@ class _DispatchExecutorMixin:
         "schemathesis_fuzz": ("_execute_schemathesis_tool", False),
         "request_user_input": ("_execute_request_user_input", False),
         "load_skill": ("_exec_load_skill", False),
-        # Utility tools
         "python_session": ("_execute_python_session_tool", False),
         "edit_file": ("_execute_edit_file_tool", False),
         "think": ("_execute_think_tool", False),
@@ -63,9 +65,12 @@ class _DispatchExecutorMixin:
         arguments: dict[str, Any],
         on_output: Callable | None = None,
     ):
+        scope_error = check_network_tool_scope(tool_name, arguments)
+        if scope_error:
+            return False, 0.0, {"success": False, "error": scope_error}, None
         entry = self._TOOL_DISPATCH_MAP.get(tool_name)
         if entry is None:
-            return None  # not a dispatched tool
+            return None
         method_name, needs_on_output = entry
         method = getattr(self, method_name)
         if needs_on_output:
@@ -95,7 +100,6 @@ class _DispatchExecutorMixin:
             except Exception as _e:
                 logger.debug("Could not build parent context for subagents: %s", _e)
 
-        # Block tools that subagents should not use — loaded from tools_meta.json
         _meta_path = Path(__file__).parent.parent / "data" / "tools_meta.json"
         _subagent_block = {"execute", "browser_action", "web_search", "http_observe"}
         try:
@@ -103,7 +107,6 @@ class _DispatchExecutorMixin:
                 import json as _json
 
                 _meta = _json.loads(_meta_path.read_text(encoding="utf-8"))
-                # Subagents should not use parent-level orchestration tools
                 _subagent_block |= set(
                     _meta.get("categories", {})
                     .get("utilities", {})
@@ -114,7 +117,9 @@ class _DispatchExecutorMixin:
                 "Could not load subagent blocklist from tools_meta.json: %s", exc
             )
         tools_to_block = _subagent_block
+        newly_blocked: set[str] = set()
         if hasattr(self, "_blocked_tools"):
+            newly_blocked = tools_to_block - self._blocked_tools
             self._blocked_tools.update(tools_to_block)
             logger.info("Blocked tools during run_parallel_agents: %s", tools_to_block)
 
@@ -131,7 +136,7 @@ class _DispatchExecutorMixin:
                 return
             _seen_progress.add(key)
             if message.startswith("✅") or message.startswith("❌"):
-                _seen_progress.clear()  # Reset on completion
+                _seen_progress.clear()
 
             line = f"[{target}] {message}"
             progress_lines.append(line)
@@ -329,10 +334,10 @@ class _DispatchExecutorMixin:
                 "progress_log": progress_lines[-20:] if progress_lines else [],
             }
             success = False
-
-        if hasattr(self, "_blocked_tools"):
-            self._blocked_tools.difference_update(tools_to_block)
-            logger.info("Unblocked tools after run_parallel_agents: %s", tools_to_block)
+        finally:
+            if hasattr(self, "_blocked_tools"):
+                self._blocked_tools.difference_update(newly_blocked)
+                logger.info("Unblocked tools after run_parallel_agents: %s", newly_blocked)
 
         duration = time.time() - start_time
 
@@ -366,47 +371,44 @@ class _DispatchExecutorMixin:
         return tool_name, json.dumps(args_copy, sort_keys=True, default=str)
 
     @staticmethod
+    def _rewrite_host_workspace_paths(cmd: str) -> str:
+        if not cmd:
+            return cmd
+        try:
+            host_root = str(get_workspace_root()).rstrip("/")
+        except Exception as exc:  # pragma: no cover — config unavailable
+            logger.debug("Could not resolve workspace root for remap: %s", exc)
+            return cmd
+        return rewrite_host_workspace_paths(cmd, host_root=host_root)
+
+    @staticmethod
     def _normalize_workspace_paths(cmd: str, target: str) -> str:
         if not cmd or not target:
             return cmd
 
-        # Handle paths like "target/target/" -> "target/"
-        double_target = f"{target}/{target}/"
-        if double_target in cmd:
-            cmd = cmd.replace(double_target, target + "/")
+        cmd = _DispatchExecutorMixin._rewrite_host_workspace_paths(cmd)
 
-        # Handle paths where the command references the target from within
-        # the workspace dir (which is already the target dir):
-        #   "target.com/output" or "/workspace/target.com/output" -> "output"
-        replacements = [
-            f"/workspace/{target}/",
-            f"/workspace/{target}",
-        ]
-        for old_path in replacements:
-            if old_path in cmd:
-                cmd = cmd.replace(old_path, "")
-
-        # Also handle bare "target.com/" prefix in any path segment after the target itself.
-        # Since we're already cd'd into /workspace/<target>, "target.com/anything" -> "anything"
-        # This covers: -o target/output, mkdir target/output, cat target/file, etc.
-        # We must be careful not to break: curl https://target.com/api, curl api.target.com
-        target_prefix = f"{target}/"
-        if target_prefix in cmd:
-            # Match output flags: -o[NAGX], --output=, >
-            output_flag_pattern = rf"(?:-o[NAGX]?\s+|--output(?:-directory)?\s*=?\s*|>\s*)(\S*{re.escape(target_prefix)}\S*)"
-            for match in re.finditer(output_flag_pattern, cmd):
-                full = match.group(1)
-                if target_prefix in full:
-                    replacement = full.replace(target_prefix, "", 1)
-                    cmd = cmd.replace(full, replacement, 1)
-
-            # Also handle standalone paths: mkdir, cat, echo > target/output
-            bare_path_pattern = rf"(?:(?:mkdir|cp|mv|rm|touch|ls|cat|tee)\s+)(.*?{re.escape(target_prefix)}\S*)"
-            for match in re.finditer(bare_path_pattern, cmd):
-                full = match.group(1)
-                if target_prefix in full:
-                    replacement = full.replace(target_prefix, "", 1)
-                    cmd = cmd.replace(full, replacement, 1)
+        prefixes = (f"./{target}", target)
+        while target in cmd:
+            cuts = sorted(
+                {
+                    (start, end + 1)
+                    for prefix in prefixes
+                    for start, end in _host_operand_spans(cmd, prefix)
+                    if _RELATIVE_REMAINDER_RE.match(cmd, end)
+                }
+            )
+            if not cuts:
+                break
+            kept: list[str] = []
+            pos = 0
+            for start, end in cuts:
+                if start < pos:
+                    continue
+                kept.append(cmd[pos:start])
+                pos = end
+            kept.append(cmd[pos:])
+            cmd = "".join(kept)
 
         return cmd
 
@@ -438,13 +440,14 @@ class _DispatchExecutorMixin:
                 None,
             )
 
+        scope_error = check_network_tool_scope(tool_name, arguments)
+        if scope_error:
+            return False, 0.0, {"success": False, "error": scope_error}, None
+
         args_key = self._normalize_args_for_dedup(tool_name, arguments)
         count = self._executed_tool_counts.get(args_key, 0)
         limit = get_config().agent_repeat_tool_call_limit
 
-        # MCP meta-operations (list_tools, search_tools) are read-only discovery
-        # calls — they must never be blocked by dedup. Only call_tool with the
-        # same tool+args combination is subject to repeat limits.
         _mcp_meta_action = (
             tool_name.startswith("mcp_")
             and str(arguments.get("action", "")).strip().lower()
@@ -504,7 +507,6 @@ class _DispatchExecutorMixin:
                 tool = str(arguments.get("tool", "")).strip()
                 raw_args = arguments.get("arguments", {})
 
-                # {"action":"call_tool","arguments":{"tool":"x","arguments":{...}}}
                 if not tool and isinstance(raw_args, dict):
                     tool = str(raw_args.get("tool", "")).strip()
                     nested_args = raw_args.get("arguments", {})
@@ -579,9 +581,6 @@ class _DispatchExecutorMixin:
                     None,
                 )
 
-            # Scope guard + audit trail (config-driven). Default mode "warn" is
-            # non-blocking; only scope_enforcement=block refuses out-of-scope
-            # hosts. Every command is recorded to the persistent audit log.
             try:
                 from ..scope import audit_log, get_scope_guard
 
@@ -615,7 +614,16 @@ class _DispatchExecutorMixin:
                 if not _in_scope:
                     logger.warning("Scope advisory (execute): %s", _scope_reason)
             except Exception as _scope_err:
-                logger.debug("scope guard check skipped: %s", _scope_err)
+                logger.error("scope guard failed closed for execute: %s", _scope_err)
+                return (
+                    False,
+                    0.0,
+                    {
+                        "success": False,
+                        "error": "Scope guard failed; command was not run.",
+                    },
+                    None,
+                )
 
             _cmd_stripped = cmd.strip().lower()
             _is_caido_setup = "caido-setup" in _cmd_stripped
@@ -730,6 +738,10 @@ class _DispatchExecutorMixin:
                         },
                         None,
                     )
+            if cmd:
+                cmd = self._rewrite_host_workspace_paths(cmd)
+                arguments["command"] = cmd
+
             if self.state.active_target and cmd and not cmd.strip().startswith("cd "):
                 workspace_dir = f"/workspace/{self.state.active_target}"
                 host_workspace = get_workspace_root() / self.state.active_target
@@ -743,9 +755,6 @@ class _DispatchExecutorMixin:
                     except Exception as _e:
                         logger.debug("Could not create subdir %s: %s", subdir, _e)
 
-                # Sanitize: rewrite nested workspace paths to relative equivalents.
-                # E.g. "target/target/output/file.txt" -> "output/file.txt"
-                # E.g. "target/output/file.txt" -> "output/file.txt"
                 target = self.state.active_target
                 cmd = self._normalize_workspace_paths(cmd, target)
 

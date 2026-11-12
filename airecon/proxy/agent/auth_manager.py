@@ -44,7 +44,6 @@ _AUTH_FAILURE_PATTERNS, _LOGIN_FORM_PATTERNS = _load_auth_patterns()
 
 
 class AuthManager: 
-
     def __init__(self, timeout: int = 30):
         self.timeout = timeout
         self.client = httpx.AsyncClient(
@@ -137,7 +136,6 @@ class AuthManager:
             return await self.handle_csrf_failure(target_url)
 
         if failure_type == "403_forbidden":
-
             return await self.auto_reauth(target_url)
 
         return False

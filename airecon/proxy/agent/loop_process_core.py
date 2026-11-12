@@ -39,7 +39,6 @@ class _ProcessMessageCoreMixin(_MessageEntryMixin, _ToolCycleMixin):
         else:
             if trace_id:
                 _trace_chat_event(trace_id, "agent_loop_finished")
-            # Best-effort completion notification (webhook + workspace flag).
             try:
                 from ..notify import notify_completion
 

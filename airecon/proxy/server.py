@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import tempfile
+import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -560,67 +561,85 @@ async def lifespan(app: FastAPI):
     )
     logger.info(f"  Docker image: {cfg.docker_image}")
 
-    startup_failed = False
+    created_llm = None
+    created_engine = None
+    created_agent = None
+    llm_client = None
+    engine = None
+    agent = None
 
     try:
-        llm_client = create_llm_client()
-        await llm_client._async_init()
-        engine = DockerEngine()
-        agent = AgentLoop(llm=llm_client, engine=engine)
-
-        llm_ok = await llm_client.health_check()
-        logger.info(
-            f"  LLM status: {'✓ connected' if llm_ok else '✗ unavailable'}"
-        )
-
-        if cfg.docker_auto_build:
-            image_ok = await engine.ensure_image()
-            logger.info(f"  Docker image: {'✓ ready' if image_ok else '✗ failed'}")
-
-        container_ok = await engine.start_container()
-        logger.info(f"  Container: {'✓ running' if container_ok else '✗ failed'}")
-
         try:
-            await agent.initialize()
-            try:
-                _mcp_prewarm_task = asyncio.create_task(
-                    _prewarm_mcp_servers(wait_timeout=20.0),
-                    name="mcp-prewarm",
-                )
-            except Exception as _mcp_err:
-                logger.warning("MCP prewarm scheduling failed: %s", _mcp_err)
-        except Exception as e:
-            logger.error(
-                f"Agent initialization failed: {e}. Marking agent unavailable."
+            llm_client = created_llm = create_llm_client()
+            await llm_client._async_init()
+            engine = created_engine = DockerEngine()
+            agent = created_agent = AgentLoop(llm=llm_client, engine=engine)
+
+            llm_ok = await llm_client.health_check()
+            logger.info(
+                f"  LLM status: {'✓ connected' if llm_ok else '✗ unavailable'}"
             )
+
+            if cfg.docker_auto_build:
+                image_ok = await engine.ensure_image()
+                logger.info(f"  Docker image: {'✓ ready' if image_ok else '✗ failed'}")
+
+            container_ok = await engine.start_container()
+            logger.info(f"  Container: {'✓ running' if container_ok else '✗ failed'}")
+
+            try:
+                await agent.initialize()
+                try:
+                    _mcp_prewarm_task = asyncio.create_task(
+                        _prewarm_mcp_servers(wait_timeout=20.0),
+                        name="mcp-prewarm",
+                    )
+                except Exception as _mcp_err:
+                    logger.warning("MCP prewarm scheduling failed: %s", _mcp_err)
+            except Exception as e:
+                logger.error(
+                    f"Agent initialization failed: {e}. Marking agent unavailable."
+                )
+                agent = None
+        except Exception as e:
+            logger.exception("Startup failed: %s", e)
+            llm_client = None
+            engine = None
             agent = None
 
-    except Exception as e:
-        logger.exception("Startup failed: %s", e)
-        startup_failed = True
+        yield
+    finally:
+        if _mcp_prewarm_task is not None:
+            if not _mcp_prewarm_task.done():
+                _mcp_prewarm_task.cancel()
+            try:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await _mcp_prewarm_task
+            except Exception as exc:
+                logger.error("MCP prewarm shutdown failed: %s", exc)
+            _mcp_prewarm_task = None
 
-    yield
-
-    if startup_failed:
-        logger.info("Skipping shutdown cleanup (startup failed)")
-    else:
-        if agent:
+        if created_agent is not None:
             try:
                 logger.info("Saving session before shutdown...")
-                await agent.stop()
+                await created_agent.stop()
                 logger.info("Session saved successfully")
             except Exception as e:
                 logger.error(f"Failed to save session during shutdown: {e}")
 
-        if _mcp_prewarm_task and not _mcp_prewarm_task.done():
-            _mcp_prewarm_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await _mcp_prewarm_task
-
-        if llm_client:
-            await llm_client.close()
-        if engine:
-            await engine.close()
+        if created_llm is not None:
+            try:
+                await created_llm.close()
+            except Exception as exc:
+                logger.error("LLM client shutdown failed: %s", exc)
+        if created_engine is not None:
+            try:
+                await created_engine.close()
+            except Exception as exc:
+                logger.error("Docker engine shutdown failed: %s", exc)
+        llm_client = None
+        engine = None
+        agent = None
         logger.info("AIRecon Proxy shutdown complete")
 
 
@@ -639,7 +658,6 @@ app.add_middleware(
 )
 
 if os.environ.get("AIRECON_DEBUG"):
-
     @app.middleware("http")
     async def _log_requests(request: Request, call_next):
         _t0 = time.monotonic()
@@ -686,7 +704,7 @@ class ShellRequest(BaseModel):
 
 
 class ScopeUpdateRequest(BaseModel):
-    action: str = Field(..., min_length=1, max_length=16)  # allow|deny|mode|clear|show
+    action: str = Field(..., min_length=1, max_length=16)
     hosts: list[str] = Field(default_factory=list)
     mode: str | None = Field(default=None, max_length=16)
 
@@ -804,6 +822,9 @@ async def get_status() -> ORJSONResponse:
             if llm_ok:
                 _llm_last_ok_at = current_time
                 _llm_last_known_ok = True
+            else:
+                _llm_last_ok_at = 0.0
+                _llm_last_known_ok = False
         except asyncio.TimeoutError:
             llm_probe_soft_fail = True
             logger.debug(
@@ -922,11 +943,8 @@ async def get_status() -> ORJSONResponse:
 
     _active_model = getattr(llm_client, "model", None) or cfg.openai_model
     _active_url = cfg.openai_base_url
-    _backend_label = "OpenAI"
+    _backend_label = "Anthropic" if str(getattr(cfg, "llm_provider", "openai")).lower() in ("anthropic", "claude") else "OpenAI"
 
-    # Tool/service readiness dashboard. The Docker sandbox is where the CLI tools
-    # (nuclei/nmap/ffuf/…) live, so docker_ok is their readiness proxy; browser
-    # and MCP readiness are reported from agent stats when present.
     _browser_ready = False
     _mcp_ready = False
     if isinstance(agent_stats, dict):
@@ -939,13 +957,9 @@ async def get_status() -> ORJSONResponse:
         if isinstance(_mcp_info, dict):
             _mcp_ready = bool(_mcp_info.get("connected") or _mcp_info.get("servers"))
 
-    # Real per-binary tool availability (cached). All-present => True; any missing
-    # => False (with per-tool detail in tools_detail). Empty dict => probe couldn't
-    # run, caller falls back to docker_ok.
     _tool_detail = await _probe_sandbox_tools() if docker_ok else {}
     _cli_probe = all(_tool_detail.values()) if _tool_detail else None
 
-    # Scope guard + scan profile surfaced so the operator can see active posture.
     try:
         from .scope import get_scope_guard
 
@@ -980,8 +994,7 @@ async def get_status() -> ORJSONResponse:
             },
             "tools": {
                 "sandbox": docker_ok,
-                # Real per-binary availability probed in the sandbox (cached);
-                # falls back to the docker-readiness proxy when the probe can't run.
+
                 "cli_tools": (_cli_probe if _cli_probe else docker_ok),
                 "browser": _browser_ready,
                 "mcp": _mcp_ready,
@@ -1032,11 +1045,14 @@ async def get_progress():
 @app.get("/api/diagnostics")
 async def get_diagnostics() -> JSONResponse:
     cfg = get_config()
-    _backend = "openai"
+    _backend = str(getattr(cfg, "llm_provider", "openai"))
+    from .context_budget import pack_history
     _active_model = getattr(llm_client, "model", None) or cfg.openai_model
     health_status: dict[str, Any] = {
         "status": "ok",
         "timestamp": time.time(),
+        "runtime": {"source": str(Path(__file__).resolve()), "python": sys.executable,
+                    "pid": os.getpid(), "version": _version, "context_budget": callable(pack_history)},
         "components": {
             "llm": {"status": "disconnected", "details": {}},
             "docker": {"status": "disconnected", "details": {}},
@@ -1092,6 +1108,35 @@ async def get_diagnostics() -> JSONResponse:
     return JSONResponse(health_status)
 
 
+@app.get("/api/brain")
+async def get_brain() -> ORJSONResponse:
+    if not agent or not hasattr(agent, "_ensure_adaptive_learning_engine"):
+        return ORJSONResponse({"error": "agent not initialized"}, status_code=503)
+    try:
+        learning = agent._ensure_adaptive_learning_engine()
+        if learning is None:
+            return ORJSONResponse({"error": "adaptive learning disabled"}, status_code=503)
+        insights = sorted(learning.learned_insights, key=lambda i: (i.confidence, i.last_updated), reverse=True)[:30]
+        utility = learning._utility_map()
+        return ORJSONResponse({
+            "summary": learning.get_learning_summary(),
+            "semantic_recall": bool(getattr(learning, "_semantic_recall", False)),
+            "embedding_model": getattr(learning, "_embedding_model", ""),
+            "retrieval_mode": getattr(learning, "_last_recall_mode", "lexical"),
+            "insights": [{
+                "id": ins.insight_id, "category": ins.category, "title": ins.title,
+                "recommendation": ins.recommendation, "conditions": ins.conditions,
+                "confidence": ins.confidence, "observations": ins.observation_count,
+                "last_updated": ins.last_updated,
+                "recalls": utility.get(ins.insight_id, {}).get("recalls", 0),
+                "hits": utility.get(ins.insight_id, {}).get("hits", 0),
+            } for ins in insights],
+        })
+    except Exception as exc:
+        logger.exception("Brain read failed")
+        return ORJSONResponse({"error": str(exc)}, status_code=500)
+
+
 @app.get("/api/models")
 async def list_models() -> ORJSONResponse:
     cfg = get_config()
@@ -1108,9 +1153,6 @@ async def list_models() -> ORJSONResponse:
             status_code=502,
         )
 
-    # Cheap, no-network capability hint per model: how AIRecon would request
-    # reasoning for it in the current request_mode (auto/off/reasoning_effort/
-    # enable_thinking). Lets the UI show which models are reasoning-capable.
     capabilities: dict[str, str] = {}
     try:
         from .llm import LLMClient
@@ -1119,8 +1161,7 @@ async def list_models() -> ORJSONResponse:
         _probed_unsupported = getattr(LLMClient, "_reasoning_unsupported", set()) or set()
         for _m in models:
             _name = str(_m)
-            # Models the runtime probe has already learned to reject reasoning
-            # params are reported as "off" regardless of the optimistic strategy.
+
             if _name in _probed_unsupported:
                 capabilities[_name] = "off"
             else:
@@ -1294,9 +1335,6 @@ async def shell_execute(request: ShellRequest) -> ORJSONResponse:
             status_code=400,
         )
 
-    # Manual /shell commands go through the SAME scope guard + audit log as the
-    # agent's execute path, so the audit trail is complete and out-of-scope hosts
-    # are refused under scope_enforcement=block (default "warn" is non-blocking).
     try:
         from .scope import audit_log, get_scope_guard
 
@@ -1326,7 +1364,15 @@ async def shell_execute(request: ShellRequest) -> ORJSONResponse:
                 status_code=400,
             )
     except Exception as _scope_err:
-        logger.debug("scope guard skipped for /shell: %s", _scope_err)
+        logger.error("scope guard failed closed for /shell: %s", _scope_err)
+        return ORJSONResponse(
+            {
+                "success": False,
+                "blocked": True,
+                "error": "Scope guard failed; command was not run.",
+            },
+            status_code=500,
+        )
 
     args: dict[str, Any] = {"command": command}
     if request.timeout is not None:
@@ -2146,10 +2192,6 @@ async def get_history() -> JSONResponse:
             and hasattr(saved_session, "conversation")
             and saved_session.conversation
         ):
-            # Keep chat (user/assistant/tool) messages AND the progress-bearing
-            # system messages (compression summary, pinned findings, phase
-            # context). Dropping ALL system messages made resume show almost
-            # nothing once the conversation had been compacted into summaries.
             _progress_system_prefixes = (
                 "[SYSTEM: COMPRESSION SUMMARY",
                 "[SYSTEM: PINNED CONTEXT",
@@ -2157,23 +2199,19 @@ async def get_history() -> JSONResponse:
                 "[SYSTEM: EXPLOIT PHASE",
                 "[SYSTEM: REPORT PHASE",
             )
-            # Prefer the persistent raw-turn buffer (survives compaction) for the
-            # chat replay; fall back to whatever survived in the conversation.
+
             recent_turns = list(getattr(saved_session, "recent_turns", []) or [])
             chat_source = recent_turns if recent_turns else [
                 m for m in saved_session.conversation if m.get("role") != "system"
             ]
             messages = list(chat_source)
-            # Always keep progress-bearing system messages from the conversation.
+
             for msg in saved_session.conversation:
                 if msg.get("role") == "system" and str(
                     msg.get("content", "")
                 ).startswith(_progress_system_prefixes):
                     messages.append(msg)
 
-            # Prepend a recap synthesized from the durable structured state so the
-            # operator always sees prior progress (tools run, phases, findings)
-            # even when the raw chat/tool turns were compacted away.
             recap = _build_session_recap(saved_session)
             if recap:
                 messages = [{"role": "system", "content": recap}] + messages

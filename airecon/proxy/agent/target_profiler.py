@@ -13,21 +13,17 @@ from ..data_loader import load_tech_correlations
 
 logger = logging.getLogger("airecon.agent.target_profiler")
 
-# ── Technology Signatures — built dynamically from tech_correlations.json ─────
 _TECH_CORRELATIONS: dict[str, Any] = load_tech_correlations()
 
 _TECH_SIGNATURES: dict[str, list[re.Pattern]] = {}
 for tech_name, tech_data in _TECH_CORRELATIONS.items():
     patterns: list[re.Pattern] = []
-    # Build patterns from tech name itself
     patterns.append(re.compile(re.escape(tech_name), re.IGNORECASE))
-    # Add patterns from known paths
     for path in tech_data.get("paths", []):
         if path and path != "/":
             patterns.append(re.compile(re.escape(path), re.IGNORECASE))
     _TECH_SIGNATURES[tech_name] = patterns
 
-# ── Security Header Checks ──────────────────────────────────────────────────
 _SECURITY_HEADERS: dict[str, str] = {
     "strict-transport-security": "HSTS not configured — vulnerable to MITM attacks that can intercept and modify traffic in transit",
     "content-security-policy": "CSP not configured — vulnerable to XSS, data injection, and clickjacking attacks via uncontrolled resource loading",
@@ -39,7 +35,6 @@ _SECURITY_HEADERS: dict[str, str] = {
     "cache-control": "Cache-Control missing — sensitive data, authentication tokens, and private responses may be cached by intermediaries or shared browsers",
 }
 
-# ── Security Posture Scoring ─────────────────────────────────────────────────
 _SECURITY_WEIGHTS: dict[str, float] = {
     "missing_security_headers": 0.15,
     "outdated_technology": 0.20,
@@ -61,7 +56,7 @@ class TechFingerprint:
 @dataclass
 class SecurityFinding:
     category: str
-    severity: str  # critical, high, medium, low, info
+    severity: str
     title: str
     description: str
     evidence: str = ""
@@ -74,8 +69,8 @@ class TargetProfile:
     profiled_at: float = 0.0
     technologies: list[TechFingerprint] = field(default_factory=list)
     security_findings: list[SecurityFinding] = field(default_factory=list)
-    security_score: float = 0.0  # 0-100, lower = worse
-    risk_level: str = "unknown"  # critical, high, medium, low
+    security_score: float = 0.0
+    risk_level: str = "unknown"
     attack_surface: dict[str, Any] = field(default_factory=dict)
     headers: dict[str, str] = field(default_factory=dict)
     status_code: int = 0
@@ -113,23 +108,18 @@ class TargetProfiler:
                 profile.server_info = resp.headers.get("Server", "")
                 profile.cookies = list(resp.cookies.keys())
 
-                # Detect technologies
                 profile.technologies = self._detect_technologies(resp)
 
-                # Assess security posture
                 profile.security_findings = self._assess_security_posture(resp)
 
-                # Calculate security score
                 profile.security_score = self._calculate_security_score(
                     profile.security_findings
                 )
 
-                # Determine risk level
                 profile.risk_level = self._determine_risk_level(
                     profile.security_score, profile.technologies
                 )
 
-                # Map attack surface
                 profile.attack_surface = self._map_attack_surface(
                     profile.technologies, profile.headers
                 )
@@ -163,7 +153,6 @@ class TargetProfiler:
             for pattern in patterns:
                 match = pattern.search(combined)
                 if match:
-                    # Try to extract version
                     version_match = re.search(
                         rf"{tech_name}[/\s]([\d.]+)", combined, re.IGNORECASE
                     )
@@ -186,7 +175,6 @@ class TargetProfiler:
                     )
                     break
 
-        # Check for specific tech indicators
         if resp.headers.get("X-Generator"):
             detected.append(
                 TechFingerprint(
@@ -212,7 +200,6 @@ class TargetProfiler:
         findings: list[SecurityFinding] = []
         headers_lower = {k.lower(): v for k, v in resp.headers.items()}
 
-        # Check missing security headers
         for header, description in _SECURITY_HEADERS.items():
             if header not in headers_lower:
                 findings.append(
@@ -227,7 +214,6 @@ class TargetProfiler:
                     "[TargetProfile] Security finding: Missing %s header", header
                 )
 
-        # Check for information disclosure
         if "X-Powered-By" in resp.headers:
             findings.append(
                 SecurityFinding(
@@ -243,7 +229,6 @@ class TargetProfiler:
                 resp.headers["X-Powered-By"],
             )
 
-        # Check for verbose error messages
         if resp.status_code >= 400:
             error_indicators = [
                 "stack trace",
@@ -267,7 +252,6 @@ class TargetProfiler:
                     "[TargetProfile] Security finding: Verbose error messages detected"
                 )
 
-        # Check for insecure cookies
         for cookie_name in resp.cookies:
             cookie_lower = cookie_name.lower()
             if "session" in cookie_lower or "token" in cookie_lower:
@@ -285,7 +269,6 @@ class TargetProfiler:
                         cookie_name,
                     )
 
-        # Check for CORS misconfiguration
         acao = headers_lower.get("access-control-allow-origin", "")
         if acao == "*":
             findings.append(
@@ -367,7 +350,6 @@ class TargetProfiler:
             elif category == "cms":
                 surface["cms"].append(tech.name)
 
-        # Suggest attack vectors based on tech stack from tech_correlations.json
         for tech in technologies:
             tech_lower = tech.name.lower()
             if tech_lower in _TECH_CORRELATIONS:
@@ -431,7 +413,6 @@ class TargetProfiler:
         recommendations: list[str] = []
         _tech_names = [t.name.lower() for t in profile.technologies]
 
-        # Tech-specific recommendations from tech_correlations.json
         for tech_name in _tech_names:
             if tech_name in _TECH_CORRELATIONS:
                 tech_data = _TECH_CORRELATIONS[tech_name]
@@ -451,7 +432,6 @@ class TargetProfiler:
                         f"Known {tech_name} issues: {', '.join(vulns[:5])}"
                     )
 
-        # Security finding-based recommendations
         for finding in profile.security_findings:
             if finding.severity in ("critical", "high"):
                 recommendations.append(

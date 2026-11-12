@@ -6,10 +6,13 @@ import logging
 import shlex
 import time
 import warnings
+import httpx
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-from .models import AgentEvent, AgentState
+from ..llm import LLMBackendHTTPError, LLMReasoningReplayRequired, LLMToolCallError
+from ..context_budget import ContextBudgetError
+from .models import AgentEvent
 from .loop_cycle_prelude import _CyclePreludeMixin
 from .loop_cycle_llm import _CycleLlmMixin
 from .loop_cycle_post import _CyclePostMixin
@@ -20,7 +23,6 @@ logger = logging.getLogger("airecon.agent")
 try:
     from ..server import _trace_chat_event
 except (ImportError, ValueError):
-
     def _trace_chat_event(*args, **kwargs):
         pass
 
@@ -31,7 +33,7 @@ try:
     from ..data_loader import load_refusal_markers
 
     _REFUSAL_MARKERS: tuple[str, ...] = tuple(load_refusal_markers())
-except Exception as _e:  # data file optional — refusal labelling just disabled
+except Exception as _e:
     logger.debug("refusal markers unavailable (%s); refusal labelling disabled", _e)
     _REFUSAL_MARKERS = ()
 
@@ -39,7 +41,7 @@ try:
     from ..data_loader import load_awaiting_input_markers
 
     _AWAITING_INPUT_MARKERS: tuple[str, ...] = tuple(load_awaiting_input_markers())
-except Exception as _e:  # data file optional — graceful-stop labelling disabled
+except Exception as _e:
     logger.debug(
         "awaiting-input markers unavailable (%s); graceful-stop disabled", _e
     )
@@ -291,14 +293,11 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
             for phase_name, tools in phases.items():
                 if not isinstance(tools, list):
                     continue
-                # Find the phase where the failed binary belongs
                 if binary in [str(t).lower() for t in tools]:
-                    # Suggest other tools in the same phase
                     for t in tools:
                         t_str = str(t).lower()
                         if t_str != binary:
                             suggestions.append(t_str)
-                    # Also suggest adjacent phases in the same group
                     for other_phase, other_tools in phases.items():
                         if other_phase != phase_name and isinstance(other_tools, list):
                             for t in other_tools:
@@ -307,7 +306,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
             if suggestions:
                 break
 
-        # Fallback: if binary not found, suggest from web_probing/crawling as general recon
         if not suggestions and binary not in {"execute", "http_observe"}:
             general = (
                 categories.get("reconnaissance", {}).get("web_probing", [])
@@ -385,7 +383,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
             in_thinking_tag = False
             _carry = ""
 
-            # Track if this iteration used thinking (for consecutive thinking detection)
             _this_iteration_thinking = False
 
             adaptive_num_ctx = (
@@ -410,7 +407,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                 self.state.token_usage["limit"] = adaptive_num_ctx
 
             _ctx_used = self._recompute_used_tokens_from_conversation()
-            _budget_hard_limit = int(adaptive_num_ctx * 0.85)  # 85% safety margin
+            _budget_hard_limit = int(adaptive_num_ctx * 0.85)
 
             if adaptive_num_ctx > 0 and _ctx_used > _budget_hard_limit:
                 logger.error(
@@ -422,55 +419,17 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                     _budget_hard_limit,
                 )
                 try:
-                    self._compress_old_tool_outputs(aggressive=True)
-                    pinned = self._build_compressed_findings_summary()
-                    if pinned:
-                        self.state.conversation = [
-                            m
-                            for m in self.state.conversation
-                            if not m.get("content", "").startswith("[SYSTEM: PINNED CONTEXT")
-                        ]
-                        self.state.conversation.append(
-                            {"role": "system", "content": pinned}
-                        )
-
-                    _compress_ctx = min(8192, adaptive_num_ctx // 4)
-                    _keep_recent = self._calc_keep_recent(
-                        adaptive_num_ctx, minimum=35, maximum=55
+                    await self._enforce_char_budget(
+                        num_ctx=adaptive_num_ctx,
+                        num_predict=self._get_iteration_num_predict(cfg, current_phase, adaptive_num_ctx),
                     )
-                    await self.state.compress_with_llm(
-                        self.llm,
-                        keep_recent=_keep_recent,
-                        num_ctx=_compress_ctx,
-                        num_predict=1024,
-                        phase=current_phase.value if current_phase else "RECON",
-                    )
-                except Exception as compress_err:
-                    logger.warning(
-                        "Local compression failed (%s) — using gentle fallback",
-                        str(compress_err)[:120],
-                    )
-                    self._apply_local_context_fallback(
-                        reason="token budget exceeded",
-                        target_messages=40 if not self._ctf_mode else 16,
-                    )
+                except (ContextBudgetError, OSError) as budget_error:
+                    yield AgentEvent(type="error", data={"message": str(budget_error), "reason": "context_budget"})
+                    yield AgentEvent(type="done", data={})
+                    return
 
                 self._recompute_used_tokens_from_conversation()
                 _ctx_used = self.state.token_usage.get("used", 0) or 0
-                if adaptive_num_ctx > 0 and _ctx_used > _budget_hard_limit:
-                    self._apply_local_context_fallback(
-                        reason="token budget still high after compression",
-                        target_messages=32 if not self._ctf_mode else 14,
-                    )
-                    self._recompute_used_tokens_from_conversation()
-
-                yield AgentEvent(
-                    type="text",
-                    data={
-                        "content": "[SYSTEM: Context budget exceeded — compressed local context to preserve task memory]"
-                    },
-                )
-                continue
 
             _num_predict_cap: int | None = None
             if _ctx_used > 0 and adaptive_num_ctx > 0:
@@ -639,9 +598,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                 )
                 adaptive_num_predict = _num_predict_cap
 
-            # Inject full vulnerability evidence when entering REPORT phase
-            # BEFORE char budget so enforced budget accounts for injected data.
-            # Qodo review fix: was after budget = potential overflow.
             if current_phase.value == "REPORT":
                 try:
                     _report_ctx = self._build_report_phase_evidence()
@@ -654,14 +610,12 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                 except Exception as _rep_err:
                     logger.debug("REPORT evidence injection failed: %s", _rep_err)
 
-            # Inject learned insights — runs every iteration, independent of tool intelligence
             try:
                 _phase = self.pipeline.get_current_phase().value if self.pipeline else "RECON"
-                self._inject_learned_insights(_phase)
+                await self._inject_learned_insights_async(_phase)
             except Exception as _li_err:
                 logger.debug("Learned insights injection failed: %s", _li_err)
 
-            # Inject tool intelligence before LLM call
             try:
                 self._inject_tool_intelligence()
             except Exception as _inj_err:
@@ -672,10 +626,15 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                 _trace_chat_event(
                     trace_id, "iteration_budget_start", iteration=self.state.iteration
                 )
-            await self._enforce_char_budget(
-                num_ctx=adaptive_num_ctx,
-                num_predict=adaptive_num_predict,
-            )
+            try:
+                await self._enforce_char_budget(
+                    num_ctx=adaptive_num_ctx,
+                    num_predict=adaptive_num_predict,
+                )
+            except (ContextBudgetError, OSError) as budget_error:
+                yield AgentEvent(type="error", data={"message": str(budget_error), "reason": "context_budget"})
+                yield AgentEvent(type="done", data={})
+                return
             _budget_elapsed = time.monotonic() - _budget_start
             if trace_id and _budget_elapsed >= 1.0:
                 _trace_chat_event(
@@ -701,6 +660,11 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
 
             _last_chunk_data = {}
             _vram_retries_this_iter = 0
+            _context_retries_this_iter = 0
+            _replay_retry_used = False
+            _tool_argument_repairs = 0
+            self._pending_provider_blocks = None
+            self._pending_reasoning_content = None
 
             yield AgentEvent(
                 type="progress",
@@ -735,6 +699,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                             iteration=self.state.iteration,
                         )
                     await self._check_and_reset_context()
+                    await self._enforce_char_budget(adaptive_num_ctx, adaptive_num_predict)
                     _ctx_check_elapsed = time.monotonic() - _ctx_check_start
                     if _ctx_check_elapsed >= 2.0:
                         logger.warning(
@@ -769,7 +734,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
 
                     _stream_gen = self.llm.chat_stream(
                         messages=self._messages_for_llm(),
-                        tools=self._tools_llm,
+                        tools=getattr(self, "_tools_budgeted", None) or self._tools_llm,
                         options={
                             "num_ctx": adaptive_num_ctx,
                             "temperature": adaptive_temperature,
@@ -782,6 +747,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                         think=self._should_use_thinking(cfg, current_phase),
                         operation=str(current_phase or "chat").strip().lower(),
                         stop_requested_fn=lambda: self._stop_requested,
+                        max_retries=0,
                     )
 
                     async for chunk in _stream_gen:
@@ -798,7 +764,8 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                                     "content": f"[SYSTEM: LLM stream timeout after {_CHUNK_TIMEOUT}s — retrying]"
                                 },
                             )
-                            break
+                            await _stream_gen.aclose()
+                            raise TimeoutError("LLM inter-chunk timeout")
                         _last_chunk_time = _now
                         if hasattr(chunk, "model_dump"):
                             chunk_data = chunk.model_dump()
@@ -821,6 +788,10 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                             break
 
                         message = chunk_data.get("message", {})
+                        if "reasoning_content" in message:
+                            self._pending_reasoning_content = message["reasoning_content"]
+                        if message.get("_provider_blocks"):
+                            self._pending_provider_blocks = message["_provider_blocks"]
                         chunk_thinking = message.get("thinking")
                         chunk_tool_calls = message.get("tool_calls")
                         chunk_content = message.get("content", "")
@@ -907,35 +878,113 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                             prompt_eval_count + eval_count,
                             self.state.token_usage.get("cumulative", 0),
                         )
+                        if _last_chunk_data.get("done") and (content_acc or thinking_acc or tool_calls_acc):
+                            yield AgentEvent(type="llm_status", data={"recovered": True})
 
                     break
                 except Exception as stream_err:
                     err_str = str(stream_err)
                     err_lower = err_str.lower()
+                    if isinstance(stream_err, LLMToolCallError):
+                        if _tool_argument_repairs >= 2:
+                            yield AgentEvent(type="error", data={
+                                "message": f"Model returned invalid tool arguments after two correction requests: {err_str}",
+                                "reason": "invalid_tool_arguments",
+                            })
+                            yield AgentEvent(type="done", data={})
+                            return
+                        _tool_argument_repairs += 1
+                        definitions = [
+                            tool["function"] for tool in self._tools_llm or []
+                            if (tool.get("function") or {}).get("name") == stream_err.tool_name
+                        ]
+                        schema = definitions[0].get("parameters", {}) if definitions else {}
+                        self.state.conversation = [
+                            msg for msg in self.state.conversation
+                            if not str(msg.get("content", "")).startswith("[SYSTEM: TOOL CALL REPAIR]")
+                        ]
+                        self.state.conversation.append({"role": "system", "content": (
+                            "[SYSTEM: TOOL CALL REPAIR]\n"
+                            f"Your previous tool-call batch was rejected before execution: {err_str}\n"
+                            f"Required argument schema: {json.dumps(schema, ensure_ascii=False)}\n"
+                            "Send one complete tool call with valid JSON arguments and all required fields. "
+                            "For execute, command must be a non-empty string. "
+                            "No command from that rejected batch ran. Keep all user scope and safety constraints. "
+                            "If you cannot produce a valid call, explain the limitation without calling tools."
+                        )})
+                        thinking_acc = content_acc = _carry = ""
+                        tool_calls_acc = []
+                        self._pending_provider_blocks = None
+                        self._pending_reasoning_content = None
+                        in_thinking_tag = False
+                        _last_chunk_data = None
+                        yield AgentEvent(type="text", data={"content": (
+                            f"\n[AIRecon] Invalid tool arguments rejected; requesting correction ({_tool_argument_repairs}/2). No tool executed.\n"
+                        )})
+                        continue
+                    if isinstance(stream_err, (ContextBudgetError, OSError)):
+                        yield AgentEvent(type="error", data={"message": err_str, "reason": "context_budget"})
+                        yield AgentEvent(type="done", data={})
+                        return
+                    if isinstance(stream_err, LLMReasoningReplayRequired) and not _replay_retry_used:
+                        _replay_retry_used = True
+                        yield AgentEvent(type="text", data={"content": (
+                            "\n[AUTO-RECOVERY] Backend requires stored reasoning to be "
+                            "sent back; re-budgeting the request and retrying once.\n"
+                        )})
+                        thinking_acc = content_acc = _carry = ""
+                        tool_calls_acc = []
+                        in_thinking_tag = False
+                        continue
+                    if (
+                        isinstance(stream_err, LLMBackendHTTPError)
+                        and stream_err.is_context_error
+                    ):
+                        recover = getattr(self, "_recover_context_budget", None)
+                        if _context_retries_this_iter < 3 and callable(recover) and recover(adaptive_num_predict):
+                            _context_retries_this_iter += 1
+                            adaptive_num_predict = min(adaptive_num_predict, self._adaptive_num_predict_cap)
+                            yield AgentEvent(type="text", data={"content": (
+                                f"\n[AUTO-RECOVERY] Context compacted locally "
+                                f"({_context_retries_this_iter}/3); retrying a smaller request.\n"
+                            )})
+                            thinking_acc = content_acc = _carry = ""
+                            tool_calls_acc = []
+                            in_thinking_tag = False
+                            continue
+                        logger.error("LLM backend context/history error: %s", err_str)
+                        yield AgentEvent(
+                            type="error",
+                            data={"message": err_str, "reason": "llm_context_error"},
+                        )
+                        yield AgentEvent(type="done", data={})
+                        return
                     _is_vram_crash = (
-                        "invalid character '<'" in err_str
-                        or "failed to parse JSON" in err_str
-                        or "HTML error page" in err_str
-                        or "unexpected end of json" in err_lower
-                        or "<!doctype" in err_lower
-                        or "<html" in err_lower
-                        or "out of memory" in err_lower
+                        "out of memory" in err_lower
                         or "cuda out of memory" in err_lower
                         or "llm runner process no longer alive" in err_lower
                         or "signal: killed" in err_lower
-                        # Remote LLM server OOM — HTTP 500 after exhausting retries
-                        or "500 internal server error" in err_lower
-                        or "server error '5" in err_str
                     )
                     _is_conn_refused = "connection refused" in err_lower
-                    _is_timeout = "timeout" in err_lower or "timed out" in err_lower
-                    # Non-retryable client error from an OpenAI-compatible gateway
-                    # (bad model name, auth, rejected tools/stream_options, ...).
-                    # Retrying these 4× wastes ~110s and never succeeds.
+                    _is_timeout = isinstance(stream_err, (TimeoutError, httpx.TimeoutException)) or "timeout" in err_lower or "timed out" in err_lower
+                    _is_transient = (
+                        isinstance(stream_err, httpx.TransportError)
+                        or _is_timeout or _is_conn_refused
+                        or (isinstance(stream_err, LLMBackendHTTPError) and stream_err.retryable)
+                    )
                     _is_client_error = (
                         "returned http 4" in err_lower
                         or "client error '4" in err_lower
-                    )
+                    ) and not (isinstance(stream_err, LLMBackendHTTPError) and stream_err.retryable)
+
+                    if not (_is_transient or _is_client_error or _is_vram_crash):
+                        logger.exception("Non-transient LLM stream failure; not retrying")
+                        yield AgentEvent(type="error", data={
+                            "message": f"LLM stream failed ({type(stream_err).__name__}): {err_str}",
+                            "reason": "llm_stream_error",
+                        })
+                        yield AgentEvent(type="done", data={})
+                        return
 
                     if _is_client_error:
                         logger.error(
@@ -1100,7 +1149,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                         )
                         continue
 
-                    elif _stream_attempt < 4:
+                    elif _is_transient and _stream_attempt < 4:
                         _backoff_waits = [5, 15, 30, 60]
                         wait_s = _backoff_waits[
                             min(_stream_attempt, len(_backoff_waits) - 1)
@@ -1119,7 +1168,8 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                                 "content": (
                                     f"\n[AUTO-RECOVERY] LLM error "
                                     f"(attempt {_stream_attempt + 1}/4). "
-                                    f"Retrying in {wait_s}s...\n"
+                                    f"Retrying in {wait_s}s... "
+                                    f"[{('HTTP ' + str(stream_err.status_code)) if isinstance(stream_err, LLMBackendHTTPError) else type(stream_err).__name__}]\n"
                                 )
                             },
                         )
@@ -1187,28 +1237,10 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                     )
 
                     if self._empty_response_retry_count == 3:
-                        _sys_msgs = [
-                            m
-                            for m in self.state.conversation
-                            if m.get("role") == "system"
-                        ][:5]
-                        _recent_msgs = [
-                            m
-                            for m in self.state.conversation
-                            if m.get("role") != "system"
-                        ][-20:]
-                        _before = len(self.state.conversation)
-
-                        _repaired = AgentState._repair_tool_pairs(
-                            _sys_msgs + _recent_msgs
-                        )
-                        self.state.conversation = _repaired
-                        logger.warning(
-                            "Empty response retry 3: compacted conversation "
-                            "%d → %d messages (pair-repaired) to reduce context size",
-                            _before,
-                            len(self.state.conversation),
-                        )
+                        recover = getattr(self, "_recover_context_budget", None)
+                        if callable(recover) and recover(adaptive_num_predict):
+                            adaptive_num_predict = min(adaptive_num_predict, self._adaptive_num_predict_cap)
+                            logger.warning("Empty response retry 3: packed a smaller recoverable request")
                     yield AgentEvent(
                         type="text",
                         data={
@@ -1229,16 +1261,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                 if self._session:
                     save_session(self._session)
 
-                # Distinguish two very different situations that both look like
-                # "empty output":
-                #   1. The model already produced a substantive assistant turn
-                #      this run (e.g. a recon summary that ended by asking for the
-                #      next task), and now simply has nothing more to add. That is
-                #      a NATURAL STOP — the agent is awaiting instruction, not
-                #      broken. Surfacing a scary error here makes a working run
-                #      look corrupted.
-                #   2. The model never produced anything usable at all — that is a
-                #      genuine backend/config problem worth a diagnostic error.
                 _had_prior_assistant_text = any(
                     m.get("role") == "assistant"
                     and str(m.get("content") or "").strip()
@@ -1294,7 +1316,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
 
             if not tool_calls_acc:
                 self._no_tool_iterations += 1
-                # Increment consecutive thinking counter if thinking was generated this iteration
                 if _this_iteration_thinking:
                     self._consecutive_thinking_iterations = (
                         getattr(self, "_consecutive_thinking_iterations", 0) + 1
@@ -1313,13 +1334,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                     yield AgentEvent(type="done", data={})
                     return
 
-                # Detect an LLM-side refusal: the model produced explanatory /
-                # declined text and called NO tool during an active assessment.
-                # This is the model's own safety alignment refusing the task — it
-                # is NOT an AIRecon bug or a scope/config problem. Surface it
-                # clearly instead of silently spinning through reflector nudges
-                # and empty-response retries. We give one corrective nudge first,
-                # then stop with an actionable message if it refuses again.
                 if (
                     self.state.active_target
                     and content_acc
@@ -1418,11 +1432,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                             phase=current_phase,
                         )
                         if self._watchdog_forced_calls >= 3:
-                            # If the model is simply asking for a new target/
-                            # objective (it considers the current step finished),
-                            # end gracefully instead of emitting an alarming
-                            # "stuck/recovery failed" error — mirrors the
-                            # empty-response natural-completion handling.
                             if self._looks_like_awaiting_input(content_acc):
                                 logger.info(
                                     "Text-only stop: model is awaiting a new "
@@ -1615,7 +1624,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
             async def execute_single_tool(idx: int, tc: dict, args: dict) -> tuple:
                 tn = tc["function"]["name"]
 
-                # Hard phase constraint check — block inappropriate tools
                 _phase_mode, _phase_note = self._check_phase_constraint(tn)
                 if _phase_mode == "block" and _phase_note:
                     logger.info(
@@ -1716,7 +1724,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                         None,
                         False,
                     )
-
 
                 return (idx, tc, tn, args, True, d, r, o, s)
 
@@ -1887,7 +1894,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                     s, d, r, o = await self._execute_web_search_tool(args)
                     self.state.missing_tool_count = 0
                 elif tn == "request_user_input":
-                    # Rate limiting: prevent spamming user with input requests
                     import time as _time_mod
 
                     _now = _time_mod.time()

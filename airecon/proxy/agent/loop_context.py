@@ -5,8 +5,17 @@ from typing import Any
 from urllib.parse import urlparse
 
 from ..config import get_config
+from ..config import get_workspace_root
+from ..context_budget import (
+    ArtifactCompressor,
+    ContextBudgetError,
+    _minimum_request_messages,
+    fit_tools_to_budget,
+    pack_history,
+    request_chars,
+)
 from ..data_loader import severity_to_int
-from .models import AgentState, _get_model_limits
+from .models import _get_model_limits
 from .session import get_untested_injection_points
 
 logger = logging.getLogger("airecon.agent")
@@ -197,12 +206,9 @@ class _ContextMixin:
             content = str(msg.get("content", ""))
 
             if role == "tool" and len(content) > 400:
-                stub = content[:200].rstrip()
-                freed = len(content) - len(stub)
-                msg["content"] = (
-                    stub
-                    + f" ...[{from_phase} phase output compacted — {freed} chars freed]"
-                )
+                if not self._compact_tool_message(msg, 750):
+                    continue
+                freed = len(content) - len(msg["content"])
                 chars_freed += freed
                 compacted_tools += 1
 
@@ -241,10 +247,6 @@ class _ContextMixin:
             ):
                 msg = {k: v for k, v in msg.items() if k != "thinking"}
             result.append(msg)
-        # Guarantee the tool_call/tool_result pairing invariant on every request,
-        # not only after truncation. A stray tool result (its assistant turn was
-        # compacted away) otherwise reaches the gateway as an orphaned function
-        # call output and is rejected with HTTP 400.
         return type(self.state)._repair_tool_pairs(result)
 
     def _get_tool_result_cap(self) -> int:
@@ -281,8 +283,25 @@ class _ContextMixin:
         omitted = len(content) - head - tail
         return content[:head] + f"\n...[{omitted} chars omitted]...\n" + content[-tail:]
 
-    def _drop_stale_tool_results(self) -> int:
+    def _compact_tool_message(self, message: dict[str, Any], cap: int) -> bool:
+        if message.get("_protected") or message.get("name") == "read_file":
+            return False
+        content = str(message.get("content", ""))
+        if len(content.encode()) <= cap:
+            return False
+        try:
+            preview, reference = self._get_artifact_compressor().preview(
+                content, cap, reference=message.get("_context_ref"),
+                external=not bool(message.get("_context_ref")),
+            )
+        except (OSError, ContextBudgetError) as exc:
+            logger.warning("Keeping original tool output: %s", type(exc).__name__)
+            return False
+        message["content"] = preview
+        message["_context_ref"] = reference
+        return True
 
+    def _drop_stale_tool_results(self) -> int:
         msgs = self.state.conversation
         if len(msgs) <= 8:
             return 0
@@ -298,15 +317,11 @@ class _ContextMixin:
         new_conversation = []
         for i, msg in enumerate(msgs):
             if i < keep_from_idx and msg.get("role") == "tool":
-                tool_name = msg.get("tool_call_id", "unknown")
-                placeholder = {
-                    "role": "tool",
-                    "content": "[Tool result dropped to save context]",
-                    "tool_call_id": tool_name,
-                }
-                new_conversation.append(placeholder)
-                dropped += 1
-                chars_freed += len(str(msg.get("content", "")))
+                before = len(str(msg.get("content", "")))
+                if self._compact_tool_message(msg, 750):
+                    dropped += 1
+                    chars_freed += before - len(msg["content"])
+                new_conversation.append(msg)
             else:
                 new_conversation.append(msg)
 
@@ -332,9 +347,6 @@ class _ContextMixin:
         if self._recovery_force_tool_calls > 0:
             return ""
 
-        # Per-message cap is config-driven and scales with the context window:
-        # large-context models can afford to feed the compressor more detail, so
-        # less is lost in the handoff summary.
         _cfg = get_config()
         try:
             _PER_MSG_CAP = int(
@@ -405,6 +417,22 @@ class _ContextMixin:
             )
             return ""
 
+    def _projection_overhead(self, tools: list[dict] | None) -> int:
+        replay = self._client_replay_policy()
+        sent = request_chars(self._messages_for_llm(), tools, replay_reasoning=replay)
+        stored = request_chars(self.state.conversation, tools, replay_reasoning=replay)
+        return max(0, sent - stored)
+
+    def _minimum_projection_overhead(self, tools: list[dict] | None) -> int:
+        replay = self._client_replay_policy()
+        minimum = _minimum_request_messages(self.state.conversation)
+        repaired = type(self.state)._repair_tool_pairs(list(minimum))
+        return max(
+            0,
+            request_chars(repaired, tools, replay_reasoning=replay)
+            - request_chars(minimum, tools, replay_reasoning=replay),
+        )
+
     async def _enforce_char_budget(
         self, num_ctx: int, num_predict: int | None = None
     ) -> None:
@@ -417,215 +445,99 @@ class _ContextMixin:
             )
         )
 
-        _tools_count = len(self._tools_llm) if self._tools_llm is not None else 20
-        _tools_overhead = _tools_count * 500
-        effective_input_ctx = max(1024, num_ctx - effective_predict - _tools_overhead)
-        budget = int(effective_input_ctx * 0.35)
-        total = sum(
-            len(str(m.get("content") or ""))
-            + len(str(m.get("tool_calls") or ""))
-            + len(str(m.get("thinking") or ""))
-            for m in self.state.conversation
-        )
-        if total <= budget:
+        if not self.state.conversation:
             return
-
-        logger.warning(
-            "Pre-call char budget exceeded: %d chars > %d budget (num_ctx=%d) — compressing",
-            total,
-            budget,
-            num_ctx,
-        )
-
-        # Step 0: Deduplicate old CRITICAL FINDINGS messages.
-        # These are added every compression cycle and compound, consuming
-        # budget without adding value. Keep only the latest one.
-        _critical_indices = [
-            i
-            for i, m in enumerate(self.state.conversation)
-            if str(m.get("content", "")).startswith("[SYSTEM: CRITICAL FINDINGS")
-        ]
-        if len(_critical_indices) > 1:
-            _cf_chars = 0
-            for idx in _critical_indices[:-1]:
-                _cf_chars += len(str(self.state.conversation[idx].get("content", "")))
-                self.state.conversation[idx] = {
-                    "role": "tool",
-                    "content": "[Critical findings deduped — latest version retained]",
-                }
-            total -= _cf_chars
-            logger.info(
-                "Deduped %d old CRITICAL FINDINGS messages (%d chars freed)",
-                len(_critical_indices) - 1,
-                _cf_chars,
-            )
-            if total <= budget:
-                logger.info("Budget satisfied after deduping critical findings")
-                return
-
-        # Step 1: Drop stale tool results (fast, no LLM)
-        self._drop_stale_tool_results()
-        total = sum(
-            len(str(m.get("content") or ""))
-            + len(str(m.get("tool_calls") or ""))
-            + len(str(m.get("thinking") or ""))
-            for m in self.state.conversation
-        )
-        if total <= budget:
-            logger.info("Budget satisfied after dropping stale tool results")
+        budget = max(0, (num_ctx - effective_predict - 256) * 3) if num_ctx > 0 else 0
+        learned = int(getattr(self, "_context_char_budget", 0) or 0)
+        if learned:
+            budget = min(budget, learned) if budget else learned
+        if not budget and num_ctx == -1:
             return
-
-        # Step 1.5: Drop old [SYSTEM: AUTO-TRUNCATED ...] metadata summaries.
-        # These accumulate as filler without providing actionable context.
-        # Keep only the most recent one if multiple exist.
-        _at_indices = [
-            i
-            for i, m in enumerate(self.state.conversation)
-            if str(m.get("content", "")).startswith("[SYSTEM: AUTO-TRUNCATED")
-        ]
-        if len(_at_indices) > 1:
-            _at_chars = 0
-            for idx in _at_indices[:-1]:
-                _at_chars += len(str(self.state.conversation[idx].get("content", "")))
-                self.state.conversation[idx] = {
-                    "role": "tool",
-                    "content": "[Auto-truncated summary deduped — latest retained]",
-                }
-            total -= _at_chars
-            logger.info(
-                "Step 1.5: Deduped %d old AUTO-TRUNCATED summaries (%d chars freed)",
-                len(_at_indices) - 1,
-                _at_chars,
-            )
-            if total <= budget:
-                logger.info("Budget satisfied after deduping truncated summaries")
-                return
-
-        # Step 2: Strip thinking from all but last 2 assistant messages
-        assistant_indices = [
-            i
-            for i, m in enumerate(self.state.conversation)
-            if m.get("role") == "assistant" and m.get("thinking")
-        ]
-        for idx in assistant_indices[:-2]:
-            thinking_len = len(str(self.state.conversation[idx].get("thinking", "")))
-            self.state.conversation[idx].pop("thinking", None)
-            total -= thinking_len
-            if total <= budget:
-                logger.info(
-                    "Budget restored after thinking strip (%d msgs)",
-                    len(assistant_indices),
-                )
-                return
-
-        # Step 3: Aggressively compress old tool outputs
-        self._compress_old_tool_outputs(aggressive=True)
-        total = sum(
-            len(str(m.get("content") or "")) + len(str(m.get("thinking") or ""))
-            for m in self.state.conversation
+        replay = self._client_replay_policy()
+        stable_overhead = self._minimum_projection_overhead(self._tools_llm)
+        tools_for_request = fit_tools_to_budget(
+            self.state.conversation, self._tools_llm,
+            max(0, budget - stable_overhead),
+            replay_reasoning=replay,
         )
-        if total <= budget:
-            logger.info("Budget satisfied after compressing tool outputs")
-            return
-
-        # Step 4: Fast truncation — preserve scope/target context
-        _non_system = [m for m in self.state.conversation if m.get("role") != "system"]
-        _first_user = None
-        _non_first_user = []
-        for m in _non_system:
-            if m.get("role") == "user" and _first_user is None:
-                _first_user = m
-            else:
-                _non_first_user.append(m)
-
-        _keep_recent_non_sys = 6
-        _drop_count = max(0, len(_non_first_user) - _keep_recent_non_sys)
-
-        if _drop_count >= 2:
-            # Build summary BEFORE dropping to preserve context
-            tool_counts: dict[str, int] = {}
-            url_refs: list[str] = []
-            vuln_refs: list[str] = []
-            for m in _non_first_user[:_drop_count]:
-                if m.get("role") == "assistant" and m.get("tool_calls"):
-                    for tc in m.get("tool_calls", []):
-                        fn = tc.get("function", {}).get("name", "unknown")
-                        tool_counts[fn] = tool_counts.get(fn, 0) + 1
-                content = str(m.get("content", ""))
-                for line in content.split("\n"):
-                    if "http" in line and len(line) < 200:
-                        url_refs.append(line.strip()[:120])
-                    # Preserve vulnerability references
-                    for kw in ("CVE-", "XSS", "SQLi", "RCE", "SSRF", "LFI", "FLAG{"):
-                        if kw in line:
-                            vuln_refs.append(line.strip()[:150])
-                            break
-
-            summary_parts = [
-                f"[SYSTEM: AUTO-TRUNCATED — {_drop_count} old messages removed]",
-                f"Tools used: {', '.join(f'{k}({v})' for k, v in list(tool_counts.items())[:10])}",
-            ]
-            if url_refs:
-                summary_parts.append(f"URLs explored: {', '.join(url_refs[:5])}")
-            if vuln_refs:
-                summary_parts.append(f"Security findings: {', '.join(vuln_refs[:5])}")
-            summary_parts.append(
-                "Earlier results already examined. Focus on current findings."
-            )
-
-            _summary = "\n".join(summary_parts)
-
-            system_msgs = [
-                m for m in self.state.conversation if m.get("role") == "system"
-            ]
-            recent_others = _non_first_user[-_keep_recent_non_sys:]
-
-            kept = system_msgs[:]
-            if _first_user:
-                kept.append(_first_user)
-            kept.append({"role": "system", "content": _summary})
-            # Always append critical findings context to preserve scope/intelligence
-            _critical = self._build_critical_findings_context()
-            if _critical:
-                kept.append(
-                    {
-                        "role": "system",
-                        "content": _critical,
-                        "_bucket": "protected_system",
-                    }
-                )
-            kept.extend(recent_others)
-
-            # Recent-window slicing can sever an assistant tool_call from its
-            # tool result. Repair orphan/missing pairs so the OpenAI-compatible
-            # backend doesn't reject the conversation (mirrors truncate_conversation).
-            kept = type(self.state)._repair_tool_pairs(kept)
-
-            self.state.conversation = kept
-
-            logger.info(
-                "Fast compression: dropped %d msgs → %d messages (first user + critical findings preserved)",
-                _drop_count,
-                len(self.state.conversation),
-            )
-            return
-
-        # Step 5: Emergency truncation — keep minimal context
-        _min_msgs = 8 if self._ctf_mode else 12
-        target_msgs = max(
-            _min_msgs, len(self.state.conversation) // (3 if self._ctf_mode else 2)
+        overhead = self._projection_overhead(tools_for_request)
+        pack_budget = max(0, budget - overhead)
+        reserved = request_chars(
+            _minimum_request_messages(self.state.conversation),
+            tools_for_request,
+            replay_reasoning=replay,
         )
-        self.state.truncate_conversation(max_messages=target_msgs)
-        # Re-inject critical findings after truncation
-        _critical = self._build_critical_findings_context()
-        if _critical:
-            self.state.conversation.append(
-                {"role": "system", "content": _critical, "_bucket": "protected_system"}
+        if reserved <= max(0, budget - stable_overhead):
+            pack_budget = max(pack_budget, reserved)
+        self._tools_budgeted = tools_for_request
+        _full = len(self._tools_llm or [])
+        if _full and len(tools_for_request) < _full:
+            logger.warning(
+                "Context budget tight: sending %d/%d tool schemas (core retained)",
+                len(tools_for_request), _full,
             )
-        logger.warning(
-            "Pre-call char budget: after truncation → %d messages",
-            len(self.state.conversation),
+        self.state.conversation = pack_history(
+            self.state.conversation, tools_for_request, pack_budget,
+            self._get_artifact_compressor(), replay_reasoning=replay,
         )
+        for _ in range(16):
+            projected = request_chars(
+                self._messages_for_llm(), tools_for_request, replay_reasoning=replay,
+            )
+            if projected <= budget:
+                break
+            pack_budget = max(0, pack_budget - (projected - budget))
+            self.state.conversation = pack_history(
+                self.state.conversation, tools_for_request, pack_budget,
+                self._get_artifact_compressor(), replay_reasoning=replay,
+            )
+        else:
+            raise ContextBudgetError(
+                "Context budget cannot fit the projected request; paginate large file reads"
+            )
+
+    def _get_artifact_compressor(self) -> ArtifactCompressor:
+        root = get_workspace_root().resolve()
+        target_root = (root / (self.state.active_target or "unknown")).resolve()
+        if not target_root.is_relative_to(root):
+            raise OSError("Compression target outside workspace")
+        session_id = str(getattr(getattr(self, "_session", None), "session_id", "session") or "session")
+        return ArtifactCompressor(target_root, session_id)
+
+    def _recover_context_budget(self, num_predict: int) -> bool:
+        sent_tools = getattr(self, "_tools_budgeted", None) or self._tools_llm
+        replay = self._client_replay_policy()
+        before = request_chars(
+            self._messages_for_llm(), sent_tools, replay_reasoning=replay,
+        )
+        learned = int(getattr(self, "_context_char_budget", 0) or before)
+        overhead = self._projection_overhead(sent_tools)
+        budget = max(0, min(before, learned) // 2 - overhead)
+        tools_for_request = fit_tools_to_budget(
+            self.state.conversation, self._tools_llm, budget,
+            replay_reasoning=replay,
+        )
+        try:
+            packed = pack_history(
+                self.state.conversation, tools_for_request, budget,
+                self._get_artifact_compressor(), replay_reasoning=replay,
+            )
+        except (ContextBudgetError, OSError):
+            return False
+        if request_chars(
+            packed, tools_for_request, replay_reasoning=replay,
+        ) + overhead >= before:
+            return False
+        self.state.conversation = packed
+        self._tools_budgeted = tools_for_request
+        self._context_char_budget = budget
+        cap = max(256, num_predict // 2)
+        self._adaptive_num_predict_cap = min(
+            int(getattr(self, "_adaptive_num_predict_cap", 0) or cap), cap,
+        )
+        if getattr(self, "_session", None):
+            self._session.context_char_budget = budget
+        return True
 
     def _append_tool_result(
         self,
@@ -635,7 +547,17 @@ class _ContextMixin:
         tool_call_id: str | None = None,
     ) -> None:
         cfg = get_config()
-        content_str = self._cap_tool_result(content_str)
+        reference = None
+        if tool_name != "read_file":
+            try:
+                compressor = self._get_artifact_compressor()
+                reference = compressor.save(content_str)
+                if len(content_str.encode()) > self._get_tool_result_cap():
+                    content_str, reference = compressor.preview(
+                        content_str, self._get_tool_result_cap(), reference=reference,
+                    )
+            except (OSError, RuntimeError) as exc:
+                logger.warning("Output compaction unavailable: %s", type(exc).__name__)
         if cfg.tool_response_role.lower() == "tool":
             tool_msg: dict[str, Any] = {
                 "role": "tool",
@@ -644,13 +566,18 @@ class _ContextMixin:
             }
             if tool_call_id:
                 tool_msg["tool_call_id"] = tool_call_id
+            if reference:
+                tool_msg["_context_ref"] = reference
             self.state.conversation.append(tool_msg)
         else:
             status = "successfully" if success else "with errors"
             self.state.conversation.append(
                 {
                     "role": "user",
+                    "name": tool_name,
                     "content": f"[SYSTEM: Tool '{tool_name}' executed {status}]\nOutput:\n{content_str}",
+                    "_tool_result": True,
+                    **({"_context_ref": reference} if reference else {}),
                 }
             )
 
@@ -721,7 +648,6 @@ class _ContextMixin:
             if len(s.urls) > 3:
                 parts.append(f"... and {len(s.urls) - 3} more URLs")
 
-            # URL intelligence — classify and warn about static assets
             try:
                 from .url_intelligence import build_url_intelligence_context
 
@@ -1047,9 +973,7 @@ class _ContextMixin:
         if len(non_system) <= keep_window:
             return
 
-        stub_max = 60 if (aggressive or self.state.iteration > 30) else 120
-
-        force_recompress = aggressive
+        stub_max = 750 if (aggressive or self.state.iteration > 30) else 1500
 
         compress_count = 0
         boundary_ids = set(id(m) for m in non_system[-keep_window:])
@@ -1061,19 +985,7 @@ class _ContextMixin:
                 continue
             role = msg.get("role", "")
             content = str(msg.get("content", ""))
-            is_stub = content.startswith("[COMPRESSED]")
-
-            if role == "tool" and not is_stub and len(content) > 300:
-                key_info = AgentState._extract_key_info(content, max_chars=stub_max)
-                msg["content"] = f"[COMPRESSED] {key_info.strip()}"
-                compress_count += 1
-            elif (
-                role == "tool"
-                and is_stub
-                and force_recompress
-                and len(content) > stub_max + 20
-            ):
-                msg["content"] = content[: stub_max + len("[COMPRESSED] ")]
+            if role == "tool" and len(content.encode()) > stub_max and self._compact_tool_message(msg, stub_max):
                 compress_count += 1
 
         if compress_count:

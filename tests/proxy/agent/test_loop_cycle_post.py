@@ -38,7 +38,6 @@ class TestFinalizeToolResults:
                 self.pipeline.check_tool_phase_fit.return_value = None
 
             def _get_current_phase(self):
-
                 return PipelinePhase.RECON
 
             def _truncate_result(self, result):

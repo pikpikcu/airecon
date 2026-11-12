@@ -16,6 +16,15 @@ from airecon.__main__ import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _isolate_exit_handlers(monkeypatch):
+    # CLI unit tests must not leave real cleanup callbacks queued after their
+    # subprocess/network mocks have been restored at pytest process exit.
+    monkeypatch.setattr(
+        "atexit.register", MagicMock(side_effect=lambda callback, *a, **kw: callback)
+    )
+
+
 class TestMainCLI:
     """Test CLI argument parsing and command routing."""
 
@@ -350,6 +359,10 @@ class TestRunClean:
 class TestUnloadModelSafely:
     """Test model unload on exit."""
 
+    @pytest.fixture(autouse=True)
+    def _isolate_saved_sessions(self, monkeypatch, tmp_path):
+        monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+
     def test_unload_model_safely_no_model(self) -> None:
         """Test unload when no model loaded."""
         mock_cfg = MagicMock(openai_model=None, proxy_host="127.0.0.1", proxy_port=8084)
@@ -357,6 +370,7 @@ class TestUnloadModelSafely:
             patch("airecon.proxy.config.get_config", return_value=mock_cfg),
             patch("urllib.request.urlopen", side_effect=Exception("no server")),
             patch("shutil.which", return_value="/usr/bin/docker"),
+            patch("subprocess.run"),
         ):
             # Should not raise
             _unload_model_safely()

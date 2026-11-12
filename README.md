@@ -101,6 +101,12 @@ AIRecon works with **any model your gateway exposes** (GPT, Claude, Gemini, Qwen
 >
 > **Reasoning is auto-detected.** In `auto` mode AIRecon sends the OpenAI-standard `reasoning_effort` and, if the backend rejects it (HTTP 400 unsupported-parameter), strips it and remembers — so reasoning models think, plain models don't break. No model-name list to maintain.
 
+AIRecon supports two explicit wire protocols: `llm_provider: openai` (default,
+`/v1/chat/completions`) and `llm_provider: anthropic` (`/v1/messages`). Both use
+`openai_base_url`, `openai_model` and `openai_api_key`. For native Anthropic the
+default auth mode is `llm_anthropic_auth: x-api-key`; gateways requiring Bearer
+must explicitly select `bearer` or `both`. See [configuration](docs/configuration.md).
+
 **Quality guidance (independent of provider):**
 - **Strong reasoning + tool calling** (e.g. GPT-5/o-series, Claude Sonnet/Opus 4.x, Gemini 2.5, Qwen3 ≥32B, DeepSeek-R) → reliable full recon pipelines.
 - **Mid models (8B–14B local)** → usable for simple tasks; expect more tool-call errors and hallucinations.
@@ -221,6 +227,8 @@ llm_thinking_mode: low             # low | medium | high | adaptive
 # auto = use reasoning_effort and auto-detect support at runtime (no model-name list).
 # off | reasoning_effort | enable_thinking (vLLM/SGLang chat-template flag) to force.
 llm_thinking_request_mode: auto
+# Send stored provider reasoning_content back: auto (DeepSeek API / learned on 400) | always | off
+llm_reasoning_replay: auto
 
 # ======================================
 # Scan Profile  (baseline preset; your other keys still override it)

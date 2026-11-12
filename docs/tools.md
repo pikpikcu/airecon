@@ -38,7 +38,7 @@ Complete reference for all tools available to the AIRecon agent.
 7. [Docker Sandbox Tools](#7-docker-sandbox-tools)
 8. [Utility & Knowledge Tools](#8-utility--knowledge-tools)
    - [think](#81-think)
-   - [python_session](#82-python_session)
+   - [python_session (disabled — not available)](#82-python_session-disabled)
    - [edit_file](#83-edit_file)
    - [load_skill](#84-load_skill)
    - [create_note / list_notes / search_notes / read_note / export_notes_wiki](#85-notes-tools)
@@ -690,9 +690,11 @@ Context-aware custom wordlist generation based on target analysis.
 
 ### 3.5 `schemathesis_fuzz`
 
-**Source:** `airecon/proxy/validators.py`
+**Source:** `airecon/proxy/agent/executors_observe.py`
 
 API schema-aware fuzzing using Schemathesis against OpenAPI/Swagger specifications.
+Requires Schemathesis 4.26 or later in the 4.x series inside the sandbox.
+New sandbox builds install this version range; older images may need an update.
 
 **Schema:**
 
@@ -702,8 +704,8 @@ API schema-aware fuzzing using Schemathesis against OpenAPI/Swagger specificatio
   "parameters": {
     "schema_url": "string — URL to OpenAPI/Swagger spec",
     "base_url": "string — Base URL for API (if different from spec)",
-    "auth": "string — Authentication header (e.g., 'Bearer token')",
-    "headers": "object — Additional headers",
+    "auth_header": "string — Authorization header value (e.g., 'Bearer token')",
+    "max_examples": "integer — Maximum generated examples per operation (default 30)",
     "checks": "array — Schemathesis checks to run"
   },
   "required": ["schema_url"]
@@ -716,6 +718,20 @@ API schema-aware fuzzing using Schemathesis against OpenAPI/Swagger specificatio
 - Missing authentication
 - Authorization bypass
 - Content-type confusion
+
+Results are parsed from a JSON report, not console text. `passed` counts test
+cases without failures or unchecked cases; `violations` is the number of unique
+failures, while `failures` contains grouped failure details. Full text and JSON
+artifacts are saved under the target's `output/` directory with unique run names.
+A completed scan can return `success: true` with violations and scanner exit
+code 1. Missing/invalid reports, schema-loading failures, incomplete scans, and
+runtime errors return `success: false`, not a clean scan.
+
+Configured scope allow/deny rules are checked on declared network destinations
+before native scan, HTTP, Caido send, and agent-spawn dispatch, as well as browser
+URLs. This is application-level validation, not a network firewall: it does not
+provide egress containment for arbitrary scripts, MCP tools, redirects, or
+destinations embedded inside a supplied API schema.
 
 ---
 
@@ -888,12 +904,20 @@ Send a raw HTTP request and receive full response for baseline establishment.
     "body": "string — Request body",
     "save_as": "string — Name to store as baseline",
     "compare_to": "string — Baseline to diff against",
-    "follow_redirects": "boolean — Follow redirects",
+    "follow_redirects": "boolean — Follow up to 5 redirects with a scope check before each request (default false)",
     "timeout": "integer — Request timeout"
   },
   "required": ["url"]
 }
 ```
+
+Redirects are followed manually; curl never follows them implicitly. Only HTTP(S)
+destinations are accepted, loops are rejected, and `save_as`/`compare_to` use the
+final response. Headers supplied for the original request are dropped when the
+origin changes, and HTTPS-to-HTTP downgrades are refused. A body-preserving
+redirect to another origin is refused rather
+than forwarding potentially private request data. POST redirects with status 301
+or 302, and non-HEAD redirects with status 303, switch to GET without a body.
 
 ---
 
@@ -971,24 +995,22 @@ Use before acting on ambiguous situations, when evaluating conflicting signals, 
 
 ---
 
-### 8.2 `python_session`
+### 8.2 `python_session` (disabled)
 
-Persistent Python interpreter. State is maintained across calls within the same `session_id`. Pre-imports: `os`, `json`, `re`, `base64`, `urllib.parse`, `requests` (if available).
+`python_session` is **disabled for host safety** and is **not advertised** to the model: it is absent from the tool catalog (`tools.json`) and from `tools_meta.json`. The former implementation ran model-generated Python in the proxy process on the host instead of inside the sandbox, so it was removed.
 
-**Schema:**
+- Any attempted or persisted `python_session` call is rejected with a structured `{"success": false, "error": ...}` result before any code runs.
+- There is **no persistent Python REPL**: interpreter state does not carry over between calls.
+- There is **no configuration switch** or environment variable that re-enables it.
 
-```json
-{
-  "name": "python_session",
-  "parameters": {
-    "code": "string — Python code to execute",
-    "session_id": "string — Session namespace (default: 'default')"
-  },
-  "required": ["code"]
-}
+**Use `execute` instead.** Python runs inside the Docker sandbox, and anything that must survive between calls is kept in workspace files:
+
+```python
+execute(command="python3 /workspace/example.com/tools/decode_tokens.py")
+execute(command="python3 - <<'PY'\nimport base64\nprint(base64.b64decode('aGVsbG8=').decode())\nPY")
 ```
 
-Use cases: complex payload encoding/decoding, statistical analysis of tool output, hash computation, automated pattern matching across large result sets, generating wordlists programmatically.
+See [stability.md](stability.md) ("Python execution: no host REPL") for the rationale.
 
 ---
 
@@ -1130,7 +1152,7 @@ Query the local security knowledge base built from [airecon-dataset](https://git
 | `http_observe` | Observer | Custom |
 | `record_hypothesis` | Observer | Custom |
 | `think` | Utility | `executors_utils.py` |
-| `python_session` | Utility | `executors_utils.py` |
+| `python_session` | Disabled (host safety) — not advertised; use `execute` | `executors_utils.py` (rejects every call) |
 | `edit_file` | Utility | `executors_utils.py` |
 | `load_skill` | Utility | `system.py` |
 | `create_note` | Notes | `executors_utils.py` |
@@ -1140,4 +1162,4 @@ Query the local security knowledge base built from [airecon-dataset](https://git
 | `export_notes_wiki` | Notes | `executors_utils.py` |
 | `dataset_search` | Knowledge | `executors_utils.py` |
 
-**Total: 35 agent tools + 60+ Docker sandbox CLI tools**
+**Total: 34 agent tools + 60+ Docker sandbox CLI tools** (the disabled `python_session` row is not counted)

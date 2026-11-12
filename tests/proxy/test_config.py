@@ -1,6 +1,9 @@
 """Config tests updated for YAML format."""
 
 import json
+import logging
+
+import pytest
 import yaml
 from airecon.proxy.config import Config, DEFAULT_CONFIG
 
@@ -34,6 +37,28 @@ def test_config_file_loading(tmp_path):
     # Missing values should fall back to default
     assert cfg.docker_image == DEFAULT_CONFIG["docker_image"]
     assert cfg.llm_timeout == DEFAULT_CONFIG["llm_timeout"]
+
+
+def test_migration_preserves_explicit_nonessential_settings_after_restart(tmp_path):
+    path = tmp_path / "config.yaml"
+    settings = {"openai_model": "audit-model", "docker_image": "custom-image",
+                "openai_supports_native_tools": False, "fuzzer_threads": 3,
+                "caido_graphql_url": "http://127.0.0.1:49000/graphql"}
+    path.write_text(yaml.safe_dump(settings))
+    first = Config.load(path)
+    second = Config.load(path)
+    persisted = yaml.safe_load(path.read_text())
+    for key, value in settings.items():
+        assert getattr(first, key) == value
+        assert persisted.get(key) == value
+        assert getattr(second, key) == value
+
+
+def test_new_default_config_remains_minimal(tmp_path):
+    from airecon.proxy.config import _write_yaml_with_comments
+    path = tmp_path / "new.yaml"
+    _write_yaml_with_comments(DEFAULT_CONFIG, path)
+    assert "fuzzer_threads" not in yaml.safe_load(path.read_text())
 
 
 def test_config_env_overrides(tmp_path, monkeypatch):
@@ -232,3 +257,66 @@ class TestLoadWithDefaultsTypeCoercion:
     def test_agent_recon_mode_invalid_falls_back_to_default(self):
         cfg = Config.load_with_defaults({**DEFAULT_CONFIG, "agent_recon_mode": "aggressive"})
         assert cfg.agent_recon_mode == DEFAULT_CONFIG["agent_recon_mode"]
+
+
+# ---------------------------------------------------------------------------
+# YAML reads unquoted off/on/no/yes/true/false as booleans; mode settings whose
+# documented values include "off" must still load as the documented value.
+# ---------------------------------------------------------------------------
+
+_MODE_KEYS = ("llm_reasoning_replay", "llm_thinking_request_mode")
+
+
+def _load_modes(tmp_path, replay, thinking):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        f"llm_reasoning_replay: {replay}\nllm_thinking_request_mode: {thinking}\n",
+        encoding="utf-8",
+    )
+    assert isinstance(yaml.safe_load(config_file.read_text(encoding="utf-8")), dict)
+    return Config.load(config_file)
+
+
+class TestModeSettingsFromYaml:
+    @pytest.mark.parametrize(("literal", "replay", "thinking"), [
+        ("off", "off", "off"),
+        ('"off"', "off", "off"),
+        ("OFF", "off", "off"),
+        ("false", "off", "off"),
+        ('"false"', "off", "off"),
+        ("no", "off", "off"),
+        ("on", "always", "auto"),
+        ('"on"', "always", "auto"),
+        ("true", "always", "auto"),
+        ('"true"', "always", "auto"),
+        ("auto", "auto", "auto"),
+    ])
+    def test_quoted_and_unquoted_switches_map_to_documented_values(
+        self, tmp_path, literal, replay, thinking,
+    ):
+        cfg = _load_modes(tmp_path, literal, literal)
+
+        assert cfg.llm_reasoning_replay == replay
+        assert cfg.llm_thinking_request_mode == thinking
+
+    @pytest.mark.parametrize(("replay", "thinking"), [
+        ("always", "reasoning_effort"),
+        ("auto", "enable_thinking"),
+    ])
+    def test_documented_values_are_kept(self, tmp_path, replay, thinking):
+        cfg = _load_modes(tmp_path, replay, thinking)
+
+        assert cfg.llm_reasoning_replay == replay
+        assert cfg.llm_thinking_request_mode == thinking
+
+    def test_unknown_values_fall_back_to_default_with_warning(self, tmp_path, caplog):
+        with caplog.at_level(logging.WARNING, logger="airecon.proxy.config"):
+            cfg = _load_modes(tmp_path, "sometimes", "3")
+
+        for key, bad in zip(_MODE_KEYS, ("sometimes", "3")):
+            assert getattr(cfg, key) == DEFAULT_CONFIG[key]
+            assert any(
+                record.levelno == logging.WARNING and key in record.getMessage()
+                and bad in record.getMessage()
+                for record in caplog.records
+            ), f"no warning names {key}={bad}"

@@ -38,7 +38,6 @@ def _load_local_skills(ctf_mode: bool = False) -> str:
 
     _ = ctf_mode
 
-    # Collect stems grouped by top-level category directory.
     category_files: dict[str, list[str]] = {}
     for path in sorted(skills_dir.rglob("*.md")):
         if path.name.startswith("_"):
@@ -102,9 +101,6 @@ def _build_skill_keyword_density(keywords: dict[str, str]) -> dict[str, int]:
     return density
 
 
-# Precomputed once at import time from the full keyword vocabulary.
-# Per-test _SKILL_KEYWORDS mocks do not affect this — phase-fallback
-# ranking always reflects the real keyword distribution.
 _SKILL_KEYWORD_DENSITY: dict[str, int] = _build_skill_keyword_density(_SKILL_KEYWORDS)
 
 _PHASE_SKILL_CATEGORIES: dict[str, set[str]] = {
@@ -169,7 +165,6 @@ def _select_phase_skills(
         if cat in preferred_dirs:
             scored.append((_SKILL_KEYWORD_DENSITY.get(rel_path, 0), rel_path))
 
-    # Higher density first; alphabetical tiebreaker for determinism.
     scored.sort(key=lambda x: (-x[0], x[1]))
     return [rel for _, rel in scored[:max_skills]]
 
@@ -355,7 +350,7 @@ def auto_load_skills_for_message(
 def auto_load_skills_for_technologies(
     technologies: dict[str, str],
     already_loaded: set[str] | None = None,
-    target_profile=None,  # NEW: Target profile for context-aware selection
+    target_profile=None,
 ) -> tuple[str, list[str]]:
     if not technologies:
         return "", []
@@ -374,9 +369,7 @@ def auto_load_skills_for_technologies(
         if _keyword_matches_message(keyword, tech_message):
             skill_scores[skill_path] = skill_scores.get(skill_path, 0) + 1
 
-    # Context-aware skill scoring based on target profile
     if target_profile is not None:
-        # Boost scores for skills relevant to detected attack surface
         attack_vectors = target_profile.attack_surface.get("attack_vectors", [])
         for vector in attack_vectors:
             vector_lower = vector.lower()
@@ -384,7 +377,6 @@ def auto_load_skills_for_technologies(
                 if vector_lower in skill_path.lower():
                     skill_scores[skill_path] += 3
 
-        # Boost scores for skills relevant to security issues
         for issue in target_profile.security_issues:
             issue_lower = issue.lower()
             for skill_path in list(skill_scores.keys()):

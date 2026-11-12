@@ -39,7 +39,6 @@ _POC_DESC_MIN: int = 30
 _TECHNICAL_MIN: int = 30
 
 
-# Valid input types for request_user_input tool — loaded from tools_meta.json
 _VALID_INPUT_TYPES_JSON = [
     entry.get("function", {})
     .get("parameters", {})
@@ -986,13 +985,7 @@ class _ValidatorMixin:
                     if ok:
                         continue
                     if lock_strict:
-                        # User explicitly opted into strict scope lock.
                         return False, err
-                    # Default: soft advisory. LLM decides if the URL is a
-                    # target-owned asset (bucket, CDN subdomain, subsidiary),
-                    # a 3rd-party that the target legitimately depends on
-                    # (e.g. credential validation endpoint), or genuinely
-                    # unrelated. Don't block — record for downstream notice.
                     advisories = getattr(self, "_pending_scope_advisories", None)
                     if advisories is None:
                         advisories = []
@@ -1292,7 +1285,6 @@ class _ValidatorMixin:
 
             scope_valid = True
             if hasattr(self, "_session") and self._session:
-
                 def _is_ip_address(host: str) -> bool:
                     parts = host.split(".")
                     return len(parts) == 4 and all(
@@ -1505,7 +1497,6 @@ class _ValidatorMixin:
                         "replay verification (request/payload/response/impact)"
                     )
 
-            # ── Zero-FP Verification Bonus ────────────────────────────────
             if not is_ctf:
                 try:
                     from ..config import get_config
