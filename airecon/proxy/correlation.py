@@ -332,7 +332,6 @@ def build_attack_graph(session: SessionData) -> dict[str, Any] | None:
 
 
 def synthesize_attack_chains(session: SessionData) -> list[dict]:
-
     port_signals: list[str] = []
     for host_ports in session.open_ports.values():
         if not isinstance(host_ports, list):

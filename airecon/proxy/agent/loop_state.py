@@ -15,7 +15,6 @@ logger = logging.getLogger("airecon.agent")
 
 
 def _estimate_tokens(text: str) -> int:
-
     if not text:
         return 0
     return len(text) // 4
@@ -149,7 +148,6 @@ class _StateMixin:
             return
 
         try:
-
             valid_subdomains = [
                 str(sub).strip().lower()
                 for sub in self._session.subdomains
@@ -186,7 +184,6 @@ class _StateMixin:
             })
 
             if valid_subdomains or self._session.open_ports or self._session.technologies:
-
                 valid_ports = {
                     str(port): service
                     for port, service in self._session.open_ports.items()
@@ -526,7 +523,6 @@ class _StateMixin:
         if self._last_token_snapshot_time > 0:
             elapsed = current_time - self._last_token_snapshot_time
             if elapsed < 5.0:
-
                 if (self._token_snapshot_task and
                         not self._token_snapshot_task.done()):
                     self._token_snapshot_resave_requested = True
@@ -545,7 +541,6 @@ class _StateMixin:
             try:
                 while session_to_save and session_to_save.target:
                     try:
-
                         await asyncio.to_thread(save_session, session_to_save)
                     except Exception as exc:
                         logger.debug("Failed to persist token usage snapshot: %s", exc)
@@ -560,7 +555,6 @@ class _StateMixin:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             try:
-
                 save_session(session)
             except Exception as exc:
                 logger.debug("Failed to persist token usage snapshot: %s", exc)

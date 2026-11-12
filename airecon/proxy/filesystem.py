@@ -164,7 +164,6 @@ def _wire_bytes(text: str) -> int:
 def _iter_lines(
     file_path: Path, keep: int
 ) -> Iterator[tuple[bytes | None, int, int]]:
-
     start = 0
     with file_path.open("rb") as fh:
         while True:

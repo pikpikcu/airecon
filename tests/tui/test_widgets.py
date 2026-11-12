@@ -72,7 +72,6 @@ async def test_thinking_spinner_shows_full_buddy_rows_without_remount_churn():
         assert all(len(list(row.children)) == 1 for row in spinner._buddy_rows)
 
 
-
 def test_stylesheet_keeps_thinking_spinner_multiline_height():
     css = Path("airecon/tui/styles.tcss").read_text(encoding="utf-8")
     assert "ThinkingSpinner {" in css

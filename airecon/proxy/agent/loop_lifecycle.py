@@ -281,7 +281,6 @@ class _LifecycleMixin:
             self.pipeline.set_ctf_mode(True)
 
     def reset(self) -> None:
-
         old_target = ""
         old_subdomains = []
         old_live_hosts = []

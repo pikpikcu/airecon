@@ -133,7 +133,6 @@ _MUTATION_OPERATORS: dict[str, callable] = {
 
 @dataclass
 class PayloadGenome:
-
     payload: str
     vuln_type: str
     fitness: float = 0.0
@@ -151,7 +150,6 @@ class PayloadGenome:
 
 
 class GenerativeFuzzingEngine:
-
     def __init__(
         self,
         population_size: int = 50,

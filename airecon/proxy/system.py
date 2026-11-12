@@ -38,7 +38,6 @@ def _load_local_skills(ctf_mode: bool = False) -> str:
 
     _ = ctf_mode
 
-
     category_files: dict[str, list[str]] = {}
     for path in sorted(skills_dir.rglob("*.md")):
         if path.name.startswith("_"):
@@ -100,9 +99,6 @@ def _build_skill_keyword_density(keywords: dict[str, str]) -> dict[str, int]:
     for skill_path in keywords.values():
         density[skill_path] = density.get(skill_path, 0) + 1
     return density
-
-
-
 
 
 _SKILL_KEYWORD_DENSITY: dict[str, int] = _build_skill_keyword_density(_SKILL_KEYWORDS)
@@ -168,7 +164,6 @@ def _select_phase_skills(
         cat = rel_path.split("/")[0] if "/" in rel_path else rel_path
         if cat in preferred_dirs:
             scored.append((_SKILL_KEYWORD_DENSITY.get(rel_path, 0), rel_path))
-
 
     scored.sort(key=lambda x: (-x[0], x[1]))
     return [rel for _, rel in scored[:max_skills]]
@@ -374,16 +369,13 @@ def auto_load_skills_for_technologies(
         if _keyword_matches_message(keyword, tech_message):
             skill_scores[skill_path] = skill_scores.get(skill_path, 0) + 1
 
-
     if target_profile is not None:
-
         attack_vectors = target_profile.attack_surface.get("attack_vectors", [])
         for vector in attack_vectors:
             vector_lower = vector.lower()
             for skill_path in list(skill_scores.keys()):
                 if vector_lower in skill_path.lower():
                     skill_scores[skill_path] += 3
-
 
         for issue in target_profile.security_issues:
             issue_lower = issue.lower()

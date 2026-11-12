@@ -51,7 +51,6 @@ CHAIN_PAYLOADS = _fuzzer_data.get("CHAIN_PAYLOADS", {})
 PARAM_TYPE_MAP: dict[str, list[str]] = _fuzzer_data.get("PARAM_TYPE_MAP", {})
 
 
-
 TECH_PAYLOAD_AUGMENTS: dict[str, dict[str, list[str]]] = _fuzzer_data.get(
     "TECH_PAYLOAD_AUGMENTS", {}
 )
@@ -249,7 +248,6 @@ class Fuzzer:
             if isinstance(auth_login_url, str) and auth_login_url.strip()
             else None
         )
-
 
         self.payload_memory = None
         try:
@@ -747,17 +745,12 @@ class Fuzzer:
 
         payloads = list(base_payloads)
 
-
-
-
-
         tech_names = [t.name.lower() for t in target_profile.technologies]
         tech_str = " ".join(tech_names)
         for tech_token, extra_payloads in TECH_PAYLOAD_AUGMENTS.get(vuln_type, {}).items():
             token = str(tech_token).lower()
             if token in tech_names or token in tech_str:
                 payloads.extend(extra_payloads)
-
 
         seen = set()
         unique_payloads = []
@@ -783,7 +776,6 @@ class Fuzzer:
                 "No fuzzing will be performed. Check package installation."
             )
             return []
-
 
         target_profile = await self._profile_target_if_enabled()
         priority_vuln_types = self._prioritize_vuln_types(vuln_types, target_profile)
@@ -819,9 +811,7 @@ class Fuzzer:
 
         all_vuln_types = list(FUZZ_PAYLOADS.keys())
 
-
         gen_engine = await self._init_generative_fuzzing_if_enabled()
-
 
         _skip_count = 0
         filtered_tasks = []
@@ -877,14 +867,12 @@ class Fuzzer:
             logger.info(f"Batch {batch_idx + 1}/{total_batches} ({len(_batch)} tests)")
             results.extend(await asyncio.gather(*_batch, return_exceptions=True))
 
-
             if gen_engine:
                 await self._evolve_payloads_batch(gen_engine, results, batch_idx)
 
         for r in results:
             if isinstance(r, FuzzResult) and r.confidence > 0.6:
                 self.results.append(r)
-
 
         verified_results = await self._verify_findings(self.results)
         return verified_results
@@ -1130,11 +1118,8 @@ class Fuzzer:
                 if bypass_result.get("successful_bypasses"):
                     bypass_resp = bypass_result.get("response")
                     if isinstance(bypass_resp, httpx.Response):
-
-
                         bypass_status = bypass_resp.status_code
                         bypass_body = bypass_resp.text.lower()
-
 
                         block_indicators = [
                             "access denied",
@@ -1192,7 +1177,6 @@ class Fuzzer:
         )
 
         if analysis["vuln_confirmed"] or analysis["confidence"] > 0.5:
-
             if self.payload_memory:
                 self.payload_memory.record_attempt(
                     payload=payload,
@@ -1601,7 +1585,6 @@ class Fuzzer:
         findings: list[FuzzResult] = []
         for param in candidate_params:
             for payload in race_payloads:
-
                 async def _single() -> tuple[httpx.Response | None, float]:
                     req_data = {param: payload}
                     if self.method == "GET":
@@ -2254,20 +2237,12 @@ class ExpertHeuristics:
     def get_priority_parameters(url: str, method: str = "GET") -> list[str]:
         priority: list[str] = []
 
-
-
-
         for hint in PRIORITY_PARAM_HINTS:
             if any(kw in url for kw in hint.get("url_keywords", [])):
                 priority.extend(hint.get("params", []))
                 break
 
         return list(dict.fromkeys(priority))
-
-
-
-
-
 
     _EXPERT_PATTERNS: dict[str, Any] = {}
     _TECH_CORRELATIONS: dict[str, Any] = {}
@@ -2283,13 +2258,10 @@ class ExpertHeuristics:
 
         from .data_loader import load_vuln_patterns
 
-
-
         unified = load_vuln_patterns()
         cls._EXPERT_PATTERNS = {
             k: v for k, v in unified.items() if not k.startswith("_")
         }
-
 
         data_dir = Path(__file__).parent / "data"
         try:
@@ -2298,7 +2270,6 @@ class ExpertHeuristics:
             )
         except Exception as exc:
             logger.debug("Could not load tech_correlations.json: %s", exc)
-
 
         cls._BUSINESS_LOGIC = {
             k: v for k, v in unified.items()
@@ -2345,7 +2316,6 @@ class ExpertHeuristics:
         resp_lower = {k.lower(): v.lower() for k, v in response_headers.items()}
         req_lower = {k.lower(): v.lower() for k, v in request_headers.items()}
 
-
         scan_text = " ".join([
             url.lower(),
             " ".join(params.keys()).lower(),
@@ -2357,7 +2327,6 @@ class ExpertHeuristics:
             resp_lower.get("x-generator", ""),
             req_lower.get("authorization", ""),
         ])
-
 
         matched_patterns: set[str] = set()
         for compiled, pdata, pname in Fuzzer._heuristic_patterns_compiled:
@@ -2385,9 +2354,6 @@ class ExpertHeuristics:
                         tools_suggested=[],
                         confidence=0.55,
                     ))
-
-
-
 
         for indicator, tdata in Fuzzer._heuristic_tech_compiled:
             detected = False
@@ -2431,7 +2397,6 @@ class ExpertHeuristics:
                             confidence=0.5,
                         ))
 
-
         for bl_name, bl_data in Fuzzer._BUSINESS_LOGIC.items():
             indicators = bl_data.get("indicators", [])
             if any(ind.lower() in scan_text for ind in indicators):
@@ -2454,7 +2419,6 @@ class ExpertHeuristics:
     def _build_vuln_suggestions_from_patterns(cls, vuln_type: str) -> list[str]:
         suggestions: list[str] = []
 
-
         for pname, pdata in cls._EXPERT_PATTERNS.items():
             if vuln_type.replace("_", "") in pname.replace("_", "").lower():
                 for action in pdata.get("suggested_actions", []):
@@ -2469,20 +2433,17 @@ class ExpertHeuristics:
                     if action not in suggestions:
                         suggestions.append(action)
 
-
         for bl_name, bl_data in cls._BUSINESS_LOGIC.items():
             if vuln_type.replace("_", "") in bl_name.replace("_", "").lower():
                 for action in bl_data.get("suggested_actions", []):
                     if action not in suggestions:
                         suggestions.append(action)
 
-
         for tech_name, tdata in cls._TECH_CORRELATIONS.items():
             if tech_name in vuln_type.lower():
                 for vuln in tdata.get("vulns", []):
                     if vuln not in suggestions:
                         suggestions.append(vuln)
-
 
         suggestions.extend([
             f"Test {vuln_type} with alternative payloads from "
@@ -2513,8 +2474,6 @@ class ExploitChainEngine:
 
         for finding in initial_findings:
             follow_ons = list(CHAIN_RULES.get(finding.vuln_type, []))
-
-
 
             for _fam in CHAIN_FAMILY_FOLLOWONS:
                 if finding.vuln_type in (_fam.get("members") or []):

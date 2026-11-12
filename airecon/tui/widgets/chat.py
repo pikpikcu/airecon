@@ -118,7 +118,6 @@ class ChatMessage(Static):
         self.add_class(f"{role}-message")
 
     def compose(self) -> ComposeResult:
-
         role_config = {
             "user": ("❯", "role-label-user"),
             "assistant": ("◆", "role-label-assistant"),
@@ -178,7 +177,6 @@ class ToolMessage(Vertical):
         self.add_class("running")
 
     def compose(self) -> ComposeResult:
-
         header = Text()
         header.append("⚙ ", style="bold #58a6ff")
         header.append(self.tool_name, style="bold #c9d1d9")
@@ -681,7 +679,7 @@ class SubAgentBlock(Vertical):
             except Exception as e:
                 logger.debug("Failed to clear subagent text: %s", e)
         self.call_after_refresh(self._update_header)
-    
+
     def _update_header(self) -> None:
         try:
             header = self.query_one(".subagent-header", Static)

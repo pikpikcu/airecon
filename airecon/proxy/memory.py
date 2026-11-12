@@ -587,10 +587,6 @@ class MemoryManager:
             logger.debug("Pattern rejected: technique_name too short/generic")
             return
 
-
-
-
-
         description = pattern.get("description", "").strip()
         payload = pattern.get("payload_template", "").strip()
         commands = pattern.get("commands_used", [])
@@ -983,7 +979,6 @@ class MemoryManager:
             return
         cursor = self.conn.cursor()
 
-
         cursor.executemany(
             "DELETE FROM embeddings WHERE kind = ? AND ref_id = ?",
             [(kind, ref_id) for ref_id in ref_ids],
@@ -1220,7 +1215,6 @@ class MemoryManager:
         return rollup_tool_usage_rows(cursor.fetchall())[:20]
 
     def get_tool_insights(self) -> dict[str, Any]:
-
         if not self.conn:
             return {}
 
@@ -1735,7 +1729,6 @@ class MemoryManager:
         return chains
 
     def get_model_recommendation(self, task_type: str) -> str:
-
         def _config_default_model() -> str:
             try:
                 from airecon.proxy.config import get_config

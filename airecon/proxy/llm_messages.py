@@ -28,7 +28,6 @@ def _coalesce_system_messages(
         if m.get("role") != "system":
             last_turn = i
 
-
     inline_boundaries: dict[int, str] = {}
     for i, m in enumerate(messages):
         if m.get("role") != "system" or i > last_turn:

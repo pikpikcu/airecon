@@ -36,7 +36,6 @@ def _load_pure_static_exts() -> frozenset[str]:
 _PURE_STATIC_EXTS: frozenset[str] = _load_pure_static_exts()
 
 def _detect_static_asset_abuse(tool_name: str, arguments: dict) -> str | None:
-
     cmd = ""
     target_url = ""
 

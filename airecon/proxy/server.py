@@ -640,7 +640,6 @@ app.add_middleware(
 )
 
 if os.environ.get("AIRECON_DEBUG"):
-
     @app.middleware("http")
     async def _log_requests(request: Request, call_next):
         _t0 = time.monotonic()
@@ -925,9 +924,6 @@ async def get_status() -> ORJSONResponse:
     _active_url = cfg.openai_base_url
     _backend_label = "Anthropic" if str(getattr(cfg, "llm_provider", "openai")).lower() in ("anthropic", "claude") else "OpenAI"
 
-
-
-
     _browser_ready = False
     _mcp_ready = False
     if isinstance(agent_stats, dict):
@@ -940,12 +936,8 @@ async def get_status() -> ORJSONResponse:
         if isinstance(_mcp_info, dict):
             _mcp_ready = bool(_mcp_info.get("connected") or _mcp_info.get("servers"))
 
-
-
-
     _tool_detail = await _probe_sandbox_tools() if docker_ok else {}
     _cli_probe = all(_tool_detail.values()) if _tool_detail else None
-
 
     try:
         from .scope import get_scope_guard
@@ -981,7 +973,6 @@ async def get_status() -> ORJSONResponse:
             },
             "tools": {
                 "sandbox": docker_ok,
-
 
                 "cli_tools": (_cli_probe if _cli_probe else docker_ok),
                 "browser": _browser_ready,
@@ -1141,9 +1132,6 @@ async def list_models() -> ORJSONResponse:
             status_code=502,
         )
 
-
-
-
     capabilities: dict[str, str] = {}
     try:
         from .llm import LLMClient
@@ -1152,7 +1140,6 @@ async def list_models() -> ORJSONResponse:
         _probed_unsupported = getattr(LLMClient, "_reasoning_unsupported", set()) or set()
         for _m in models:
             _name = str(_m)
-
 
             if _name in _probed_unsupported:
                 capabilities[_name] = "off"
@@ -1326,9 +1313,6 @@ async def shell_execute(request: ShellRequest) -> ORJSONResponse:
             },
             status_code=400,
         )
-
-
-
 
     try:
         from .scope import audit_log, get_scope_guard
@@ -2179,10 +2163,6 @@ async def get_history() -> JSONResponse:
             and hasattr(saved_session, "conversation")
             and saved_session.conversation
         ):
-
-
-
-
             _progress_system_prefixes = (
                 "[SYSTEM: COMPRESSION SUMMARY",
                 "[SYSTEM: PINNED CONTEXT",
@@ -2190,7 +2170,6 @@ async def get_history() -> JSONResponse:
                 "[SYSTEM: EXPLOIT PHASE",
                 "[SYSTEM: REPORT PHASE",
             )
-
 
             recent_turns = list(getattr(saved_session, "recent_turns", []) or [])
             chat_source = recent_turns if recent_turns else [
@@ -2203,9 +2182,6 @@ async def get_history() -> JSONResponse:
                     msg.get("content", "")
                 ).startswith(_progress_system_prefixes):
                     messages.append(msg)
-
-
-
 
             recap = _build_session_recap(saved_session)
             if recap:

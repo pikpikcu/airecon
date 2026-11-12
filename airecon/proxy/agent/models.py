@@ -572,7 +572,6 @@ class AgentState:
         tool_calls: list[dict[str, Any]] | None = None,
         thinking: str | None = None,
     ) -> None:
-
         if role == "assistant" and content and "<think" in content:
             content = _THINK_BLOCK_RE.sub("", content)
 
@@ -1031,7 +1030,6 @@ class AgentState:
         )
         max_ev = _get_model_limits()["max_evidence"]
         if len(self.evidence_log) > max_ev:
-
             def _evidence_score(e: dict) -> float:
                 conf = float(e.get("confidence", 0.0))
                 sev = severity_to_int(e.get("severity", 3))

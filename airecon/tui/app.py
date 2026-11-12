@@ -292,7 +292,6 @@ class AIReconApp(App):
             role = str(msg.get("role") or "assistant").strip().lower()
             content = cls._history_content_to_text(msg.get("content")).strip()
 
-
             if role == "assistant" and not content and msg.get("tool_calls"):
                 for call in msg.get("tool_calls", []):
                     if not isinstance(call, dict):
@@ -377,7 +376,6 @@ class AIReconApp(App):
             logger.debug("Expected failure in _mark_llm_degraded set_status: %s", e)
 
     def _handle_llm_status(self, event: dict) -> None:
-
         if event.get("recovered") is not True:
             return
         self._llm_degraded_until = 0.0
@@ -1519,10 +1517,10 @@ class AIReconApp(App):
                     self._last_sse_activity = time.monotonic()
 
                     event_type = str(event.get("type", "") or "").strip()
-                    
+
                     if event_type.startswith("subagent_"):
                         logger.info("TUI SSE event: type=%s, keys=%s", event_type, list(event.keys())[:10])
-                    
+
                     event_req_id = str(
                         event.get("request_id", _chat_request_id) or _chat_request_id
                     )
@@ -1731,7 +1729,7 @@ class AIReconApp(App):
                         subagent_id = event.get("target", "") or event.get("subagent_id", "")
                         tool_id = str(event.get("tool_id", "0"))
                         content = event.get("content", "")
-                        
+
                         if content and subagent_id:
                             chat.subagent_append_tool_output(subagent_id, tool_id, content)
                             _now = time.monotonic()
@@ -1744,7 +1742,7 @@ class AIReconApp(App):
                         tool_id = str(event.get("tool_id", "0"))
                         success = event.get("success", False)
                         duration = event.get("duration", 0.0)
-                        
+
                         if subagent_id:
                             chat.subagent_update_tool_end(
                                 subagent_id, tool_id, success, duration, "", ""
@@ -2678,19 +2676,12 @@ class AIReconApp(App):
         self.push_screen(QuitConfirmScreen(), _on_dismiss)
 
     async def action_quit(self) -> None:
-
-
         try:
-
-
-
             try:
                 if self._chat_worker and self._chat_worker.is_running:
                     self._chat_worker.cancel()
             except Exception as e:
                 logger.debug("Expected failure cancelling chat worker on quit: %s", e)
-
-
 
             try:
                 await asyncio.wait_for(self._http.post("/api/stop"), timeout=2.0)
@@ -2699,11 +2690,6 @@ class AIReconApp(App):
 
             if self._status_task and not self._status_task.done():
                 self._status_task.cancel()
-
-
-
-
-
 
             try:
                 await asyncio.wait_for(self._http.aclose(), timeout=2.0)

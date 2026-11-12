@@ -86,7 +86,6 @@ class _ExplorationMixin:
         return {fallback} if len(fallback) >= 3 else set()
 
     def _track_tool_usage(self, tool_name: str, arguments: dict | None = None) -> None:
-
         track_as = tool_name
         if self._ctf_mode and tool_name == "execute" and arguments:
             cmd = str(arguments.get("command", "")).strip()
@@ -155,7 +154,6 @@ class _ExplorationMixin:
         return streak
 
     def _refresh_exploration_state(self) -> None:
-
         meaningful_now = sum(
             1
             for e in self.state.evidence_log

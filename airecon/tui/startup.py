@@ -31,8 +31,6 @@ _proxy_thread: threading.Thread | None = None
 _proxy_fatal_error: list[str] = []
 
 
-
-
 _CRASH_LOG_PATH: Path = Path(tempfile.gettempdir()) / "airecon_proxy_crash.log"
 
 
@@ -75,10 +73,6 @@ def _proxy_thread_body() -> None:
     for _n in ("uvicorn", "uvicorn.error", "httpx", "httpcore"):
         _log.getLogger(_n).setLevel(_log.CRITICAL)
 
-
-
-
-
     try:
         from airecon.proxy.server import run_server
     except BaseException as exc:  # noqa: BLE001 - must surface any startup failure
@@ -96,7 +90,6 @@ def _proxy_thread_body() -> None:
         _t0 = time.monotonic()
         try:
             run_server()
-
 
             _proxy_fatal_error.append(
                 f"Proxy server exited unexpectedly without an error "
@@ -330,7 +323,6 @@ class StartupScreen(Screen[bool]):
                 )
                 return
         else:
-
             if not await engine.image_exists():
                 self._set_step("step-docker", "fail", "image missing")
                 self._set_status(

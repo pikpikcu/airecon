@@ -70,7 +70,6 @@ def _build_cold_start_knowledge(tech_names: list[str]) -> str:
 try:
     from ..server import _trace_chat_event
 except (ImportError, ValueError):
-
     def _trace_chat_event(*args, **kwargs):
         pass
 

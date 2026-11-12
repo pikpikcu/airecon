@@ -508,7 +508,6 @@ class BrowserInstance:
                     redirect_count += 1
                     last_url = current_url
 
-
                     if current_url in seen_urls:
                         logger.warning(
                             f"Detected redirect loop ({redirect_count} redirects, "
@@ -552,9 +551,6 @@ class BrowserInstance:
                         "Authentication required or invalid credentials for this URL"
                     ) from e
                 if "interrupted by another navigation" in err_lower:
-
-
-
                     try:
                         await page.wait_for_load_state(
                             "domcontentloaded", timeout=min(timeout_ms, 15000)
@@ -897,7 +893,6 @@ class BrowserInstance:
                 ),
             }
         except RuntimeError as e:
-
             err_str = str(e)
             if "Too many redirects" in err_str or "redirect loop" in err_str.lower():
                 redirected_url = ""
@@ -1479,7 +1474,6 @@ class BrowserInstance:
         tab_id: str | None,
         multi_step: bool = False,
     ) -> dict[str, Any]:
-
         if not self.pages:
             await self._create_context(url)
             tab_id = self.current_page_id
@@ -1592,7 +1586,6 @@ class BrowserInstance:
                 except Exception as _ss_err:
                     logger.debug("Auto-screenshot on CAPTCHA failed: %s", _ss_err)
 
-
                 _capt_type = r.get("captchaType") or "unknown"
                 _captcha_bypass_applied = False
                 try:
@@ -1607,10 +1600,8 @@ class BrowserInstance:
                         timeout=_cfg.llm_timeout,
                     )
 
-
                     _bypass_js = _solver._get_dom_bypass_js(_capt_type)
                     if _captcha_screenshot:
-
                         _solve_result = await _solver.solve_from_page(
                             page_screenshot_b64=base64.b64encode(
                                 await page.screenshot(type="png", full_page=False)
@@ -1630,7 +1621,6 @@ class BrowserInstance:
                                 _solve_result.get("solution"),
                             )
                     elif _bypass_js:
-
                         _dom_result = await page.evaluate(_bypass_js)
                         if isinstance(_dom_result, dict) and _dom_result.get("success"):
                             state["captcha_bypass_applied"] = True
@@ -2231,7 +2221,6 @@ class BrowserTabManager:
             error_str = str(e)
             error_lower = error_str.lower()
 
-
             if _is_auth_error(error_lower):
                 logger.info("Browser auth error during %s: %s", action_name, error_str)
                 return {
@@ -2250,15 +2239,12 @@ class BrowserTabManager:
                     ),
                 }
 
-
-
             is_redirect_loop = (
                 "too many redirects" in error_lower
                 or "redirect loop" in error_lower
                 or "redirected to static asset" in error_lower
             )
             if is_redirect_loop:
-
                 redirected_url = ""
                 _final_m = re.search(r"final URL:\s*(\S+)", error_str)
                 if _final_m:
@@ -2405,7 +2391,6 @@ class BrowserTabManager:
                         "or try a different authentication approach."
                     )
                 elif "timed out" in e_str.lower() and action_name in ("goto", "launch"):
-
                     _url_hint = str(args[0]) if args else "target"
                     error_str += (
                         f" — {_url_hint} may be WAF-blocked, unreachable, or very slow. "
@@ -2466,7 +2451,6 @@ class BrowserTabManager:
         return result
 
     def new_tab(self, url: str | None = None) -> dict[str, Any]:
-
         browser = self._ensure_launched()
         tabs = browser.list_tabs()
         tab_count = tabs.get("count", 0)
@@ -2653,13 +2637,11 @@ class BrowserTabManager:
 
             page = browser.pages[tab_id]
 
-
             loop = browser._loop
             if loop is None:
                 return {"error": "No event loop available for async CAPTCHA solving"}
 
             import asyncio
-
 
             ss_future = asyncio.run_coroutine_threadsafe(
                 page.screenshot(type="png", full_page=False),
@@ -2682,7 +2664,6 @@ class BrowserTabManager:
                 loop,
             )
             solve_result = future.result(timeout=solver.timeout)
-
 
             if solve_result.get("bypass_js"):
                 dom_result = page.evaluate(solve_result["bypass_js"])

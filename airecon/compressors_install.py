@@ -73,7 +73,7 @@ def install(prefix: Path, system: str | None = None, machine: str | None = None)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description='Install optional, checksum-pinned compressors without shell installers or hooks.\n\nUsage: python -m airecon.compressors_install [--prefix PATH]')
+    parser = argparse.ArgumentParser(description='Install optional, checksum-pinned compressors without shell installers or hooks.\n\nUsage: python -m airecon.compressors_install [--prefix PATH]\n')
     parser.add_argument("--prefix", type=Path, default=Path.home() / ".airecon" / "bin")
     args = parser.parse_args()
     install(args.prefix)

@@ -302,7 +302,6 @@ class _ContextMixin:
         return True
 
     def _drop_stale_tool_results(self) -> int:
-
         msgs = self.state.conversation
         if len(msgs) <= 8:
             return 0

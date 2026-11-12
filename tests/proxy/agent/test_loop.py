@@ -311,7 +311,6 @@ async def test_standard_mode_scoped_request_keeps_scope_lock_disabled(agent_loop
     assert agent_loop._scope_lock_active is False
 
 
-
 @pytest.mark.asyncio
 async def test_wildcard_scope_moves_workspace_to_root_target(agent_loop, mocker):
     cfg = MagicMock()

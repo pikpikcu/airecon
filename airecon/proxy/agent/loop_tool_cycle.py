@@ -23,7 +23,6 @@ logger = logging.getLogger("airecon.agent")
 try:
     from ..server import _trace_chat_event
 except (ImportError, ValueError):
-
     def _trace_chat_event(*args, **kwargs):
         pass
 
@@ -1725,7 +1724,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                         None,
                         False,
                     )
-
 
                 return (idx, tc, tn, args, True, d, r, o, s)
 

@@ -16,7 +16,6 @@ rng = random.SystemRandom()
 
 
 class AdaptiveRateLimiter:
-
     _RESPONSE_EWMA_ALPHA = 0.3
     _CONGESTION_EWMA_ALPHA = 0.4
     _SUCCESS_WINDOW = 30
@@ -329,7 +328,6 @@ class AdaptiveRateLimiter:
 
     def get_all_stats(self) -> dict[str, dict[str, Any]]:
         return {k: self.get_domain_stats(k) for k in set(list(self.domain_delays.keys()) + list(self._success_log.keys()))}
-
 
     def set_rate_limit(self, domain: str, requests_per_second: float) -> None:
         if requests_per_second > 0:

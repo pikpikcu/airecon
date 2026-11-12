@@ -41,7 +41,6 @@ class _CycleLlmMixin:
     _REPORT_MAX_VULNS = 50
 
     def _build_report_phase_evidence(self) -> str:
-
         if not self._session or not self._session.vulnerabilities:
             return ""
 
@@ -204,7 +203,6 @@ class _CycleLlmMixin:
         )
 
     def _inject_tool_intelligence(self, wrong_tool_picked: str = "") -> None:
-
         if not self._tools_llm:
             return
 
@@ -613,7 +611,6 @@ class _CycleLlmMixin:
             )
             if (has_hallucination_risk or has_fake_cmd_block) and not tool_calls_acc:
                 if has_fake_cmd_block:
-
                     logger.warning(
                         "Bash code block detected in text response (iteration=%d) — "
                         "LLM wrote a command instead of calling execute{}",
@@ -632,7 +629,6 @@ class _CycleLlmMixin:
                     })
                     content_acc = ""
                 elif is_post_vuln_context:
-
                     logger.warning(
                         "Post-vulnerability hallucination detected "
                         "(phase=exploit=%s, vulns=%d, no_tool_iters=%d)",
@@ -671,7 +667,6 @@ class _CycleLlmMixin:
 
             _text_only_threshold = 1 if _in_active_session else 2
             if not tool_calls_acc and content_acc.strip() and self._no_tool_iterations >= _text_only_threshold:
-
                 _planning_keywords = [
                     "i will", "i'll", "let me", "next step",
                     "i should", "i need to", "i'm going to",
@@ -743,7 +738,6 @@ class _CycleLlmMixin:
                 self._pending_provider_blocks = None
 
             if self._session and content_acc:
-
                 hedge_words = [
                     "might", "could", "possibly", "appears", "suggests",
                     "may", "potentially", "likely", "probable", "seems",
@@ -751,14 +745,12 @@ class _CycleLlmMixin:
                 is_confident = not any(hedge in content_acc.lower() for hedge in hedge_words)
 
                 if is_confident:
-
                     vuln_claim_patterns = [
                         r"(sql\s*(injection)?|xss|ssrf|idor|rce|lfi|rfi|xxe|command\s+injection)\s+(in|at|on|found\s+in|detected\s+at)\s+([^\s,.!?]+)",
                     ]
                     for pattern in vuln_claim_patterns:
                         matches = re.findall(pattern, content_acc.lower())
                         for match in matches:
-
                             if isinstance(match, tuple) and len(match) >= 4:
                                 vuln_type = match[0].strip()
                                 endpoint = match[3].strip()
@@ -796,7 +788,6 @@ class _CycleLlmMixin:
                                 tc_name = tc.get("function", {}).get("name", "")
                                 tc_args = tc.get("function", {}).get("arguments", {})
                                 if tc_name in _vuln_scan_tools:
-
                                     tc_url = str(tc_args.get("url", tc_args.get("command", ""))).lower()
                                     if endpoint.lower() in tc_url:
                                         has_tool_evidence = True
@@ -832,11 +823,9 @@ class _CycleLlmMixin:
                         known_tools.extend(cat_group)
                 content_lower = content_acc.lower()
                 for tool in known_tools:
-
                     if re.search(rf"\b{re.escape(tool)}\b", content_lower):
                         if tool not in self.state.planned_tools:
                             self.state.planned_tools.append(tool)
-
 
             return content_acc, thinking_acc, tool_calls_acc, _has_task_complete
 

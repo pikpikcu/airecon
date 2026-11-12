@@ -136,7 +136,6 @@ class CommandInput(TextArea):
             return
 
         if event.key == "escape":
-
             self.post_message(self.EscapeCompletion())
             return
 
@@ -160,7 +159,6 @@ class CommandInput(TextArea):
         try:
             super().action_undo()
         except ValueError:
-
             lines = self.text.splitlines() or [""]
             try:
                 self.cursor_location = (len(lines) - 1, len(lines[-1]))

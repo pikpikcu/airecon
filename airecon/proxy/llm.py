@@ -192,7 +192,6 @@ class LLMReasoningReplayRequired(LLMBackendHTTPError):
 
 
 class LLMToolCallError(RuntimeError):
-
     def __init__(self, tool_name: str, reason: str) -> None:
         self.tool_name = tool_name
         self.reason = reason
@@ -205,7 +204,6 @@ def _decode_tool_arguments(
     try:
         arguments = json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError as exc:
-
         raise LLMToolCallError(name, "arguments must be a complete JSON object") from exc
     if not isinstance(arguments, dict):
         raise LLMToolCallError(name, "arguments must be a JSON object")
@@ -530,7 +528,6 @@ class LLMClient:
             re.IGNORECASE,
         )
         return m.group(1) if m else None
-
 
     _OPTIONAL_PARAMS = ("num_ctx", "num_keep", "repeat_penalty", "temperature", "stream_options")
 

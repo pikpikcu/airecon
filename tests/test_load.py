@@ -56,7 +56,6 @@ class TestServerConcurrency:
         client = TestClient(app, raise_server_exceptions=False)
 
         with patch("airecon.proxy.server._agent_busy", True):
-
             async def make_request():
                 return client.post(
                     "/api/chat",

@@ -185,7 +185,7 @@ class CorrelationEngine:
 
         endpoints = {f.endpoint for f in findings if f.endpoint}
         params = {f.parameter for f in findings if f.parameter}
-        
+
         if len(endpoints) == 1 and len(params) > 1:
             return min(5, max_sev + min(2, len(params) - 1))
 
@@ -196,7 +196,7 @@ class CorrelationEngine:
                           or "exposure" in f.vuln_class for f in findings)
             has_execution = any("inject" in f.vuln_class or "rce" in f.vuln_class
                                or "code" in f.vuln_class for f in findings)
-            
+
             if has_auth and has_data:
                 return min(5, max_sev + 2)
             if has_auth and has_execution:
@@ -266,7 +266,7 @@ class CorrelationEngine:
             REL_SEQUENTIAL: "must be exploited in sequence",
             REL_AMPLIFICATION: "severity amplifies when combined",
         }
-        
+
         relation_strs = [
             relation_explanations.get(r, r)
             for r in unique_relations

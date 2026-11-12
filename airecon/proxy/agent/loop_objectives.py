@@ -172,7 +172,7 @@ def _load_phase_objectives() -> dict[str, list[str]]:
                 if line.startswith("OBJECTIVE:") or line.startswith("DIRECTIVE:"):
                     obj_start = i + 1
                     break
-            
+
             objs = []
             for line in lines[obj_start:obj_start+12]:
                 if line.startswith("<") or line.startswith("[") or not line:
@@ -182,12 +182,12 @@ def _load_phase_objectives() -> dict[str, list[str]]:
                     objs.append(cleaned)
                 if len(objs) >= 6:
                     break
-            
+
             if objs:
                 objectives[phase_name] = objs
         except Exception as e:
             logger.debug("Failed to load phase objectives from %s: %s", phase_file.name, e)
-    
+
     return objectives
 
 

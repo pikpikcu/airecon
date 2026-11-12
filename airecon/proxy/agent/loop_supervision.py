@@ -100,7 +100,6 @@ class _SupervisionMixin:
                 picked.append(line.rstrip("\\").strip())
 
             if picked:
-
                 candidate = "\n".join(p for p in picked if p)
                 safe = _safe(candidate)
                 if safe:
@@ -274,7 +273,6 @@ class _SupervisionMixin:
                 ab_signal = self._get_ab_signals(last_ev.get("summary", ""))
 
                 if ab_signal and ab_signal.get("objective_patches"):
-
                     _patches = [
                         dict(_p, phase=phase_str)
                         if _p.get("op") == "add" and not _p.get("phase")
@@ -514,7 +512,6 @@ class _SupervisionMixin:
                 args_hint = ""
                 args = getattr(entry, "arguments", None) or {}
                 if isinstance(args, dict):
-
                     for key in ("command", "url", "query", "action", "target"):
                         if key in args:
                             val = str(args[key])[:80]

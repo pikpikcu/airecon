@@ -203,7 +203,6 @@ def _build_phase_appropriate() -> dict[str, set[str]]:
 
 
 def _build_phase_blocked() -> dict[str, set[str]]:
-
     all_phase_tools = _build_phase_appropriate()
     all_known = _collect_all_known_tools()
 

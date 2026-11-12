@@ -92,7 +92,6 @@ def _skip_parameter(command: str, i: int) -> int:
 
 
 def _scan_word(command: str, i: int) -> int:
-
     n = len(command)
     while i < n:
         c = command[i]
@@ -140,7 +139,6 @@ def _scan_word(command: str, i: int) -> int:
 
 
 def _host_root_span(command: str, start: int, end: int, host_root: str) -> tuple[int, int] | None:
-
     quote = ""
     matched = 0
     span_start = span_end = -1
@@ -334,7 +332,6 @@ def rewrite_host_workspace_paths(command: str, host_root: str | None = None) -> 
 
 
 def _validate_target_name(target: str) -> bool:
-
     if not target:
         return False
     if len(target) > 255:
@@ -615,7 +612,7 @@ class DockerEngine:
                     target
                 )
                 return False
-            
+
             await self.execute(
                 f"mkdir -p /workspace/{target}/command /workspace/{target}/output "
                 f"/workspace/{target}/tools /workspace/{target}/vulnerabilities",
@@ -623,7 +620,6 @@ class DockerEngine:
             )
 
         if not _recovery:
-
             async def _bg_apt_update() -> None:
                 try:
                     await self.execute("sudo apt-get update -y -qq", _retry=True)
@@ -955,7 +951,6 @@ class DockerEngine:
             async def _read_stream(
                 stream: asyncio.StreamReader, is_stderr: bool
             ) -> None:
-
                 try:
                     while True:
                         line = await stream.read(1024 * 4)
@@ -980,7 +975,7 @@ class DockerEngine:
                 if proc.stdout is None or proc.stderr is None:
                     logger.error("Process stdout/stderr not initialized")
                     raise RuntimeError("Process streams not available")
-                
+
                 await asyncio.wait_for(
                     asyncio.gather(
                         _read_stream(proc.stdout, False),

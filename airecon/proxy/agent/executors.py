@@ -82,7 +82,6 @@ class _ExecutorMixin(
         _executed_tool_counts: dict[tuple[str, str], int]
 
     def _get_executor_providers(self) -> dict[str, dict[str, Any]]:
-
         try:
             self._executor_providers
         except AttributeError:

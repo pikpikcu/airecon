@@ -1285,7 +1285,6 @@ class _ValidatorMixin:
 
             scope_valid = True
             if hasattr(self, "_session") and self._session:
-
                 def _is_ip_address(host: str) -> bool:
                     parts = host.split(".")
                     return len(parts) == 4 and all(

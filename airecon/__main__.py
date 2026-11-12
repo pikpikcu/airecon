@@ -41,7 +41,6 @@ def _print_banner() -> None:
 
 
 def main() -> None:
-
     version = __version__
 
     parser = argparse.ArgumentParser(

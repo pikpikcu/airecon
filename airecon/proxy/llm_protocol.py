@@ -80,7 +80,6 @@ def anthropic_messages(messages: list[dict[str, Any]]) -> tuple[str, list[dict[s
         if role == "assistant":
             native = msg.get("_provider_blocks")
             if isinstance(native, list) and native:
-
                 blocks = copy.deepcopy(native)
                 ids = [b["id"] for b in blocks if b.get("type") == "tool_use"]
             else:
@@ -189,7 +188,6 @@ async def anthropic_lines(response: Any, stop: Callable[[], bool] | None) -> Asy
                     try:
                         block["input"] = json.loads(partial)
                     except json.JSONDecodeError:
-
                         block["input"] = None
                 native.append(block)
             out = {"choices": [{"delta": {}, "finish_reason": finish}],

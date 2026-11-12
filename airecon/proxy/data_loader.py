@@ -20,8 +20,6 @@ def _load_json(filename: str) -> dict[str, Any]:
         return {}
 
 
-
-
 _UNIFIED_PATTERNS: dict[str, Any] | None = None
 
 
@@ -38,7 +36,6 @@ def _load_unified_patterns() -> dict[str, Any]:
             return _UNIFIED_PATTERNS
         except Exception as exc:
             logger.warning("Failed to load unified_patterns.json: %s", exc)
-
 
     result: dict[str, Any] = {"_fallback": True}
     for fname in ["patterns.json", "business_logic_patterns.json", "zeroday_patterns.json"]:
@@ -62,8 +59,6 @@ def load_pattern_by_category(category: str) -> dict[str, Any] | None:
     if entry and not isinstance(entry, dict):
         return None
     return entry if entry and not entry.get("_comment") else None
-
-
 
 
 def load_expert_testing_patterns() -> dict[str, Any]:
@@ -104,14 +99,8 @@ def load_vuln_hypothesis_legacy() -> list[dict[str, Any]]:
     ]
 
 
-
-
-
 def load_verification_patterns() -> dict[str, Any]:
     return _load_json("verification_patterns.json")
-
-
-
 
 
 def load_refusal_markers() -> list[str]:
@@ -126,35 +115,20 @@ def load_awaiting_input_markers() -> list[str]:
     return [str(m).lower() for m in markers if str(m).strip()]
 
 
-
-
-
 def load_file_extensions() -> dict[str, Any]:
     return _load_json("file_extensions.json")
-
-
-
 
 
 def load_endpoint_patterns() -> dict[str, Any]:
     return _load_json("endpoint_patterns.json")
 
 
-
-
-
 def load_tech_correlations() -> dict[str, Any]:
     return _load_json("tech_correlations.json")
 
 
-
-
-
 def load_tools_meta() -> dict[str, Any]:
     return _load_json("tools_meta.json")
-
-
-
 
 
 def load_tools() -> list[dict[str, Any]]:
@@ -166,21 +140,12 @@ def load_tools() -> list[dict[str, Any]]:
         return []
 
 
-
-
-
 def load_fuzzer_data() -> dict[str, Any]:
     return _load_json("fuzzer_data.json")
 
 
-
-
-
 def load_waf_signatures() -> dict[str, Any]:
     return _load_json("waf_signatures.json")
-
-
-
 
 
 def load_waf_bypass_strategies(waf_name: str) -> list[str]:
@@ -195,9 +160,6 @@ def load_waf_bypass_strategies(waf_name: str) -> list[str]:
     return []
 
 
-
-
-
 def load_recon_tools() -> set[str]:
     meta = _load_json("tools_meta.json")
     categories = meta.get("categories", {}).get("reconnaissance", {})
@@ -207,9 +169,6 @@ def load_recon_tools() -> set[str]:
             tools.update(subcat)
     tools |= {"execute", "browser_action"}
     return tools
-
-
-
 
 
 def load_attack_chains() -> list[dict[str, Any]]:
@@ -255,9 +214,6 @@ def load_attack_chains() -> list[dict[str, Any]]:
     return normalized
 
 
-
-
-
 def merge_headers(
     base_headers: dict[str, str] | None,
     override_headers: dict[str, str] | None,
@@ -270,8 +226,6 @@ def merge_headers(
     if override_headers:
         merged.update(override_headers)
     return merged
-
-
 
 
 SEVERITY_TO_INT: dict[str, int] = {

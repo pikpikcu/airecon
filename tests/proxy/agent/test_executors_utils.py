@@ -48,7 +48,6 @@ def test_utils_runtime_state_self_heals_without_python_sessions():
     assert utils._notes_manager is None  # no active target
 
 
-
 def test_agent_loop_initializes_utils_runtime_state():
     from airecon.proxy.agent.loop import AgentLoop
 

@@ -344,7 +344,6 @@ def _parse_llm_json(raw: str) -> dict[str, Any] | None:
 
 
 def _looks_like_widget_captcha(type_hint: str) -> bool:
-
     t = type_hint.lower()
     widget_keywords = (
         "captcha", "challenge", "turnstile", "widget",
@@ -356,7 +355,6 @@ def _looks_like_widget_captcha(type_hint: str) -> bool:
 
 
 def _guess_input_names(type_hint: str) -> list[str]:
-
     t = type_hint.lower()
     names: list[str] = []
     if "recaptcha" in t:

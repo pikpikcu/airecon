@@ -66,7 +66,6 @@ def _open_memory_db(read_only: bool) -> sqlite3.Connection:
 
 @dataclass
 class ToolPerformance:
-
     tool_name: str
     total_uses: int = 0
     successes: int = 0
@@ -106,7 +105,6 @@ class ToolPerformance:
 
 @dataclass
 class StrategyPattern:
-
     pattern_id: str
     description: str
     conditions: dict[str, Any]
@@ -126,8 +124,6 @@ class StrategyPattern:
 
 @dataclass
 class LearnedInsight:
-
-
     insight_id: str
     category: str
     title: str
@@ -155,7 +151,6 @@ class ObservationLog:
 
 
 class AdaptiveLearningEngine:
-
     def __init__(
         self,
         min_observations: int = 3,
@@ -208,7 +203,6 @@ class AdaptiveLearningEngine:
             )
         except Exception as exc:
             logger.debug("Brain config load failed: %s", exc)
-
 
     def _load_state(self) -> None:
         try:
@@ -568,7 +562,6 @@ class AdaptiveLearningEngine:
                 "Failed to persist distilled insights to memory DB: %s",
                 exc,
             )
-
 
     @staticmethod
     def _insight_embed_text(insight: dict[str, Any] | LearnedInsight) -> str:
@@ -999,7 +992,6 @@ class AdaptiveLearningEngine:
     def _state_file(self) -> Path:
         return _LEARNING_DIR / "global_learning.json"
 
-
     def _bootstrap_insights_from_patterns(self) -> None:
         now = time.time()
         type_to_category = {
@@ -1130,7 +1122,6 @@ class AdaptiveLearningEngine:
                 len(self.learned_insights),
             )
 
-
     def record_tool_result(
         self,
         tool_name: str,
@@ -1256,7 +1247,6 @@ class AdaptiveLearningEngine:
             (1 - alpha) * existing.avg_result_confidence
         )
         existing.last_applied = time.time()
-
 
     def distill_insights(
         self, base_url: str = "", model: str = "", api_key: str = ""
@@ -1481,7 +1471,6 @@ class AdaptiveLearningEngine:
 
         return added
 
-
     def recommend_tools(
         self,
         phase: str = "",
@@ -1700,7 +1689,6 @@ def _insight_ref_id(insight_id: str) -> int:
     return int.from_bytes(digest, "big") & 0x7FFFFFFFFFFFFFFF
 
 
-
 _TARGET_MEMORY_DIR = Path.home() / ".airecon" / "memory" / "by_target"
 
 
@@ -1760,7 +1748,6 @@ class TargetMemoryStore:
         norm = self._normalize_target(target)
         safe_name = norm.replace("/", "_").replace("\\", "_")
         return self.base_dir / f"{safe_name}.json"
-
 
     def load(self, target: str) -> TargetMemory | None:
         norm = self._normalize_target(target)
@@ -1826,7 +1813,6 @@ class TargetMemoryStore:
         if persist:
             self.save(norm, tm)
 
-
     def ensure(self, target: str) -> TargetMemory:
         norm = self._normalize_target(target)
         if norm in self._cache:
@@ -1889,7 +1875,6 @@ class TargetMemoryStore:
     def add_session_note(self, target: str, note: str) -> None:
         tm = self.ensure(target)
         tm.session_notes = f"{tm.session_notes}\n{note}" if tm.session_notes else note
-
 
     def list_targets(self) -> list[str]:
         return [
@@ -1980,7 +1965,6 @@ class TargetMemoryStore:
         )
         lines.append("</target_intelligence>")
         return "\n".join(lines)
-
 
 
 def _extract_tool_name(raw_cmd: str) -> str:

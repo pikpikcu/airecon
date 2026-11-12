@@ -6,7 +6,6 @@ import time
 from unittest.mock import patch
 
 
-
 class TestConfigHotReloadIntegration:
     """Test config file hot-reload with real file operations."""
 
