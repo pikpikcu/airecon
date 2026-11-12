@@ -88,6 +88,31 @@ It is a conservative UTF-8-byte heuristic, not exact model tokenization.
 Restart AIRecon after applying code/config changes; an already-running process
 does not reload modified Python modules automatically.
 
+## Provider conversation state
+
+- Native Anthropic and OpenAI-compatible requests share trailing-instruction
+  normalization: a retry after a text-only assistant response stays a final
+  user turn, rather than becoming an unsupported assistant prefill. Pending
+  native tool-use blocks and their signed thinking blocks remain unchanged.
+- OpenAI-compatible tool-call streams preserve opaque `extra_content`, including
+  Gemini's `google.thought_signature`, across deltas and replay.
+- Explicit `reasoning_content` returned by a provider is retained separately
+  from UI-only `thinking` and stored in conversation history. Filtering old UI
+  thinking does not remove provider state.
+- `llm_reasoning_replay: auto` sends stored reasoning back only where it is
+  needed: DeepSeek API hosts and `deepseek/`-prefixed gateway models, whose
+  thinking mode rejects tool requests that omit earlier reasoning, and any
+  host+model whose backend returns a 400 asking for missing `reasoning_content`
+  (learned once per process for that host, then the same request is resent;
+  streaming and non-streaming calls both learn). A locally served
+  DeepSeek-named model is not matched by name. Local and other gateways do not receive it, and the request
+  budget counts exactly what is sent. `always` and `off` force the behavior;
+  `off` is never overridden by learning.
+- Missing reasoning history or thought signatures are not treated as evidence
+  that the model lacks optional reasoning-parameter support. No replacement
+  signatures or reasoning text are fabricated. Sessions that already lost this
+  state cannot recover it from the fix; start a new session in that case.
+
 ## Recoverable output compression: RTK and Caveman
 
 Install the optional native tools on the machine running the AIRecon proxy:
@@ -116,16 +141,70 @@ built-in compaction and can supply their own compatible executables.
   `output/context/<session-key>/` directory. Files use mode `0600`.
 - Previews prioritize error/finding lines, mark omissions explicitly, and carry
   a `read_file` path to the original. A preview is never proof of a clean scan.
-  Exact `read_file` results are not passed through lossy native compressors;
-  paginate large reads when the latest tool group cannot fit.
+  Exact `read_file` results are not passed through lossy native compressors,
+  in either tool-result role.
+- `read_file` pages are bounded in bytes as well as lines. One result is at
+  most 8192 bytes measured as JSON-escaped UTF-8 (7680 for file content, 512
+  reserved for the page header), and contains whole lines only, with their
+  original line endings. A page closes at `limit` lines or at the byte bound,
+  whichever comes first; `next_offset`, `has_more` and `byte_limited` say where
+  to continue. Small files that fit are still returned verbatim with no header.
+- A single line that cannot fit a page is never cut: the result is a short
+  `line_too_large` notice with the line number, byte length, byte offset and an
+  `execute`-based retrieval plan, and no file content. Advisory samples follow
+  the same rule and label any line they leave out. The file itself is never
+  modified. Bytes that are not valid UTF-8 are flagged with `lossy_decode`.
+- When a context window is tight, optional tool schemas are left out of the
+  request before any instruction or exact read is touched, both on the normal
+  path and when recovering from a backend context rejection. The core tools
+  (`execute`, `read_file`, `web_search`, `create_note`,
+  `create_vulnerability_report`) are always sent. If instructions, core schemas
+  and the latest exact tool group still cannot fit, the run stops with a
+  context-budget error instead of dropping them.
 - Archive failure keeps the original result; the request budget can stop the
   run rather than pretend the omitted evidence is recoverable. Old sessions
   whose results were already truncated cannot have those missing bytes restored.
+- Older tool groups are evicted whole (assistant turn plus every result, in
+  both `tool_response_role` modes) into line-oriented archives under
+  `output/context/<session>/` that `read_file` can page: a legend line, then
+  `@ ` JSON headers, `| ` content lines and `» ` continuations for lines split
+  to stay under the page byte bound. The latest real tool group and its exact
+  `read_file` page are never evicted, and a second budget pass on an
+  already-packed history changes nothing.
+- The single archive notice is a system-role message, so it joins the system
+  prompt on the wire instead of becoming a synthetic assistant turn (which
+  DeepSeek thinking mode and Anthropic signed thinking would reject).
 
 Licensing is component-specific: this integration invokes the Apache-2.0 RTK
 OSS CLI, not RTK's separately licensed engine/proxy. Caveman's standalone engine
 is optional too; retain upstream release licenses and third-party notices when
 redistributing binaries. Neither executable is bundled in AIRecon's wheel.
+
+## Python execution: no host REPL (python_session removed)
+
+The `python_session` tool has been **removed**. It executed model-generated
+Python on the proxy host via in-process `exec()`/`eval()` — giving model code
+the host filesystem, subprocess and network with no sandbox. That seam is
+closed fail-closed:
+
+- The in-process session machinery (`_PythonSession`) is deleted from
+  `airecon/proxy/agent/executors_utils.py`.
+- The `python_session` handler still exists only as a defense for persisted
+  or attempted old calls: it rejects every call with a structured
+  `{"success": false, "error": ...}` before any code execution or
+  utility-state side effect. Both dispatch entry paths (`_dispatch_tool` and
+  `_execute_tool_and_record`) reach this rejection.
+- The tool is removed from the advertised catalog (`tools.json`) and from
+  `tools_meta.json` (`callable_core_tools`), so models are no longer offered
+  a Python REPL.
+- There is deliberately **no configuration switch** that re-enables host
+  execution.
+
+**Limitation / intended usage:** to run Python, use the `execute` tool so the
+code runs INSIDE the Docker target sandbox (for example a `python3 - <<'PY'`
+heredoc command through `execute`). No persistent, stateful Python REPL is
+offered; state must be kept in workspace files between `execute` calls.
+Pinned by `tests/proxy/agent/test_python_session_isolation.py`.
 
 ## Stability Exit Criteria
 

@@ -356,7 +356,7 @@ def test_extract_injection_points_ssrf_reclassified_to_open_redirect():
     javascript: protocol because the param was typed as SSRF.
     """
     pts = _extract_injection_points(
-        "https://myaccount.genexus.com/api/frontendweb.aredirurl?url=javascript:alert(1)"
+        "https://account.example.com/api/frontendweb.aredirurl?url=javascript:alert(1)"
     )
     assert len(pts) == 1
     assert pts[0]["parameter"] == "url"

@@ -411,7 +411,9 @@ class _FormatterMixin:
             content = result["result"]
         else:
             content = json.dumps(result, default=str)
-        if len(content) > MAX_TOTAL:
+        # read_file already bounds whole pages; slicing here loses exact bytes
+        # and continuation metadata, including in the smaller CTF view.
+        if tool_name != "read_file" and len(content) > MAX_TOTAL:
             content = content[:MAX_TOTAL] + "\n... (truncated)"
         return content
 

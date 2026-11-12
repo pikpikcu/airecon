@@ -17,6 +17,14 @@
   owner; local programming/protocol errors are not connection-backoff retries.
 - Clear TUI degraded status only after a usable completed LLM response, not merely
   a successful health/model-list probe.
+- Keep provider conversation state across stream, history, session and retry:
+  Gemini `extra_content` thought signatures and DeepSeek `reasoning_content`.
+  New `llm_reasoning_replay: auto|always|off` sends stored reasoning only where a
+  backend needs it (DeepSeek API, or a host+model that returned a 400 for it).
+- Context budget: reserve the latest real tool group (never the archive notice),
+  evict user-role tool results with their group, archive evicted groups as
+  pageable tagged lines, emit the archive notice as system text, and estimate
+  live token use from the schemas actually sent.
 
 ## [v1.7.1-beta] - 2026-06-15
 

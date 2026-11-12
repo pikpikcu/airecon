@@ -10,7 +10,7 @@ import httpx
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-from ..llm import LLMBackendHTTPError, LLMToolCallError
+from ..llm import LLMBackendHTTPError, LLMReasoningReplayRequired, LLMToolCallError
 from ..context_budget import ContextBudgetError
 from .models import AgentEvent
 from .loop_cycle_prelude import _CyclePreludeMixin
@@ -672,8 +672,10 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
             _last_chunk_data = {}
             _vram_retries_this_iter = 0
             _context_retries_this_iter = 0
+            _replay_retry_used = False
             _tool_argument_repairs = 0
             self._pending_provider_blocks = None
+            self._pending_reasoning_content = None
 
             yield AgentEvent(
                 type="progress",
@@ -743,7 +745,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
 
                     _stream_gen = self.llm.chat_stream(
                         messages=self._messages_for_llm(),
-                        tools=self._tools_llm,
+                        tools=getattr(self, "_tools_budgeted", None) or self._tools_llm,
                         options={
                             "num_ctx": adaptive_num_ctx,
                             "temperature": adaptive_temperature,
@@ -797,6 +799,8 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                             break
 
                         message = chunk_data.get("message", {})
+                        if "reasoning_content" in message:
+                            self._pending_reasoning_content = message["reasoning_content"]
                         if message.get("_provider_blocks"):
                             self._pending_provider_blocks = message["_provider_blocks"]
                         chunk_thinking = message.get("thinking")
@@ -925,6 +929,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                         thinking_acc = content_acc = _carry = ""
                         tool_calls_acc = []
                         self._pending_provider_blocks = None
+                        self._pending_reasoning_content = None
                         in_thinking_tag = False
                         _last_chunk_data = None
                         yield AgentEvent(type="text", data={"content": (
@@ -935,6 +940,21 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                         yield AgentEvent(type="error", data={"message": err_str, "reason": "context_budget"})
                         yield AgentEvent(type="done", data={})
                         return
+                    if isinstance(stream_err, LLMReasoningReplayRequired) and not _replay_retry_used:
+                        # The client learned that stored reasoning_content must be
+                        # replayed and resent nothing. The next attempt re-runs
+                        # _enforce_char_budget, which now counts that reasoning, so
+                        # the larger request is packed (or refused) before it is
+                        # sent. Once per iteration: a repeat is a client error.
+                        _replay_retry_used = True
+                        yield AgentEvent(type="text", data={"content": (
+                            "\n[AUTO-RECOVERY] Backend requires stored reasoning to be "
+                            "sent back; re-budgeting the request and retrying once.\n"
+                        )})
+                        thinking_acc = content_acc = _carry = ""
+                        tool_calls_acc = []
+                        in_thinking_tag = False
+                        continue
                     if (
                         isinstance(stream_err, LLMBackendHTTPError)
                         and stream_err.is_context_error

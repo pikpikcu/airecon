@@ -9,6 +9,20 @@ import pytest
 from airecon.proxy.agent.models import AgentState
 
 
+def _bind_budget_helpers(agent):
+    """Bind the real helpers that the real budget methods call on self."""
+    from types import MethodType
+
+    from airecon.proxy.agent.loop_context import _ContextMixin
+    from airecon.proxy.agent.loop_state import _StateMixin
+
+    agent._projection_overhead = MethodType(_ContextMixin._projection_overhead, agent)
+    agent._minimum_projection_overhead = MethodType(
+        _ContextMixin._minimum_projection_overhead, agent
+    )
+    agent._client_replay_policy = MethodType(_StateMixin._client_replay_policy, agent)
+
+
 class TestCollectKnownShellBinaries:
     def test_returns_frozenset(self):
         from airecon.proxy.agent.loop_tool_cycle import _collect_known_shell_binaries
@@ -366,6 +380,7 @@ class TestRunIterationLoop:
         agent._messages_for_llm = lambda: agent.state.conversation
         agent._get_artifact_compressor = lambda: ArtifactCompressor(tmp_path, rtk="", caveman="")
         agent._recover_context_budget = MethodType(_ContextMixin._recover_context_budget, agent)
+        _bind_budget_helpers(agent)
         sizes = []
         sleep = AsyncMock()
         monkeypatch.setattr("airecon.proxy.agent.loop_tool_cycle.asyncio.sleep", sleep)
@@ -398,6 +413,7 @@ class TestRunIterationLoop:
         agent._apply_local_context_fallback = lambda **kwargs: None
         agent._get_artifact_compressor = lambda: ArtifactCompressor(tmp_path, rtk="", caveman="")
         agent._enforce_char_budget = MethodType(_ContextMixin._enforce_char_budget, agent)
+        _bind_budget_helpers(agent)
         cfg = SimpleNamespace(**DEFAULT_CONFIG)
         cfg.llm_context_window = 8192
         events = []

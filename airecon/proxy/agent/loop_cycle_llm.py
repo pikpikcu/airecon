@@ -761,6 +761,10 @@ class _CycleLlmMixin:
             self.state.add_message(
                 "assistant", content_acc, tool_calls_acc, thinking_acc
             )
+            reasoning_content = getattr(self, "_pending_reasoning_content", None)
+            if reasoning_content is not None:
+                self.state.conversation[-1]["reasoning_content"] = reasoning_content
+                self._pending_reasoning_content = None
             native_blocks = getattr(self, "_pending_provider_blocks", None)
             if native_blocks:
                 self.state.conversation[-1]["_provider_blocks"] = native_blocks

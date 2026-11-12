@@ -173,6 +173,9 @@ class AgentLoop(
         self.engine = engine
         self.state = AgentState()
         self._tools_llm: list[dict[str, Any]] | None = None
+        # Budget-pruned view of _tools_llm actually sent to the model. None until
+        # _enforce_char_budget runs; _tools_llm stays the full execution registry.
+        self._tools_budgeted: list[dict[str, Any]] | None = None
         self._last_output_file: str | None = None
         self._context_char_budget = 0
         self._learning_distill_due = False

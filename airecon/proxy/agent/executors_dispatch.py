@@ -11,6 +11,7 @@ from typing import Any, Callable
 
 from ..caido_client import CaidoClient
 from ..config import get_config, get_workspace_root
+from ..docker import _host_operand_spans, rewrite_host_workspace_paths
 from ..mcp import mcp_call_tool, mcp_list_tools, mcp_search_tools_payload
 from ..scope import check_network_tool_scope
 from .executors_catalog import (
@@ -22,6 +23,11 @@ from .executors_catalog import (
 from .models import ToolExecution
 
 logger = logging.getLogger("airecon.agent")
+
+# What must follow a target-directory prefix for it to be cut from an operand:
+# a separator and the first character of a relative path that is not empty and
+# cannot be read as an option.
+_RELATIVE_REMAINDER_RE = re.compile(r"/[A-Za-z0-9_.]")
 
 
 class _DispatchExecutorMixin:
@@ -370,47 +376,48 @@ class _DispatchExecutorMixin:
         return tool_name, json.dumps(args_copy, sort_keys=True, default=str)
 
     @staticmethod
+    def _rewrite_host_workspace_paths(cmd: str) -> str:
+        if not cmd:
+            return cmd
+        try:
+            host_root = str(get_workspace_root()).rstrip("/")
+        except Exception as exc:  # pragma: no cover — config unavailable
+            logger.debug("Could not resolve workspace root for remap: %s", exc)
+            return cmd
+        return rewrite_host_workspace_paths(cmd, host_root=host_root)
+
+    @staticmethod
     def _normalize_workspace_paths(cmd: str, target: str) -> str:
         if not cmd or not target:
             return cmd
 
-        # Handle paths like "target/target/" -> "target/"
-        double_target = f"{target}/{target}/"
-        if double_target in cmd:
-            cmd = cmd.replace(double_target, target + "/")
+        # Host absolute paths become container paths first, so they collapse
+        # like any other /workspace/<target>/ operand below.
+        cmd = _DispatchExecutorMixin._rewrite_host_workspace_paths(cmd)
 
-        # Handle paths where the command references the target from within
-        # the workspace dir (which is already the target dir):
-        #   "target.com/output" or "/workspace/target.com/output" -> "output"
-        replacements = [
-            f"/workspace/{target}/",
-            f"/workspace/{target}",
-        ]
-        for old_path in replacements:
-            if old_path in cmd:
-                cmd = cmd.replace(old_path, "")
-
-        # Also handle bare "target.com/" prefix in any path segment after the target itself.
-        # Since we're already cd'd into /workspace/<target>, "target.com/anything" -> "anything"
-        # This covers: -o target/output, mkdir target/output, cat target/file, etc.
-        # We must be careful not to break: curl https://target.com/api, curl api.target.com
-        target_prefix = f"{target}/"
-        if target_prefix in cmd:
-            # Match output flags: -o[NAGX], --output=, >
-            output_flag_pattern = rf"(?:-o[NAGX]?\s+|--output(?:-directory)?\s*=?\s*|>\s*)(\S*{re.escape(target_prefix)}\S*)"
-            for match in re.finditer(output_flag_pattern, cmd):
-                full = match.group(1)
-                if target_prefix in full:
-                    replacement = full.replace(target_prefix, "", 1)
-                    cmd = cmd.replace(full, replacement, 1)
-
-            # Also handle standalone paths: mkdir, cat, echo > target/output
-            bare_path_pattern = rf"(?:(?:mkdir|cp|mv|rm|touch|ls|cat|tee)\s+)(.*?{re.escape(target_prefix)}\S*)"
-            for match in re.finditer(bare_path_pattern, cmd):
-                full = match.group(1)
-                if target_prefix in full:
-                    replacement = full.replace(target_prefix, "", 1)
-                    cmd = cmd.replace(full, replacement, 1)
+        prefixes = (f"/workspace/{target}", f"./{target}", target)
+        while target in cmd:
+            # Each pass cuts one leading prefix per operand; a doubled target
+            # (/workspace/<target>/<target>/x) is finished by the next pass.
+            cuts = sorted(
+                {
+                    (start, end + 1)
+                    for prefix in prefixes
+                    for start, end in _host_operand_spans(cmd, prefix)
+                    if _RELATIVE_REMAINDER_RE.match(cmd, end)
+                }
+            )
+            if not cuts:
+                break
+            kept: list[str] = []
+            pos = 0
+            for start, end in cuts:
+                if start < pos:
+                    continue
+                kept.append(cmd[pos:start])
+                pos = end
+            kept.append(cmd[pos:])
+            cmd = "".join(kept)
 
         return cmd
 
@@ -738,6 +745,15 @@ class _DispatchExecutorMixin:
                         },
                         None,
                     )
+            if cmd:
+                # Host→/workspace remap regardless of active target: with no
+                # target the host path used to be forwarded verbatim into the
+                # container bash payload (the reported path bug). The engine
+                # boundary now remaps too — this is defense in depth so the
+                # audit log and tool_start echo show the container path.
+                cmd = self._rewrite_host_workspace_paths(cmd)
+                arguments["command"] = cmd
+
             if self.state.active_target and cmd and not cmd.strip().startswith("cd "):
                 workspace_dir = f"/workspace/{self.state.active_target}"
                 host_workspace = get_workspace_root() / self.state.active_target

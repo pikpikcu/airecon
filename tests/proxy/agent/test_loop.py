@@ -268,8 +268,8 @@ class TestSubdomainWorkspacePreservation:
         assert self._would_switch("mail.example.com", "example.com") is False
 
     def test_partial_suffix_match_is_not_subdomain(self):
-        """'navigatemore.com' ends with 'e.com' but NOT 'target.example.com'."""
-        assert self._would_switch("navigatemore.com", "target.example.com") is True
+        """An unrelated domain is not a subdomain of the active target."""
+        assert self._would_switch("example.net", "target.example.com") is True
 
     def test_ip_as_extracted_is_different_domain(self):
         """IP is always treated as a different target, not a subdomain."""

@@ -6,7 +6,14 @@ from urllib.parse import urlparse
 
 from ..config import get_config
 from ..config import get_workspace_root
-from ..context_budget import ArtifactCompressor, ContextBudgetError, pack_history, request_chars
+from ..context_budget import (
+    ArtifactCompressor,
+    ContextBudgetError,
+    _minimum_request_messages,
+    fit_tools_to_budget,
+    pack_history,
+    request_chars,
+)
 from ..data_loader import severity_to_int
 from .models import _get_model_limits
 from .session import get_untested_injection_points
@@ -418,6 +425,37 @@ class _ContextMixin:
             )
             return ""
 
+    def _projection_overhead(self, tools: list[dict] | None) -> int:
+        """Bytes ``_messages_for_llm()`` adds over the stored conversation.
+
+        Pair-repair inserts role=tool stubs for calls answered by user-role
+        ``_tool_result`` messages (tool_response_role=user) and thinking is
+        stripped from older assistant turns, so what is sent is larger than
+        what the stored conversation measures. Budget what is sent, measured
+        with the ACTIVE client's replay policy.
+        """
+        replay = self._client_replay_policy()
+        sent = request_chars(self._messages_for_llm(), tools, replay_reasoning=replay)
+        stored = request_chars(self.state.conversation, tools, replay_reasoning=replay)
+        return max(0, sent - stored)
+
+    def _minimum_projection_overhead(self, tools: list[dict] | None) -> int:
+        """Projection overhead of the minimum request (mandatory + latest group).
+
+        Unlike the full-conversation overhead, this cannot change when older
+        groups are evicted, so fitting schemas against it makes the fit a
+        fixed point: a second budget pass on an already-packed history keeps
+        exactly the same schemas.
+        """
+        replay = self._client_replay_policy()
+        minimum = _minimum_request_messages(self.state.conversation)
+        repaired = type(self.state)._repair_tool_pairs(list(minimum))
+        return max(
+            0,
+            request_chars(repaired, tools, replay_reasoning=replay)
+            - request_chars(minimum, tools, replay_reasoning=replay),
+        )
+
     async def _enforce_char_budget(
         self, num_ctx: int, num_predict: int | None = None
     ) -> None:
@@ -438,10 +476,80 @@ class _ContextMixin:
             budget = min(budget, learned) if budget else learned
         if not budget and num_ctx == -1:
             return
-        self.state.conversation = pack_history(
-            self.state.conversation, self._tools_llm, budget,
-            self._get_artifact_compressor(),
+        # Fit schemas against a STABLE overhead: the projection overhead of
+        # the minimum request (mandatory + latest real group), which does not
+        # change when older groups are evicted. Fitting against the overhead
+        # of the whole conversation instead would admit more schemas on a
+        # second pass over an already-packed history (fewer groups -> fewer
+        # pair-repair stubs -> more budget), breaking the fixed point.
+        # self._tools_llm stays the full registry for execution and validation.
+        # Measure with the ACTIVE client's replay policy (its own model + host),
+        # exactly as ``LLMClient._wire_payload`` does, so budget == wire by
+        # construction even when the client differs from the global config.
+        replay = self._client_replay_policy()
+        stable_overhead = self._minimum_projection_overhead(self._tools_llm)
+        tools_for_request = fit_tools_to_budget(
+            self.state.conversation, self._tools_llm,
+            max(0, budget - stable_overhead),
+            replay_reasoning=replay,
         )
+        # Pack against the FULL projection overhead measured over the current
+        # conversation: packing only removes groups and their stubs, so the
+        # overhead never grows and the projected request (stored conversation
+        # plus whatever stubs remain) stays within budget. The floor is what
+        # the fitted schemas plus the reserved minimum request already need:
+        # below it pack_history could refuse to fit the schemas themselves,
+        # while eviction down to the minimum drops the very stubs the full
+        # overhead was reserving for.
+        overhead = self._projection_overhead(tools_for_request)
+        pack_budget = max(0, budget - overhead)
+        reserved = request_chars(
+            _minimum_request_messages(self.state.conversation),
+            tools_for_request,
+            replay_reasoning=replay,
+        )
+        if reserved <= max(0, budget - stable_overhead):
+            # The fit placed the schemas alongside the reserved minimum, so
+            # eviction down to the minimum drops exactly the stubs the full
+            # overhead was reserving for: raise the packing budget to that
+            # floor without risking the projected request. When even the
+            # core-only schemas overflow the fit budget, keep the plain
+            # projection-aware budget so pack_history still fails loudly on
+            # an irreducible request.
+            pack_budget = max(pack_budget, reserved)
+        self._tools_budgeted = tools_for_request
+        _full = len(self._tools_llm or [])
+        if _full and len(tools_for_request) < _full:
+            logger.warning(
+                "Context budget tight: sending %d/%d tool schemas (core retained)",
+                len(tools_for_request), _full,
+            )
+        self.state.conversation = pack_history(
+            self.state.conversation, tools_for_request, pack_budget,
+            self._get_artifact_compressor(), replay_reasoning=replay,
+        )
+        # Guarantee the projected request itself fits: older groups with
+        # pair-repair stubs can survive inside the reserved slack, where their
+        # stored bytes fit the packing budget but their stub bytes push what is
+        # actually sent over it. Repack with the packing budget lowered by the
+        # excess — pack_history then evicts more older groups, or raises
+        # ContextBudgetError for an irreducible request. Lowering is strict
+        # every round, so this terminates even when a round evicts nothing.
+        for _ in range(16):
+            projected = request_chars(
+                self._messages_for_llm(), tools_for_request, replay_reasoning=replay,
+            )
+            if projected <= budget:
+                break
+            pack_budget = max(0, pack_budget - (projected - budget))
+            self.state.conversation = pack_history(
+                self.state.conversation, tools_for_request, pack_budget,
+                self._get_artifact_compressor(), replay_reasoning=replay,
+            )
+        else:
+            raise ContextBudgetError(
+                "Context budget cannot fit the projected request; paginate large file reads"
+            )
 
     def _get_artifact_compressor(self) -> ArtifactCompressor:
         root = get_workspace_root().resolve()
@@ -452,21 +560,39 @@ class _ContextMixin:
         return ArtifactCompressor(target_root, session_id)
 
     def _recover_context_budget(self, num_predict: int) -> bool:
-        before = request_chars(self._messages_for_llm(), self._tools_llm)
+        # Measure the projection that was actually sent (budgeted schemas, not
+        # the full registry) and re-fit schemas for the smaller budget, so a
+        # backend context rejection can shed optional schemas exactly like
+        # _enforce_char_budget instead of failing on the full registry.
+        sent_tools = getattr(self, "_tools_budgeted", None) or self._tools_llm
+        replay = self._client_replay_policy()
+        before = request_chars(
+            self._messages_for_llm(), sent_tools, replay_reasoning=replay,
+        )
         learned = int(getattr(self, "_context_char_budget", 0) or before)
-        budget = min(before, learned) // 2
+        overhead = self._projection_overhead(sent_tools)
+        budget = max(0, min(before, learned) // 2 - overhead)
+        tools_for_request = fit_tools_to_budget(
+            self.state.conversation, self._tools_llm, budget,
+            replay_reasoning=replay,
+        )
         try:
             packed = pack_history(
-                self.state.conversation, self._tools_llm, budget,
-                self._get_artifact_compressor(),
+                self.state.conversation, tools_for_request, budget,
+                self._get_artifact_compressor(), replay_reasoning=replay,
             )
         except (ContextBudgetError, OSError):
             return False
-        if request_chars(packed, self._tools_llm) >= before:
+        if request_chars(
+            packed, tools_for_request, replay_reasoning=replay,
+        ) + overhead >= before:
             return False
         self.state.conversation = packed
+        self._tools_budgeted = tools_for_request
         self._context_char_budget = budget
-        cap = max(128, num_predict // 2)
+        # 256 is the floor _fit_num_predict_to_ctx enforces on every request; a
+        # smaller cap would be sent to the provider but never reserved here.
+        cap = max(256, num_predict // 2)
         self._adaptive_num_predict_cap = min(
             int(getattr(self, "_adaptive_num_predict_cap", 0) or cap), cap,
         )
@@ -511,6 +637,10 @@ class _ContextMixin:
             self.state.conversation.append(
                 {
                     "role": "user",
+                    # Internal identity only: the wire converters emit `name`
+                    # for role=tool alone, but budgeting/compaction key exact
+                    # read_file treatment on it for both result roles.
+                    "name": tool_name,
                     "content": f"[SYSTEM: Tool '{tool_name}' executed {status}]\nOutput:\n{content_str}",
                     "_tool_result": True,
                     **({"_context_ref": reference} if reference else {}),

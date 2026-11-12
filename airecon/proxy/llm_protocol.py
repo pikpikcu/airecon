@@ -10,6 +10,8 @@ import json
 import uuid
 from typing import Any, AsyncIterator, Callable
 
+from .llm_messages import _coalesce_system_messages
+
 
 def anthropic_tools(tools: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
     result = []
@@ -72,8 +74,9 @@ def anthropic_messages(messages: list[dict[str, Any]]) -> tuple[str, list[dict[s
     result: list[dict[str, Any]] = []
     pending: list[str] = []
     emitted: set[str] = set()
-    for original in messages:
-        msg = original if isinstance(original, dict) else {"role": "user", "content": str(original)}
+    normalized = [message if isinstance(message, dict) else {"role": "user", "content": str(message)}
+                  for message in messages]
+    for msg in _coalesce_system_messages(normalized):
         role = msg.get("role", "user")
         text = str(msg.get("content") or "")
         if role == "system":

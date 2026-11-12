@@ -38,7 +38,7 @@ Complete reference for all tools available to the AIRecon agent.
 7. [Docker Sandbox Tools](#7-docker-sandbox-tools)
 8. [Utility & Knowledge Tools](#8-utility--knowledge-tools)
    - [think](#81-think)
-   - [python_session](#82-python_session)
+   - [python_session (disabled — not available)](#82-python_session-disabled)
    - [edit_file](#83-edit_file)
    - [load_skill](#84-load_skill)
    - [create_note / list_notes / search_notes / read_note / export_notes_wiki](#85-notes-tools)
@@ -987,24 +987,22 @@ Use before acting on ambiguous situations, when evaluating conflicting signals, 
 
 ---
 
-### 8.2 `python_session`
+### 8.2 `python_session` (disabled)
 
-Persistent Python interpreter. State is maintained across calls within the same `session_id`. Pre-imports: `os`, `json`, `re`, `base64`, `urllib.parse`, `requests` (if available).
+`python_session` is **disabled for host safety** and is **not advertised** to the model: it is absent from the tool catalog (`tools.json`) and from `tools_meta.json`. The former implementation ran model-generated Python in the proxy process on the host instead of inside the sandbox, so it was removed.
 
-**Schema:**
+- Any attempted or persisted `python_session` call is rejected with a structured `{"success": false, "error": ...}` result before any code runs.
+- There is **no persistent Python REPL**: interpreter state does not carry over between calls.
+- There is **no configuration switch** or environment variable that re-enables it.
 
-```json
-{
-  "name": "python_session",
-  "parameters": {
-    "code": "string — Python code to execute",
-    "session_id": "string — Session namespace (default: 'default')"
-  },
-  "required": ["code"]
-}
+**Use `execute` instead.** Python runs inside the Docker sandbox, and anything that must survive between calls is kept in workspace files:
+
+```python
+execute(command="python3 /workspace/example.com/tools/decode_tokens.py")
+execute(command="python3 - <<'PY'\nimport base64\nprint(base64.b64decode('aGVsbG8=').decode())\nPY")
 ```
 
-Use cases: complex payload encoding/decoding, statistical analysis of tool output, hash computation, automated pattern matching across large result sets, generating wordlists programmatically.
+See [stability.md](stability.md) ("Python execution: no host REPL") for the rationale.
 
 ---
 
@@ -1146,7 +1144,7 @@ Query the local security knowledge base built from [airecon-dataset](https://git
 | `http_observe` | Observer | Custom |
 | `record_hypothesis` | Observer | Custom |
 | `think` | Utility | `executors_utils.py` |
-| `python_session` | Utility | `executors_utils.py` |
+| `python_session` | Disabled (host safety) — not advertised; use `execute` | `executors_utils.py` (rejects every call) |
 | `edit_file` | Utility | `executors_utils.py` |
 | `load_skill` | Utility | `system.py` |
 | `create_note` | Notes | `executors_utils.py` |
@@ -1156,4 +1154,4 @@ Query the local security knowledge base built from [airecon-dataset](https://git
 | `export_notes_wiki` | Notes | `executors_utils.py` |
 | `dataset_search` | Knowledge | `executors_utils.py` |
 
-**Total: 35 agent tools + 60+ Docker sandbox CLI tools**
+**Total: 34 agent tools + 60+ Docker sandbox CLI tools** (the disabled `python_session` row is not counted)

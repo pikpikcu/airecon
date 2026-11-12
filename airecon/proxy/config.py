@@ -110,6 +110,16 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         "enable_thinking=force the vLLM/SGLang chat-template flag (explicit "
         "opt-in for local Qwen3/GLM-style deployments).",
     ),
+    "llm_reasoning_replay": (
+        "auto",
+        "Whether stored provider reasoning_content is sent back on assistant "
+        "turns: auto|always|off. auto=send it to DeepSeek API hosts and "
+        "deepseek/-prefixed gateway models (their thinking mode rejects tool "
+        "requests without it) and to any host+model whose backend rejected a "
+        "request for missing reasoning_content; other "
+        "backends do not get it, so it costs no context. always=send it to every "
+        "OpenAI-compatible backend. off=never send it.",
+    ),
     "llm_max_concurrent_requests": (
         1,
         "Max concurrent LLM requests. Keep 1 unless your gateway/model handles parallelism well.",
@@ -816,6 +826,33 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
 
 DEFAULT_CONFIG = {key: value for key, (value, _) in _CONFIG_SCHEMA.items()}
 
+# Mode settings whose documented values include "off": (documented values, what
+# a bare "on" means). YAML reads unquoted off/on/no/yes/false/true as booleans,
+# so these cannot go through the generic str() coercion.
+_MODE_SETTINGS: dict[str, tuple[frozenset[str], str]] = {
+    "llm_reasoning_replay": (frozenset({"auto", "always", "off"}), "always"),
+    "llm_thinking_request_mode": (
+        frozenset({"auto", "off", "reasoning_effort", "enable_thinking"}), "auto",
+    ),
+}
+
+
+def _normalize_mode_setting(key: str, value: Any) -> str:
+    allowed, on_value = _MODE_SETTINGS[key]
+    text = str(value).strip().lower()
+    if text in allowed:
+        return text
+    if text in ("false", "no"):
+        return "off"
+    if text in ("true", "on", "yes"):
+        return on_value
+    default = str(DEFAULT_CONFIG[key])
+    logger.warning(
+        "Config: '%s' value %r is invalid (expected one of %s) — using default %r",
+        key, value, ", ".join(sorted(allowed)), default,
+    )
+    return default
+
 _CONFIG_CATEGORIES = [
     (
         "LLM Backend (OpenAI-compatible / Anthropic Messages / LiteLLM / vLLM / hosted)",
@@ -841,6 +878,7 @@ _CONFIG_CATEGORIES = [
             "llm_enable_thinking",
             "llm_thinking_mode",
             "llm_thinking_request_mode",
+            "llm_reasoning_replay",
             "llm_max_concurrent_requests",
         ],
     ),
@@ -1308,6 +1346,7 @@ class Config:
     llm_enable_thinking: bool
     llm_thinking_mode: str
     llm_thinking_request_mode: str
+    llm_reasoning_replay: str
     llm_max_concurrent_requests: int
 
     docker_image: str
@@ -1668,6 +1707,10 @@ class Config:
                 "Config: ignoring unknown fields (possibly from an older config): %s",
                 ", ".join(sorted(unknown)),
             )
+
+        for key in _MODE_SETTINGS:
+            if key in merged:
+                merged[key] = _normalize_mode_setting(key, merged[key])
 
         for key in list(merged):
             default_val = DEFAULT_CONFIG.get(key)

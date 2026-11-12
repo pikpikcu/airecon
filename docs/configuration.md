@@ -102,6 +102,12 @@ llm_thinking_mode: low
 # support at runtime (HTTP 400 unsupported -> stripped & remembered; no model-name list).
 # off | reasoning_effort | enable_thinking (vLLM/SGLang chat-template flag) to force.
 llm_thinking_request_mode: auto
+# Send stored provider reasoning_content back on assistant turns: auto | always | off.
+# auto = DeepSeek API hosts and deepseek/-prefixed gateway models (their thinking mode
+# rejects tool requests without it) and any host+model whose backend rejected a request
+# for missing reasoning_content. Locally served DeepSeek-named models are not matched.
+# Other backends do not receive it, so it costs no context there.
+llm_reasoning_replay: auto
 
 # ======================================
 # Proxy Server

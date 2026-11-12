@@ -4,9 +4,7 @@ import json
 import logging
 import re
 import secrets
-import sys
 import time
-import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -15,123 +13,12 @@ from ..config import get_workspace_root
 
 logger = logging.getLogger("airecon.agent")
 
-
-# === Python Session Management ===
-
-
-class _PythonSession:
-    def __init__(self, session_id: str):
-        self.session_id = session_id
-        self._namespace: dict[str, Any] = {}
-        self._history: list[str] = []
-        self.last_updated = time.time()
-        self._bootstrap()
-
-    def _bootstrap(self):
-        bootstrap = """
-import os
-import sys
-import json
-import re
-import base64
-import hashlib
-import random
-import datetime
-from pathlib import Path
-from urllib.parse import urlparse, parse_qs, quote, unquote
-
-# Workspace helper
-def ws(path):
-    from airecon.proxy.config import get_workspace_root
-    return str(get_workspace_root() / path)
-
-# Print helper
-def jprint(data):
-    print(json.dumps(data, indent=2, default=str))
-
-# Convenience: http request (if requests available)
-try:
-    import requests
-except ImportError:
-    requests = None
-"""
-        self._exec(bootstrap)
-
-    def _exec(self, code: str) -> dict[str, Any]:
-        from io import StringIO
-
-        result_value = None
-        old_stdout = sys.stdout
-        old_stderr = sys.stderr
-        sys.stdout = StringIO()
-        sys.stderr = StringIO()
-
-        try:
-            # Compile to check syntax
-            try:
-                compile(code, "<python_session>", "single")
-            except SyntaxError as e:
-                return {
-                    "output": "",
-                    "error": f"SyntaxError: {e.msg} (line {e.lineno})",
-                    "result": None,
-                }
-
-            # Execute in namespace
-            try:
-                # If it's a print statement, we'll exec and capture output
-                if code.strip().startswith(("print(", "print ")):
-                    exec(code, self._namespace)  # nosec B102 -- intentional for Python REPL
-                else:
-                    # Try eval first to capture result of expression
-                    try:
-                        result_value = eval(code, self._namespace)  # nosec B307 -- intentional for Python REPL
-                        self._namespace["_"] = result_value
-                    except (SyntaxError, NameError):
-                        # Not an expression or undefined, use exec
-                        exec(code, self._namespace)  # nosec B102 -- intentional for Python REPL
-            except Exception as e:
-                tb = traceback.format_exc()
-                return {
-                    "output": "",
-                    "error": f"{type(e).__name__}: {e}\n{tb}",
-                    "result": None,
-                }
-
-            # Get captured output
-            stdout_val = sys.stdout.getvalue()
-            stderr_val = sys.stderr.getvalue()
-
-            output = stdout_val + stderr_val
-            return {
-                "output": output.strip(),
-                "error": None,
-                "result": str(result_value) if result_value is not None else None,
-            }
-
-        finally:
-            sys.stdout = old_stdout
-            sys.stderr = old_stderr
-
-    def execute(self, code: str) -> dict[str, Any]:
-        self.last_updated = time.time()
-        result = self._exec(code)
-        self._history.append(code)
-        if len(self._history) > 100:
-            self._history = self._history[-100:]
-        return result
-
-    def get_state(self) -> dict[str, Any]:
-        state = {}
-        for k, v in self._namespace.items():
-            if k.startswith("__"):
-                continue
-            try:
-                if isinstance(v, (str, int, float, bool, list, dict, tuple, set)):
-                    state[k] = repr(v)[:200]
-            except Exception as _e:
-                state[k] = "<unrepresentable>"
-        return state
+_PYTHON_SESSION_DISABLED_ERROR = (
+    "python_session has been removed: it executed model-generated Python on the "
+    "proxy host via in-process exec/eval. Use the execute tool to run Python "
+    "INSIDE the Docker target sandbox instead (e.g. execute a 'python3 -' "
+    "heredoc command). No persistent Python REPL is offered."
+)
 
 
 # === Notes System ===
@@ -373,49 +260,31 @@ class _UtilsExecutorMixin:
             self._notes_manager = None
             self._notes_manager_dir = None
 
-    # === Python Session ===
+    # === Python Session (removed: fail-closed) ===
+    # The legacy implementation ran model-generated Python via in-process
+    # exec()/eval() on the proxy host — arbitrary host filesystem, subprocess
+    # and network access with no sandbox. The execution machinery has been
+    # deleted; this handler remains only so persisted/attempted old calls are
+    # rejected with a structured error BEFORE any code execution or
+    # utility-state side effect. There is deliberately no config switch that
+    # re-enables host execution; run Python via the `execute` tool inside the
+    # Docker target sandbox instead. No persistent Python REPL is offered.
     async def _execute_python_session_tool(
         self, tool_name: str, arguments: dict[str, Any]
     ) -> tuple[bool, float, dict[str, Any], str | None]:
         start_time = time.time()
-        code = arguments.get("code", "").strip()
         session_id = arguments.get("session_id", "default")
-
-        if not code:
-            return False, 0.0, {"success": False, "error": "code is required"}, None
-
-        self._ensure_utils_runtime_state()
-        self._cleanup_python_sessions()
-
-        if session_id not in self._python_sessions:
-            self._python_sessions[session_id] = _PythonSession(session_id)
-
-        session = self._python_sessions[session_id]
-        result = session.execute(code)
-
-        success = result["error"] is None
-        output_data = {
-            "success": success,
-            "output": result["output"],
-            "result": result["result"],
-            "session_id": session_id,
-            "session_state": session.get_state(),
-        }
-        if result["error"]:
-            output_data["error"] = result["error"]
-
-        return success, time.time() - start_time, output_data, None
-
-    def _cleanup_python_sessions(self) -> None:
-        self._ensure_utils_runtime_state()
-        now = time.time()
-        expired = [
-            sid
-            for sid, s in self._python_sessions.items()
-            if now - s.last_updated > self._python_session_timeout
-        ]
-        for sid in expired:
-            del self._python_sessions[sid]
+        return (
+            False,
+            time.time() - start_time,
+            {
+                "success": False,
+                "error": _PYTHON_SESSION_DISABLED_ERROR,
+                "session_id": session_id,
+                "session_state": {},
+            },
+            None,
+        )
 
     # === Edit File ===
     async def _execute_edit_file_tool(

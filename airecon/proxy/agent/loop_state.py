@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from typing import Any, cast
 
 from ..context_budget import estimate_request_tokens
+from ..llm import reasoning_replay_enabled
 
 from .loop_policy import should_preserve_active_target_for_subdomain
 from .session import SessionData, save_session
@@ -610,8 +612,35 @@ class _StateMixin:
                     (1 - _budget_ratio) * 100
                 )
 
+    def _client_replay_policy(self) -> bool | None:
+        """The reasoning-replay policy of the agent's OWN client, as its
+        ``_wire_payload`` resolves it from ``self.model`` / ``self._host``.
+
+        Budget passes must measure with this, not with the global config's
+        ``openai_model`` / ``openai_base_url``, so budget == wire by
+        construction even when the active client differs from the config.
+        ``None`` (no usable client attrs) keeps the config-resolved default.
+        Anthropic clients are unaffected: their measurement path ignores the
+        replay policy.
+        """
+        llm = getattr(self, "llm", None)
+        model = getattr(llm, "model", None)
+        host = getattr(llm, "_host", None)
+        if not isinstance(model, str) or not isinstance(host, str):
+            return None
+        return reasoning_replay_enabled(model, host)
+
     def _recompute_used_tokens_from_conversation(self) -> int:
-        used = estimate_request_tokens(self.state.conversation, getattr(self, "_tools_llm", None))
+        # Measure what chat_stream actually receives: the history projection and
+        # the budget-pruned schema list (full registry only before first budgeting).
+        tools = getattr(self, "_tools_budgeted", None) or getattr(self, "_tools_llm", None)
+        messages = self.state.conversation
+        project = getattr(self, "_messages_for_llm", None)
+        if callable(project) and all(isinstance(m, dict) for m in messages):
+            messages = cast(list[dict[str, Any]], project())
+        used = estimate_request_tokens(
+            messages, tools, replay_reasoning=self._client_replay_policy(),
+        )
         self.state.token_usage["used"] = used
         self.state.token_usage["estimate_basis"] = "serialized_utf8_bytes_div_3"
         return used

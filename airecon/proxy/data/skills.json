@@ -171,7 +171,6 @@
     "generate_wordlist": "tools/advanced_fuzzing.md",
     "http_observe": "tools/scripting.md",
     "execute": "tools/scripting.md",
-    "python_session": "tools/scripting.md",
     "edit_file": "tools/scripting.md",
     "create_file": "tools/scripting.md",
     "read_file": "tools/scripting.md",

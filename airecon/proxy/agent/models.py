@@ -1776,6 +1776,35 @@ class AgentState:
                 if cid:
                     result_call_ids.add(cid)
 
+        # tool_response_role=user stores results as role=user messages with
+        # `_tool_result` and no tool_call_id, so they never enter
+        # result_call_ids. Pair them with their assistant's calls positionally:
+        # within the span after that assistant (before the next assistant), the
+        # k-th user `_tool_result` message answers the k-th tool call.
+        answered_by_user: set[str] = set()
+        span_call_ids: list[str] = []
+        span_user_results = 0
+
+        def _flush_span() -> None:
+            answered_by_user.update(span_call_ids[:span_user_results])
+
+        for msg in messages:
+            if msg.get("role") == "assistant":
+                _flush_span()
+                span_call_ids = []
+                span_user_results = 0
+                for tc in msg.get("tool_calls") or []:
+                    cid = (
+                        tc.get("id", "")
+                        if isinstance(tc, dict)
+                        else getattr(tc, "id", "") or ""
+                    )
+                    if cid:
+                        span_call_ids.append(cid)
+            elif msg.get("_tool_result") and msg.get("role") == "user":
+                span_user_results += 1
+        _flush_span()
+
         orphaned_results = result_call_ids - surviving_call_ids
         if orphaned_results:
             messages = [
@@ -1805,14 +1834,26 @@ class AgentState:
                             else getattr(tc, "id", "") or ""
                         )
                         if cid in missing_results:
+                            # OpenAI-compatible servers require a role=tool message
+                            # after assistant tool_calls even when the result is stored
+                            # as a role=user `_tool_result` message (the non-default
+                            # tool_response_role=user mode): keep the pairing stub, but
+                            # point at the real output that follows instead of claiming
+                            # it was lost to compression.
+                            if cid in answered_by_user:
+                                stub_content = (
+                                    "[Tool result follows in the next message]"
+                                )
+                            else:
+                                stub_content = (
+                                    "[Tool result unavailable — "
+                                    "earlier context was compressed]"
+                                )
                             patched.append(
                                 {
                                     "role": "tool",
                                     "tool_call_id": cid,
-                                    "content": (
-                                        "[Tool result unavailable — "
-                                        "earlier context was compressed]"
-                                    ),
+                                    "content": stub_content,
                                 }
                             )
                             logger.debug(

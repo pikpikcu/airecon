@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import logging
 import re
@@ -8,11 +9,13 @@ import threading
 import time
 import uuid
 from typing import Any, AsyncIterator, Callable, Dict
+from urllib.parse import urlsplit
 
 import httpx
 
 from .config import get_config
 from .memory import get_memory_manager
+from .llm_messages import _coalesce_system_messages, merge_provider_extensions
 from .llm_protocol import (
     anthropic_error_status,
     anthropic_lines,
@@ -34,8 +37,39 @@ _CONTEXT_RESET_THRESHOLD = 65536
 # internally (``thinking``, ``_bucket``, ``name`` on non-tool roles, ...) is
 # stripped before sending upstream.
 _ALLOWED_MESSAGE_KEYS = frozenset(
-    {"role", "content", "name", "tool_calls", "tool_call_id"}
+    {"role", "content", "name", "tool_calls", "tool_call_id", "reasoning_content"}
 )
+
+
+def _replay_key(model: str, host: str) -> tuple[str, str]:
+    return (host.rstrip("/").lower(), model)
+
+
+def reasoning_replay_enabled(model: str | None = None, host: str | None = None) -> bool:
+    """Whether stored ``reasoning_content`` belongs on the wire for this backend.
+
+    DeepSeek thinking mode requires every earlier assistant turn's reasoning
+    when ``tools`` are sent and rejects the request otherwise. Other servers
+    (llama.cpp, vLLM, gateways) either ignore it or render it into the prompt,
+    so replaying it there only spends context. ``auto`` replays for DeepSeek
+    API hosts, ``deepseek/``-prefixed gateway models, and any (host, model)
+    whose backend rejected a request for missing reasoning. A locally served
+    DeepSeek-named model (e.g. an R1 distill) is not matched by name.
+    """
+    cfg = get_config()
+    mode = str(getattr(cfg, "llm_reasoning_replay", "auto") or "auto").strip().lower()
+    if mode == "always":
+        return True
+    if mode == "off":
+        return False
+    model = str(model if model is not None else getattr(cfg, "openai_model", "") or "")
+    host = str(host if host is not None else getattr(cfg, "openai_base_url", "") or "")
+    hostname = (urlsplit(host).hostname or "").lower()
+    return (
+        _replay_key(model, host) in LLMClient._reasoning_replay_models
+        or "deepseek" in hostname
+        or model.lower().startswith("deepseek/")
+    )
 
 
 def _to_openai_tool_calls(tool_calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -55,79 +89,16 @@ def _to_openai_tool_calls(tool_calls: list[dict[str, Any]]) -> list[dict[str, An
                 "function": {"name": fn.get("name", ""), "arguments": args},
             }
         )
+        if "extra_content" in tc:
+            out[-1]["extra_content"] = copy.deepcopy(tc["extra_content"])
     return out
 
 
-def _coalesce_system_messages(
-    messages: list[dict[str, Any]],
+def _to_openai_messages(
+    messages: list[dict[str, Any]], *, replay_reasoning: bool | None = None,
 ) -> list[dict[str, Any]]:
-    # System text positioned after the last conversational turn is not part
-    # of the system prompt — it is an instruction for the *next* reply (the
-    # reflector's retry prompt is appended this way after a text-only turn).
-    # Hoisting it to the top would leave the request ending on the
-    # assistant's own text, which current Claude models reject with a 400
-    # (prefilled-assistant rejection), so it is handled separately below.
-    last_turn = -1
-    for i, m in enumerate(messages):
-        if m.get("role") != "system":
-            last_turn = i
-
-    system_parts: list[str] = []
-    trailing_parts: list[str] = []
-    others: list[dict[str, Any]] = []
-    for i, m in enumerate(messages):
-        if m.get("role") == "system":
-            text = str(m.get("content", "")).strip()
-            if text:
-                if i > last_turn:
-                    trailing_parts.append(text)
-                else:
-                    system_parts.append(text)
-        else:
-            others.append(m)
-
-    if not system_parts and not trailing_parts:
-        return others
-    if (
-        len(system_parts) == 1
-        and not trailing_parts
-        and messages
-        and messages[0].get("role") == "system"
-    ):
-        # Already a single leading system message — nothing to reorder.
-        return messages
-
-    out: list[dict[str, Any]] = []
-    if system_parts:
-        merged = {"role": "system", "content": "\n\n".join(system_parts)}
-        out.append(merged)
-    out.extend(others)
-
-    if trailing_parts:
-        last = others[-1] if others else None
-        if (
-            last is not None
-            and last.get("role") == "assistant"
-            and not last.get("tool_calls")
-        ):
-            # Keep the trailing instruction at the end as a user turn so
-            # the request ends on the user, carrying the prompt with it.
-            out.append({"role": "user", "content": "\n\n".join(trailing_parts)})
-        elif out and out[0].get("role") == "system":
-            # The conversation does not end on a plain assistant turn, so
-            # the trailing text can join the system prompt as before.
-            out[0] = {
-                "role": "system",
-                "content": "\n\n".join(system_parts + trailing_parts),
-            }
-        else:
-            out.insert(
-                0, {"role": "system", "content": "\n\n".join(trailing_parts)}
-            )
-    return out
-
-
-def _to_openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if replay_reasoning is None:
+        replay_reasoning = reasoning_replay_enabled()
     converted: list[dict[str, Any]] = []
     pending_tool_ids: list[str] = []
     # Every id that actually appears in a preceding assistant ``tool_calls``.
@@ -147,6 +118,9 @@ def _to_openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         content = msg.get("content", "")
         # OpenAI allows null content only when tool_calls are present.
         new_msg["content"] = content if content is not None else ""
+
+        if replay_reasoning and role == "assistant" and "reasoning_content" in msg:
+            new_msg["reasoning_content"] = msg["reasoning_content"]
 
         if role == "assistant" and msg.get("tool_calls"):
             oai_calls = _to_openai_tool_calls(msg["tool_calls"])
@@ -249,6 +223,17 @@ class LLMBackendHTTPError(RuntimeError):
         self.status_code = status_code
 
 
+class LLMReasoningReplayRequired(LLMBackendHTTPError):
+    """The backend rejected a request for missing ``reasoning_content``.
+
+    The requirement is now learned for this (host, model) and nothing was
+    resent: replaying stored reasoning enlarges the request, so the caller that
+    owns the request budget re-budgets and sends again. Raised at most once per
+    (host, model); afterwards the reasoning is already on the wire and the same
+    rejection is a plain ``LLMBackendHTTPError``.
+    """
+
+
 class LLMToolCallError(RuntimeError):
     """A model emitted an incomplete/invalid tool request, not an executable call."""
 
@@ -300,6 +285,8 @@ class LLMClient:
     _reasoning_unsupported: set[str] = set()
     # model -> params its gateway rejected with HTTP 400 (so we stop sending them).
     _unsupported_params: dict[str, set[str]] = {}
+    # (host, model) pairs whose backend rejected a request for missing reasoning_content.
+    _reasoning_replay_models: set[tuple[str, str]] = set()
 
     def __init__(self, base_url: str | None = None, model: str | None = None) -> None:
         cfg = get_config()
@@ -401,7 +388,10 @@ class LLMClient:
             if system:
                 payload["system"] = system
             return payload
-        return {"model": self.model, "messages": _to_openai_messages(messages), "stream": stream}
+        messages_out = _to_openai_messages(
+            messages, replay_reasoning=reasoning_replay_enabled(self.model, self._host),
+        )
+        return {"model": self.model, "messages": messages_out, "stream": stream}
 
     async def _wire_lines(self, response: Any, stop: Callable[[], bool] | None) -> AsyncIterator[str]:
         if getattr(self, "_is_anthropic", False):
@@ -527,6 +517,9 @@ class LLMClient:
         if status_code != 400:
             return False
         b = (body or "").lower()
+        # Missing replay state is a malformed history, not a capability probe.
+        if "reasoning_content" in b or "thought_signature" in b:
+            return False
         mentions_reasoning = (
             "reasoning_effort" in b
             or "reasoning.effort" in b
@@ -548,6 +541,30 @@ class LLMClient:
                 "unrecognized",
             )
         )
+
+    def _learn_reasoning_replay(
+        self, messages: list[dict[str, Any]], status_code: int, body: str,
+    ) -> bool:
+        """Learn once that this backend needs stored reasoning; never resends."""
+        if getattr(self, "_is_anthropic", False) or status_code != 400:
+            return False
+        if "reasoning_content" not in (body or "").lower():
+            return False
+        mode = str(getattr(get_config(), "llm_reasoning_replay", "auto") or "auto").strip().lower()
+        if mode == "off" or reasoning_replay_enabled(self.model, self._host):
+            return False  # Already sent, or disabled: resending would repeat the failure.
+        if not any(
+            isinstance(m, dict) and m.get("role") == "assistant" and "reasoning_content" in m
+            for m in messages or []
+        ):
+            return False  # Nothing stored to replay; never invent provider state.
+        LLMClient._reasoning_replay_models.add(_replay_key(self.model, self._host))
+        logger.warning(
+            "Backend %s requires reasoning_content replay for model=%s; "
+            "later requests carry it.",
+            self._host, self.model,
+        )
+        return True
 
     def _maybe_degrade_reasoning(
         self, payload: dict[str, Any], status_code: int, body: str
@@ -774,8 +791,13 @@ class LLMClient:
                     return content or ""
 
                 except LLMBackendHTTPError as e:
+                    if self._learn_reasoning_replay(messages, e.status_code, str(e)):
+                        # complete() serves prompts their caller built, with no
+                        # agent request budget to re-run, so it resends here.
+                        payload["messages"] = _to_openai_messages(messages, replay_reasoning=True)
+                        continue
                     if self._maybe_degrade_unsupported_param(payload, e.status_code, str(e)):
-                        continue  # Finite parameter removal is not a transient retry.
+                        continue  # Finite payload repair is not a transient retry.
                     if e.retryable and attempt < max_retries:
                         _wait = _retry_wait_seconds(e.status_code, str(e), attempt)
                         logger.warning(
@@ -882,12 +904,14 @@ class LLMClient:
 
         attempt = 0
         while attempt <= max(0, max_retries):
-            tool_acc: dict[int, dict[str, str]] = {}
+            tool_acc: dict[int, dict[str, Any]] = {}
             tool_ids: dict[int, str] = {}
             usage: dict[str, Any] = {}
             produced_any = False
             finish_reason: str | None = None
             provider_blocks = None
+            reasoning_parts: list[str] = []
+            saw_reasoning_content = False
             try:
                 async with self._request_semaphore:
                     client = LLMClient._httpx_client
@@ -916,6 +940,14 @@ class LLMClient:
                             # Automatic capability detection: if the backend
                             # rejected reasoning params, strip them and retry the
                             # same request instead of failing the run.
+                            if self._learn_reasoning_replay(messages, resp.status_code, body):
+                                # Replay enlarges the request past what the
+                                # caller budgeted; it re-budgets and resends.
+                                raise LLMReasoningReplayRequired(
+                                    resp.status_code,
+                                    f"{self._backend_name} returned HTTP "
+                                    f"{resp.status_code} for {self._endpoint()}: {body}",
+                                )
                             if self._maybe_degrade_reasoning(
                                 payload, resp.status_code, body
                             ) or self._maybe_degrade_unsupported_param(
@@ -979,6 +1011,11 @@ class LLMClient:
                             # LLM-style `thinking` chunk so the agent loop sees
                             # real output instead of treating the turn as empty
                             # and burning useless retries.
+                            if not self._is_anthropic and isinstance(
+                                delta.get("reasoning_content"), str,
+                            ):
+                                saw_reasoning_content = True
+                                reasoning_parts.append(delta["reasoning_content"])
                             reasoning = delta.get("reasoning_content") or delta.get(
                                 "reasoning"
                             )
@@ -1014,6 +1051,10 @@ class LLMClient:
                                 slot = tool_acc.setdefault(idx, {"name": "", "args": ""})
                                 if tc.get("id"):
                                     tool_ids[idx] = tc["id"]
+                                if isinstance(tc.get("extra_content"), dict):
+                                    merge_provider_extensions(
+                                        slot.setdefault("extra_content", {}), tc["extra_content"],
+                                    )
                                 fn = tc.get("function") or {}
                                 if fn.get("name"):
                                     slot["name"] = fn["name"]
@@ -1036,17 +1077,17 @@ class LLMClient:
                         continue
                     raw_args = slot["args"].strip()
                     parsed_args = _decode_tool_arguments(slot["name"], raw_args, tools)
-                    final_tool_calls.append(
-                        {
-                            "id": tool_ids.get(idx, f"call_{uuid.uuid4().hex[:24]}"),
-                            "function": {
-                                "name": slot["name"],
-                                "arguments": parsed_args,
-                            },
-                        }
-                    )
+                    final_call = {
+                        "id": tool_ids.get(idx, f"call_{uuid.uuid4().hex[:24]}"),
+                        "function": {"name": slot["name"], "arguments": parsed_args},
+                    }
+                    if "extra_content" in slot:
+                        final_call["extra_content"] = copy.deepcopy(slot["extra_content"])
+                    final_tool_calls.append(final_call)
 
                 final_message: dict[str, Any] = {"role": "assistant", "content": ""}
+                if saw_reasoning_content:
+                    final_message["reasoning_content"] = "".join(reasoning_parts)
                 if provider_blocks:
                     final_message["_provider_blocks"] = provider_blocks
                 if final_tool_calls:

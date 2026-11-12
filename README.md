@@ -227,6 +227,8 @@ llm_thinking_mode: low             # low | medium | high | adaptive
 # auto = use reasoning_effort and auto-detect support at runtime (no model-name list).
 # off | reasoning_effort | enable_thinking (vLLM/SGLang chat-template flag) to force.
 llm_thinking_request_mode: auto
+# Send stored provider reasoning_content back: auto (DeepSeek API / learned on 400) | always | off
+llm_reasoning_replay: auto
 
 # ======================================
 # Scan Profile  (baseline preset; your other keys still override it)

@@ -43,6 +43,356 @@ EXECUTE_TOOL_DEF = {
 }
 
 
+_SANDBOX_WORKSPACE = "/workspace"
+
+# --- Host workspace path normalization -------------------------------------
+#
+# A convenience mapper, NOT a security boundary: isolation comes from running
+# the payload through ``docker exec``, never from this rewrite. A bash payload
+# is opaque data plus a few places where a word is known to name a file. Only
+# those places are remapped; URLs, request bodies, inline source, patterns,
+# comments and heredoc bodies keep their exact bytes. Anything not recognized
+# is left alone, so the worst outcome is "No such file" inside the sandbox.
+
+# Commands whose non-option operands are all filesystem paths.
+_PATH_OPERAND_COMMANDS = frozenset({
+    "cd", "pushd", "ls", "dir", "tree", "stat", "file", "du",
+    "cat", "tac", "nl", "head", "tail", "less", "more", "wc", "sort", "uniq",
+    "md5sum", "sha1sum", "sha256sum", "xxd", "strings",
+    "mkdir", "rmdir", "rm", "cp", "mv", "touch", "ln", "chmod", "chown", "tee",
+    "source", ".",
+})
+# Interpreters: only the word directly after the name is a script path.
+_SCRIPT_INTERPRETERS = frozenset({
+    "python", "python2", "python3", "bash", "sh", "zsh", "node", "perl", "ruby", "php",
+})
+# Commands whose arguments are data (text, patterns, expressions): nothing but
+# redirection targets is remapped. Their ``-o`` is not an output file.
+_OPAQUE_ARGUMENT_COMMANDS = frozenset({
+    "echo", "printf", "grep", "egrep", "fgrep", "rg", "ag", "ack", "pgrep", "pkill",
+    "sed", "awk", "gawk", "jq", "yq", "tr", "expr", "test", "[",
+    "ssh", "ps", "mount", "lsblk", "column", "getopt", "xargs", "env", "export",
+    "eval", "exec", "set",
+})
+# Options whose value is a local file, per command; any other command (the
+# recon tools) gets the conventional output/input-list options.
+_PATH_OPTIONS_BY_COMMAND: dict[str, frozenset[str]] = {
+    "curl": frozenset({
+        "-o", "--output", "--output-dir", "-D", "--dump-header",
+        "-c", "--cookie-jar", "-T", "--upload-file",
+    }),
+    "wget": frozenset({
+        "-O", "--output-document", "-o", "--output-file",
+        "-P", "--directory-prefix", "-i", "--input-file",
+    }),
+}
+_GENERIC_PATH_OPTIONS = frozenset({
+    "-o", "--output", "--output-file", "--output-dir",
+    "-oA", "-oN", "-oX", "-oG", "-oJ",
+    "-l", "--list", "-iL", "-w", "--wordlist",
+})
+# Leading words that do not change which word is the command name.
+_TRANSPARENT_PREFIXES = frozenset({
+    "sudo", "time", "nohup", "command",
+    "if", "then", "else", "elif", "do", "while", "until", "{", "!",
+})
+_ASSIGNMENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+_WORD_BREAK = " \t\n;|&()<>"
+
+
+def _skip_parameter(command: str, i: int) -> int:
+    """Index just past a plain ``${...}`` starting at ``i``; -1 if not plain."""
+    end = command.find("}", i)
+    if end < 0 or any(ch in command[i:end] for ch in "'\"`\\ \t\n") or "$(" in command[i:end]:
+        return -1
+    return end + 1
+
+
+def _scan_word(command: str, i: int) -> int:
+    """Index just past the shell word starting at ``i``.
+
+    Returns -1 for anything this scanner does not model (command substitution,
+    backticks, nested parameter expansion, an unterminated quote): the caller
+    then stops and leaves the rest of the payload byte-for-byte.
+    """
+    n = len(command)
+    while i < n:
+        c = command[i]
+        if c in _WORD_BREAK:
+            return i
+        if c == "\\":
+            i += 2
+        elif c == "'":
+            close = command.find("'", i + 1)
+            if close < 0:
+                return -1
+            i = close + 1
+        elif c == '"':
+            i += 1
+            while i < n and command[i] != '"':
+                if command[i] == "\\":
+                    i += 2
+                elif command[i] == "`" or command.startswith("$(", i):
+                    return -1
+                elif command.startswith("${", i):
+                    i = _skip_parameter(command, i)
+                    if i < 0:
+                        return -1
+                else:
+                    i += 1
+            if i >= n:
+                return -1
+            i += 1
+        elif c == "`" or command.startswith("$(", i):
+            return -1
+        elif command.startswith("$'", i):  # ANSI-C quoting: \' does not close it
+            i += 2
+            while i < n and command[i] != "'":
+                i += 2 if command[i] == "\\" else 1
+            if i >= n:
+                return -1
+            i += 1
+        elif command.startswith("${", i):
+            i = _skip_parameter(command, i)
+            if i < 0:
+                return -1
+        else:
+            i += 1
+    return n
+
+
+def _host_root_span(command: str, start: int, end: int, host_root: str) -> tuple[int, int] | None:
+    """Raw span of ``host_root`` when ``command[start:end]`` is a path under it.
+
+    The word must spell the root literally from its first character (quotes
+    and backslash escapes are decoded; expansions and globs disqualify it) and
+    the root must be followed by ``/`` or the end of the word, so
+    ``/archive<root>/x``, ``<root>-backup`` and ``https://h<root>/x`` never
+    match. The span opens and closes in the same quoting state, so replacing
+    it keeps the surrounding quotes balanced.
+    """
+    quote = ""
+    matched = 0
+    span_start = span_end = -1
+    start_quote = end_quote = ""
+    i = start
+    while i < end:
+        c = command[i]
+        raw = i
+        if quote == "'":
+            if c == "'":
+                quote = ""
+                i += 1
+                continue
+        elif quote == '"':
+            if c == '"':
+                quote = ""
+                i += 1
+                continue
+            if c in "$`":
+                return None
+            if c == "\\" and command[i + 1 : i + 2] in ("$", "`", '"', "\\"):
+                i += 1
+        elif c in "'\"":
+            quote = c
+            i += 1
+            continue
+        elif c == "\\":
+            i += 1
+            if i >= end or command[i] == "\n":
+                return None
+        elif c in "$`*?[{~":
+            return None
+        if matched == len(host_root):
+            if command[i] == "/" and start_quote == end_quote:
+                return span_start, span_end
+            return None
+        if command[i] != host_root[matched]:
+            return None
+        if matched == 0:
+            span_start, start_quote = raw, quote
+        matched += 1
+        if matched == len(host_root):
+            span_end, end_quote = i + 1, quote
+        i += 1
+    if matched == len(host_root) and start_quote == end_quote:
+        return span_start, span_end
+    return None
+
+
+def _command_operand_spans(
+    command: str, words: list[tuple[int, int]], host_root: str
+) -> list[tuple[int, int]]:
+    """Host-root spans among one simple command's recognized path operands."""
+    texts = [command[a:b] for a, b in words]
+    first = 0
+    while first < len(texts) and (
+        texts[first] in _TRANSPARENT_PREFIXES or _ASSIGNMENT_RE.match(texts[first])
+    ):
+        first += 1
+    if first >= len(texts):
+        return []
+    name = texts[first].rsplit("/", 1)[-1]
+    args = words[first + 1 :]
+    arg_texts = texts[first + 1 :]
+
+    # The command word itself: ``<root>/tools/run.sh`` names a file to run.
+    candidates: list[tuple[int, int]] = [words[first]]
+    if name in _PATH_OPERAND_COMMANDS:
+        candidates.extend(args)
+    elif name == "find":
+        # Only the start paths; the expression (-name, -path, -exec ...) is data.
+        for arg, text in zip(args, arg_texts):
+            if text.startswith(("-", "(", "\\(", "!")):
+                break
+            candidates.append(arg)
+    else:
+        if name in _SCRIPT_INTERPRETERS:
+            candidates.extend(args[:1])
+        if name in _OPAQUE_ARGUMENT_COMMANDS:
+            options: frozenset[str] = frozenset()
+        else:
+            options = _PATH_OPTIONS_BY_COMMAND.get(name, _GENERIC_PATH_OPTIONS)
+        for idx, (a, b) in enumerate(args):
+            if idx and arg_texts[idx - 1] in options:
+                candidates.append((a, b))  # ``-o <path>``
+                continue
+            option, eq, _ = arg_texts[idx].partition("=")
+            if eq and option in options:
+                candidates.append((a + len(option) + 1, b))  # ``--output=<path>``
+
+    spans = []
+    for a, b in candidates:
+        span = _host_root_span(command, a, b, host_root)
+        if span:
+            spans.append(span)
+    return spans
+
+
+def _host_operand_spans(command: str, host_root: str) -> list[tuple[int, int]]:
+    """Spans of ``host_root`` that sit in a recognized filesystem operand.
+
+    A small lexical scan, not a shell parser: it splits the payload into
+    simple commands and words, skips comments and heredoc bodies, and stops at
+    the first construct it does not model. Nothing is executed or expanded.
+    """
+    spans: list[tuple[int, int]] = []
+    words: list[tuple[int, int]] = []
+    heredocs: list[tuple[str, bool]] = []
+    expect = ""  # role of the next word: redirect | opaque | heredoc | heredoc-tabs
+    i, n = 0, len(command)
+    while i < n:
+        c = command[i]
+        if c in " \t":
+            i += 1
+        elif command.startswith("\\\n", i):
+            i += 2
+        elif c == "\n":
+            spans.extend(_command_operand_spans(command, words, host_root))
+            words = []
+            i += 1
+            for delimiter, strip_tabs in heredocs:
+                while True:  # skip the body: opaque data up to the delimiter line
+                    eol = command.find("\n", i)
+                    line = command[i:] if eol < 0 else command[i:eol]
+                    i = n if eol < 0 else eol + 1
+                    if (line.lstrip("\t") if strip_tabs else line) == delimiter:
+                        break
+                    if eol < 0:
+                        return spans  # unterminated heredoc: the rest is data
+            heredocs = []
+        elif c == "#":
+            eol = command.find("\n", i)
+            i = n if eol < 0 else eol
+        elif command.startswith("&>", i):
+            expect = "redirect"
+            i += 3 if command.startswith("&>>", i) else 2
+        elif c in ";|&()":
+            spans.extend(_command_operand_spans(command, words, host_root))
+            words = []
+            i += 1
+        elif c in "<>":
+            if command.startswith(("<(", ">("), i):
+                break  # process substitution is not modelled
+            if command.startswith("<<<", i):
+                expect = "opaque"  # here-string: data
+                i += 3
+            elif command.startswith("<<", i):
+                strip_tabs = command.startswith("<<-", i)
+                expect = "heredoc-tabs" if strip_tabs else "heredoc"
+                i += 3 if strip_tabs else 2
+            else:
+                i += 1
+                while i < n and command[i] in ">&|":
+                    i += 1
+                expect = "redirect"
+        else:
+            end = _scan_word(command, i)
+            if end < 0 or command[end : end + 1] == "(" or command[i:end] in ("case", "[["):
+                # Also not modelled: ``name=(...)`` / ``f()``, case patterns and
+                # ``[[ ]]`` expressions, where a leading word is not a command.
+                break
+            if expect.startswith("heredoc"):
+                delimiter = re.sub(r"['\"\\]", "", command[i:end])
+                heredocs.append((delimiter, expect == "heredoc-tabs"))
+            elif expect == "redirect":
+                span = _host_root_span(command, i, end, host_root)
+                if span:
+                    spans.append(span)
+            elif expect == "opaque":
+                pass
+            elif command[i:end].isdigit() and command[end : end + 1] in ("<", ">"):
+                pass  # file-descriptor number of a redirection, e.g. ``2>``
+            else:
+                words.append((i, end))
+            expect = ""
+            i = end
+    spans.extend(_command_operand_spans(command, words, host_root))
+    return spans
+
+
+def rewrite_host_workspace_paths(command: str, host_root: str | None = None) -> str:
+    """Map HOST workspace paths in filesystem operands onto ``/workspace``.
+
+    Single normalization point at the Docker execution boundary: the sandbox
+    mounts get_workspace_root() at /workspace, but models routinely emit the
+    host absolute path instead (which does not exist inside the container).
+    Every ingress path — DockerEngine.execute, execute_tool (the /shell HTTP
+    endpoint, semgrep/http_observe callers) and the agent dispatch loop —
+    gets identical treatment, with no dependency on an active target.
+
+    Only a word that is recognizably a filesystem operand is rewritten: a
+    redirection target, an operand of a file utility (``cd``, ``ls``, ``cat``,
+    ``mkdir`` ...), the value of a file option (``-o``, ``--output`` ...), a
+    ``find`` start path, a command run by path, or the script given to an
+    interpreter. The word must start with the host root as a whole path
+    prefix. Everything else — URLs, request bodies, ``python -c`` source,
+    patterns, comments, heredoc bodies, unrelated paths that merely contain
+    the root — is returned byte-for-byte, as is any payload the scanner does
+    not understand. Idempotent.
+    """
+    if not command:
+        return command
+    if host_root is None:
+        try:
+            host_root = str(get_workspace_root()).rstrip("/")
+        except Exception as exc:  # pragma: no cover — config unavailable
+            logger.debug("Could not resolve workspace root for remap: %s", exc)
+            return command
+    else:
+        host_root = host_root.rstrip("/")
+    if not host_root or host_root == "/" or host_root not in command:
+        return command
+    parts: list[str] = []
+    pos = 0
+    for a, b in sorted(set(_host_operand_spans(command, host_root))):
+        parts.append(command[pos:a])
+        parts.append(_SANDBOX_WORKSPACE)
+        pos = b
+    parts.append(command[pos:])
+    return "".join(parts)
+
+
 def _validate_target_name(target: str) -> bool:
 
     if not target:
@@ -567,6 +917,12 @@ class DockerEngine:
         on_output: Callable[[str], None] | None = None,
         _retry: bool = False,
     ) -> dict[str, Any]:
+        # Common-boundary normalization: every caller of execute() — including
+        # execute_tool (the /shell endpoint and observer ingress) and direct
+        # engine.execute() callers — gets identical host→/workspace remapping,
+        # independent of any active target. Pure string rewrite; idempotent.
+        command = rewrite_host_workspace_paths(command)
+
         if not self._connected and self._recovery_lock.locked():
             try:
                 await asyncio.wait_for(

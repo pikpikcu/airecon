@@ -1047,29 +1047,6 @@
   {
     "type": "function",
     "function": {
-      "name": "python_session",
-      "description": "Start or continue a lightweight Python exec/eval session with state persistence. Variables, functions, and imports persist across calls. Pre-imports: os, sys, json, re, base64, hashlib, random, datetime, pathlib.Path, urllib.parse helpers; requests is available only if installed. Session auto-terminates after 300s of inactivity. Parameters: session_id (optional, defaults to 'default'), code (required). Returns: output (stdout/stderr), result (last expression if any), session_state (variables dict), error (if any).",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "session_id": {
-            "type": "string",
-            "description": "Optional session identifier. Use named sessions to maintain separate contexts. Default: 'default'."
-          },
-          "code": {
-            "type": "string",
-            "description": "Python code to execute. Can be multiple lines. Use print() for output. Last expression's value is returned in 'result'. Example: \"import requests; resp = requests.get('https://example.com'); print(resp.status_code); resp.text[:200]\""
-          }
-        },
-        "required": [
-          "code"
-        ]
-      }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
       "name": "edit_file",
       "description": "Perform a surgical text replacement in a file using exact string matching. More precise than create_file for code modifications. Specify old_str to replace exactly that content with new_str. The match must be exact (including whitespace). If multiple matches exist, only the first is replaced. Returns: success, lines_modified, total_occurrences, preview. Use read_file first to get exact content. Parameters: path (required, workspace-relative), old_str (required), new_str (required). Example: {\"path\": \"output/exploit.py\", \"old_str\": \"def exploit():\\n    return 0\", \"new_str\": \"def exploit():\\n    # Fixed\\n    return 1\"}",
       "parameters": {
