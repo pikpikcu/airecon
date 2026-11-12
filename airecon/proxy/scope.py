@@ -72,7 +72,7 @@ class ScopeGuard:
     def check_tool(self, tool_name: str, arguments: dict[str, Any]) -> tuple[bool, str, str]:
         if not self.enabled:
             return True, "", ""
-        # Check destinations, not notes, payloads, or search queries.
+
         fields = {
             "schemathesis_fuzz": ("schema_url", "base_url"),
             "http_observe": ("url",),
@@ -92,7 +92,7 @@ class ScopeGuard:
                     continue
                 destination = destination.strip()
                 if field == "schema_url" and not destination.lower().startswith(("http://", "https://")):
-                    continue  # Local schema file, not a host.
+                    continue
                 try:
                     host = urlsplit(destination if "://" in destination else "//" + destination).hostname
                 except ValueError:
@@ -142,5 +142,5 @@ def audit_log(event: dict[str, Any]) -> None:
         record = {"ts": round(time.time(), 3), **event}
         with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
-    except Exception as e:  # never let auditing break the agent
+    except Exception as e:
         logger.debug("audit log write failed: %s", e)

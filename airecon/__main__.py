@@ -4,9 +4,6 @@ import argparse
 import logging
 import sys
 
-# A direct `python airecon/__main__.py` puts airecon/, not its parent,
-# on sys.path. Without this bootstrap absolute imports can silently resolve
-# to an older pip installation even though the script is in this checkout.
 if __package__ in (None, ""):
     from pathlib import Path
 
@@ -583,8 +580,6 @@ def _unload_model_safely():
             print(_svc(f"{G}✓{X}", "SearXNG", "stopped"))
     except Exception as e:
         logger.debug("SearXNG shutdown failed: %s", e)
-
-    # Remote OpenAI-compatible gateways are stateless — no local VRAM to release.
 
     print(_row())
     print(f"  {C}╚{'═' * (W + 2)}╝{X}")

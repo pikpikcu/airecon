@@ -10,7 +10,6 @@ from .output_parser import ParsedOutput
 
 logger = logging.getLogger("airecon.agent")
 
-# Finding format string — previously repeated 3x in executors_fuzzing.py
 FINDING_FORMAT = "Param: {p} | Vuln: {v} | Severity: {s} | Conf: {c:.2f} | Evidence: {e}"
 NO_VULNS_FOUND = "No vulnerabilities found with confidence > 0.60."
 

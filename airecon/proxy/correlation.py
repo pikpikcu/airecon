@@ -45,7 +45,7 @@ ATTACK_CHAINS: list[dict] = (
     else _attack_chains_raw
 )
 
-# Loaded from unified pattern catalog (merged from 4 separate files)
+
 BUSINESS_LOGIC_PATTERNS: dict[str, dict] = load_business_logic_patterns()
 EXPERT_TESTING_PATTERNS: dict[str, dict] = load_expert_testing_patterns()
 ZERODAY_PATTERNS: dict[str, dict] = load_zeroday_patterns()

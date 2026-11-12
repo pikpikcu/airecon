@@ -1,8 +1,3 @@
-"""Local, recoverable output compression and provider-independent request budgeting.
-
-RTK and Caveman are optional native executables, never command rewriters or LLM
-proxies here. Raw evidence is committed before any lossy model-visible preview.
-"""
 from __future__ import annotations
 
 import copy
@@ -28,21 +23,13 @@ _PREVIEW_HEADER = "[Compacted preview; omitted content is NOT a clean scan]\n"
 
 
 class ContextBudgetError(RuntimeError):
-    """The request cannot fit without deleting mandatory instructions/schemas."""
+    pass
 
 
 def request_chars(
     messages: list[dict[str, Any]], tools: list[dict] | None,
     *, replay_reasoning: bool | None = None,
 ) -> int:
-    """Serialized UTF-8 bytes, not a claim of exact model tokenization.
-
-    ``replay_reasoning`` selects the reasoning-replay policy of the
-    measurement: pass the ACTIVE client's policy (as ``LLMClient._wire_payload``
-    resolves it from its own model + host) so the budget matches what is
-    actually sent. ``None`` keeps the legacy behavior of resolving the policy
-    from the global config for callers that have no client at hand.
-    """
     from .config import get_config
     if str(getattr(get_config(), "llm_provider", "openai")).lower() in ("anthropic", "claude"):
         from .llm_protocol import anthropic_messages, anthropic_tools
@@ -63,7 +50,6 @@ def estimate_request_tokens(
     messages: list[dict[str, Any]], tools: list[dict] | None,
     *, replay_reasoning: bool | None = None,
 ) -> int:
-    # Conservative heuristic, including JSON framing, schemas and call arguments.
     if not messages and not tools:
         return 0
     return (request_chars(messages, tools, replay_reasoning=replay_reasoning) + 2) // 3
@@ -141,8 +127,6 @@ class ArtifactCompressor:
                    XDG_DATA_HOME=str(runtime / "data"),
                    CAVEMAN_HOME=str(runtime / "caveman"),
                    CAVEMAN_CCR_DB=str(runtime / "caveman" / "ccr.db"))
-        # RTK's dev-output filters and Caveman's structural engine are alternatives,
-        # not two lossy passes over one another's output.
         dev_output = bool(re.search(r"(?i)pytest|test session starts|cargo test|diff --git", text[:2000]))
         candidates = [("rtk", self.rtk, ["pipe"]), ("caveman", self.caveman, ["compress"])]
         if not dev_output:
@@ -185,7 +169,6 @@ class ArtifactCompressor:
         ):
             body = candidate
         else:
-            # Findings anywhere in the output get priority over head/tail noise.
             lines = raw.splitlines()
             choices = [line for line in lines if _IMPORTANT.search(line)]
             choices += candidate.splitlines()[:4] + candidate.splitlines()[-4:]
@@ -207,18 +190,11 @@ class ArtifactCompressor:
 
 
 def _pinned(message: dict[str, Any]) -> bool:
-    """`_protected` evidence that must stay in the request.
-
-    Signed assistant turns are stored `_protected` so nothing rewrites their
-    provider blocks, but they are history, not instructions: an older one is
-    evicted whole with its results and the latest is kept as the latest group.
-    """
     signed_turn = message.get("role") == "assistant" and message.get("_provider_blocks")
     return bool(message.get("_protected")) and not signed_turn
 
 
 def _mandatory_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Instructions and user constraints that must never be dropped or rewritten."""
     return [
         m for m in messages
         if (
@@ -234,7 +210,6 @@ _ARCHIVE_NOTICE_PREFIX = "[Older tool groups archived under "
 
 
 def _is_archive_notice(message: dict[str, Any]) -> bool:
-    """pack_history's notice, including the assistant-role form older sessions saved."""
     if message.get("_archive_notice"):
         return True
     return (
@@ -246,11 +221,6 @@ def _is_archive_notice(message: dict[str, Any]) -> bool:
 
 
 def _latest_real_assistant_index(messages: list[dict[str, Any]]) -> int:
-    """Index of the last real assistant turn; archive notices never count.
-
-    Tool-argument reservation must key on the last REAL tool-call turn, or a
-    second budget pass would spend its reservation on the wrong message.
-    """
     return max(
         (
             i for i, message in enumerate(messages)
@@ -261,7 +231,6 @@ def _latest_real_assistant_index(messages: list[dict[str, Any]]) -> int:
 
 
 def _place_archive_notice(messages: list[dict[str, Any]], content: str) -> list[dict[str, Any]]:
-    """One system-role notice, just before the latest real group."""
     notice = {"role": "system", "_archive_notice": True, "content": content}
     insert_at = _latest_real_assistant_index(messages)
     out = list(messages)
@@ -269,29 +238,17 @@ def _place_archive_notice(messages: list[dict[str, Any]], content: str) -> list[
     return out
 
 
-# pack_history's preview caps, largest first; the last is the smallest form a
-# tool result can take in the request.
 _PREVIEW_CAPS: tuple[int, ...] = (3000, 1500, 750, 400)
-# Reserved in place of a result pack_history may compact: no string of
-# _PREVIEW_CAPS[-1] UTF-8 bytes serializes larger than that many control
-# characters (1 byte raw, 6 JSON-escaped).
 _SMALLEST_PREVIEW_STAND_IN = "\x00" * _PREVIEW_CAPS[-1]
 
 
 def _minimum_request_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Reserve the whole latest group before spending space on optional schemas.
-
-    Exact results (read_file, provider blocks, pinned evidence) are reserved as
-    they are. Any other result is reserved at the upper bound of its smallest
-    preview, whether or not it was compacted yet, so a second budget pass
-    reserves the same space and keeps the same schemas.
-    """
     mandatory_ids = {id(message) for message in _mandatory_messages(messages)}
     required = {i for i, message in enumerate(messages) if id(message) in mandatory_ids}
     stand_ins: dict[int, dict[str, Any]] = {}
     latest = _latest_real_assistant_index(messages)
     if latest >= 0:
-        required.add(latest)  # Tool arguments and signed blocks cannot be rewritten.
+        required.add(latest)
         call_ids = {call.get("id") for call in messages[latest].get("tool_calls", [])}
         for i, message in enumerate(messages):
             paired = message.get("role") == "tool" and message.get("tool_call_id") in call_ids
@@ -313,8 +270,6 @@ def _minimum_request_messages(messages: list[dict[str, Any]]) -> list[dict[str, 
     return [stand_ins.get(i, message) for i, message in enumerate(messages) if i in required]
 
 
-# Tools the agent needs to keep acting at all. Never pruned, so a tight context
-# degrades the breadth of the toolset, never the ability to run and report.
 CORE_TOOL_NAMES: tuple[str, ...] = (
     "execute",
     "read_file",
@@ -332,21 +287,6 @@ def fit_tools_to_budget(
     core_names: tuple[str, ...] = CORE_TOOL_NAMES,
     replay_reasoning: bool | None = None,
 ) -> list[dict[str, Any]]:
-    """Drop the lowest-ranked optional tool schemas until mandatory content fits.
-
-    `tools` is expected rank-ordered (most relevant first, as produced by
-    rank_tools_for_phase), so pruning from the tail sheds the least useful
-    schemas first. Two things are never traded away:
-
-    * core tools, so the agent can always run and report, and
-    * the last remaining schema — an agent with zero tools cannot act and would
-      answer from imagination, so an irreducible schema must fail loudly in
-      pack_history instead of being pruned into silence.
-
-    Returns the list unchanged when it already fits or no budget is in force.
-    This prunes only what is SENT to the model; the caller's full tool registry
-    stays intact for execution and validation.
-    """
     if not tools or budget <= 0:
         return list(tools or [])
     mandatory = _minimum_request_messages(messages)
@@ -363,18 +303,15 @@ def fit_tools_to_budget(
             None,
         )
         if index is None:
-            break  # Only core schemas left; cannot shrink further.
+            break
         kept.pop(index)
     return kept
 
 
-# read_file pages whole lines up to 7680 JSON-escaped bytes
-# (filesystem._READ_CONTENT_WIRE_BYTES); half of that per archive line keeps
-# every line pageable with room for at least two per page.
 _ARCHIVE_LINE_WIRE_BYTES = 3800
 _ARCHIVE_HEADER = "@ "
 _ARCHIVE_LINE = "| "
-_ARCHIVE_CONT = "\u00bb "  # "» "
+_ARCHIVE_CONT = "\u00bb "
 _ARCHIVE_LEGEND = (
     "[Archived tool group (exact evidence). Every following line starts with a"
     " 2-character tag: '@ ' = JSON header of the next message (all fields except"
@@ -386,7 +323,6 @@ _ARCHIVE_LEGEND = (
 
 
 def _char_wire_bytes(ch: str) -> int:
-    """Bytes one character occupies inside a JSON string (UTF-8, escaped)."""
     if ch in '"\\':
         return 2
     if ch < " ":
@@ -395,8 +331,7 @@ def _char_wire_bytes(ch: str) -> int:
 
 
 def _archive_lines(tag: str, text: str) -> list[str]:
-    """Tag each line of ``text``; split lines that would exceed the wire bound."""
-    limit = _ARCHIVE_LINE_WIRE_BYTES - 4  # 2-byte tag + escaped newline
+    limit = _ARCHIVE_LINE_WIRE_BYTES - 4
     out: list[str] = []
     for raw in text.split("\n"):
         if len(json.dumps(raw, ensure_ascii=False).encode("utf-8", "surrogatepass")) - 2 <= limit:
@@ -417,13 +352,6 @@ def _archive_lines(tag: str, text: str) -> list[str]:
 
 
 def _archive_group_text(group: list[dict[str, Any]]) -> str:
-    """Serialize an evicted group line-oriented and unambiguously, never as one line.
-
-    ``read_file`` refuses any line over its wire bound, so a single-line
-    ``json.dumps`` archive would come back as a ``line_too_large`` advisory
-    exactly when the notice points the model at it. Tags make reassembly exact
-    whatever the content starts with.
-    """
     lines = [_ARCHIVE_LEGEND]
     for message in group:
         content = message.get("content")
@@ -439,13 +367,9 @@ def pack_history(
     budget: int, compressor: ArtifactCompressor,
     *, replay_reasoning: bool | None = None,
 ) -> list[dict[str, Any]]:
-    """Pack complete tool groups; user/system constraints are never rank-skipped."""
     packed = copy.deepcopy(messages)
     notices = [m for m in packed if _is_archive_notice(m)]
     if notices and (len(notices) > 1 or notices[0].get("role") != "system"):
-        # Sessions saved by older versions hold assistant-role (or stacked)
-        # notices: keep one, as system text, so no synthetic assistant turn
-        # reaches the wire.
         kept = str(notices[-1].get("content") or "")
         packed = _place_archive_notice([m for m in packed if not _is_archive_notice(m)], kept)
     mandatory = _mandatory_messages(packed)
@@ -457,11 +381,11 @@ def pack_history(
         for message in packed:
             if (message.get("role") not in ("tool", "assistant") and not message.get("_tool_result")) or message.get("_protected"):
                 continue
-            # Exact file reads are not transformed: an Edit can depend on them.
+
             if message.get("name") == "read_file":
                 continue
             if message.get("_provider_blocks"):
-                continue  # Signed provider blocks must remain byte-exact.
+                continue
             content = message.get("content") or ""
             if not isinstance(content, str) or len(content.encode()) <= cap:
                 continue
@@ -473,9 +397,7 @@ def pack_history(
             message["_context_ref"] = reference
         if request_chars(packed, tools, replay_reasoning=replay_reasoning) <= budget:
             return packed
-    # Evict old assistant turns with ALL of their results, never half a pair.
-    # A previous pass's notice is dropped first so notices never stack and are
-    # never mistaken for the latest real group.
+
     packed = [m for m in packed if not _is_archive_notice(m)]
     while request_chars(packed, tools, replay_reasoning=replay_reasoning) > budget:
         assistant_indices = [
@@ -496,9 +418,6 @@ def pack_history(
                 if m.get("role") == "tool" and m.get("tool_call_id") in ids:
                     indices.add(i)
                 elif index < i < next_assistant and m.get("_tool_result"):
-                    # User-role results (tool_response_role=user) belong to
-                    # this group; evicting the assistant without them would
-                    # leave incompressible orphan pages behind.
                     indices.add(i)
             if any(_pinned(packed[i]) for i in indices):
                 continue
@@ -508,15 +427,12 @@ def pack_history(
             break
         if not removed:
             raise ContextBudgetError("Context budget cannot fit mandatory context and the latest tool group; paginate large file reads")
-    # System-role, not a synthetic assistant turn: DeepSeek thinking mode
-    # rejects assistant turns without reasoning_content, Anthropic needs signed
-    # thinking first in the turn it would merge into, and a trailing assistant
-    # turn reads as a prefill. On the wire it joins the system prompt.
+
     content = (
         f"{_ARCHIVE_NOTICE_PREFIX}{compressor.directory.as_posix()}/; "
         "use list_files/read_file for exact evidence.]"
     )
-    with_notice = _place_archive_notice(packed, content)  # never trailing system text
+    with_notice = _place_archive_notice(packed, content)
     if request_chars(with_notice, tools, replay_reasoning=replay_reasoning) <= budget:
         packed = with_notice
     return packed

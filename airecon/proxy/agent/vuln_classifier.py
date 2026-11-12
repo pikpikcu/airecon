@@ -30,8 +30,6 @@ class UnifiedVulnClassifier:
         self._compiled_signals: dict[str, list[tuple[re.Pattern, str, float]]] = {}
         self._compile_signals()
 
-    # ── Loading ──────────────────────────────────────────────────────────
-
     def _load_ontology(self) -> dict[str, Any]:
         try:
             if _ONTOLOGY_FILE.exists():
@@ -61,8 +59,6 @@ class UnifiedVulnClassifier:
                     logger.debug("Invalid regex in %s: %s", cat_name, e)
             self._compiled_signals[cat_name] = signals
 
-    # ── Classification ───────────────────────────────────────────────────
-
     def classify(
         self,
         text: str,
@@ -74,7 +70,6 @@ class UnifiedVulnClassifier:
         best_confidence = 0.0
         matched_signals: list[str] = []
 
-        # Phase 1: Weighted regex signal matching
         for cat_name, signals in self._compiled_signals.items():
             for pattern, label, weight in signals:
                 if pattern.search(text_lower):
@@ -89,7 +84,6 @@ class UnifiedVulnClassifier:
                         best_confidence = final_score
                         matched_signals = [f"{label} (weight={weight:.2f})"]
 
-        # Phase 2: Synonym fallback (lower confidence, broader coverage)
         if best_confidence < 0.3:
             for cat_name, cat_def in self._ontology["categories"].items():
                 match_count = sum(1 for syn in cat_def.get("synonyms", []) if syn.lower() in text_lower)
@@ -101,7 +95,6 @@ class UnifiedVulnClassifier:
                         best_confidence = score
                         matched_signals = [f"synonym_match ({match_count} terms)"]
 
-        # Phase 3: Learned type matching
         if best_confidence < 0.4:
             for learned_name, learned_def in self._learned_types.items():
                 for indicator in learned_def.get("indicators", []):
@@ -124,8 +117,6 @@ class UnifiedVulnClassifier:
             recommended_escalations=escalations,
             dedup_key=dedup_key,
         )
-
-    # ── Escalation ───────────────────────────────────────────────────────
 
     def _get_escalation_targets(self, category: str) -> list[str]:
         targets: set[str] = set()
@@ -152,8 +143,6 @@ class UnifiedVulnClassifier:
                     parts.append(f"{field_name}={value}")
         return ":".join(parts)
 
-    # ── Learning ─────────────────────────────────────────────────────────
-
     def learn_new_type(
         self,
         name: str,
@@ -175,8 +164,6 @@ class UnifiedVulnClassifier:
                 json.dump(self._learned_types, f, indent=2)
         except Exception as e:
             logger.debug("Failed to save learned vuln type: %s", e)
-
-    # ── Introspection ────────────────────────────────────────────────────
 
     def get_all_categories(self, include_children: bool = False) -> list[str]:
         labels = set(self._ontology["categories"].keys())
@@ -222,8 +209,6 @@ class UnifiedVulnClassifier:
     def get_escalation_graph(self) -> list[dict[str, Any]]:
         return self._ontology.get("escalation_graph", {}).get("edges", [])
 
-
-# ── Global instance & convenience functions ──────────────────────────────────
 
 _classifier: UnifiedVulnClassifier | None = None
 

@@ -34,7 +34,7 @@ try:
     from ..data_loader import load_refusal_markers
 
     _REFUSAL_MARKERS: tuple[str, ...] = tuple(load_refusal_markers())
-except Exception as _e:  # data file optional — refusal labelling just disabled
+except Exception as _e:
     logger.debug("refusal markers unavailable (%s); refusal labelling disabled", _e)
     _REFUSAL_MARKERS = ()
 
@@ -42,7 +42,7 @@ try:
     from ..data_loader import load_awaiting_input_markers
 
     _AWAITING_INPUT_MARKERS: tuple[str, ...] = tuple(load_awaiting_input_markers())
-except Exception as _e:  # data file optional — graceful-stop labelling disabled
+except Exception as _e:
     logger.debug(
         "awaiting-input markers unavailable (%s); graceful-stop disabled", _e
     )
@@ -294,14 +294,11 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
             for phase_name, tools in phases.items():
                 if not isinstance(tools, list):
                     continue
-                # Find the phase where the failed binary belongs
                 if binary in [str(t).lower() for t in tools]:
-                    # Suggest other tools in the same phase
                     for t in tools:
                         t_str = str(t).lower()
                         if t_str != binary:
                             suggestions.append(t_str)
-                    # Also suggest adjacent phases in the same group
                     for other_phase, other_tools in phases.items():
                         if other_phase != phase_name and isinstance(other_tools, list):
                             for t in other_tools:
@@ -310,7 +307,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
             if suggestions:
                 break
 
-        # Fallback: if binary not found, suggest from web_probing/crawling as general recon
         if not suggestions and binary not in {"execute", "http_observe"}:
             general = (
                 categories.get("reconnaissance", {}).get("web_probing", [])
@@ -388,7 +384,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
             in_thinking_tag = False
             _carry = ""
 
-            # Track if this iteration used thinking (for consecutive thinking detection)
             _this_iteration_thinking = False
 
             adaptive_num_ctx = (
@@ -413,7 +408,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                 self.state.token_usage["limit"] = adaptive_num_ctx
 
             _ctx_used = self._recompute_used_tokens_from_conversation()
-            _budget_hard_limit = int(adaptive_num_ctx * 0.85)  # 85% safety margin
+            _budget_hard_limit = int(adaptive_num_ctx * 0.85)
 
             if adaptive_num_ctx > 0 and _ctx_used > _budget_hard_limit:
                 logger.error(
@@ -604,9 +599,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                 )
                 adaptive_num_predict = _num_predict_cap
 
-            # Inject full vulnerability evidence when entering REPORT phase
-            # BEFORE char budget so enforced budget accounts for injected data.
-            # Qodo review fix: was after budget = potential overflow.
             if current_phase.value == "REPORT":
                 try:
                     _report_ctx = self._build_report_phase_evidence()
@@ -619,14 +611,12 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                 except Exception as _rep_err:
                     logger.debug("REPORT evidence injection failed: %s", _rep_err)
 
-            # Inject learned insights — runs every iteration, independent of tool intelligence
             try:
                 _phase = self.pipeline.get_current_phase().value if self.pipeline else "RECON"
                 await self._inject_learned_insights_async(_phase)
             except Exception as _li_err:
                 logger.debug("Learned insights injection failed: %s", _li_err)
 
-            # Inject tool intelligence before LLM call
             try:
                 self._inject_tool_intelligence()
             except Exception as _inj_err:
@@ -758,7 +748,7 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                         think=self._should_use_thinking(cfg, current_phase),
                         operation=str(current_phase or "chat").strip().lower(),
                         stop_requested_fn=lambda: self._stop_requested,
-                        max_retries=0,  # This outer loop owns visible/bounded retries.
+                        max_retries=0,
                     )
 
                     async for chunk in _stream_gen:
@@ -897,9 +887,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                     err_str = str(stream_err)
                     err_lower = err_str.lower()
                     if isinstance(stream_err, LLMToolCallError):
-                        # A model-output contract error is not a connectivity
-                        # failure. Do not dispatch a partial batch or retry the
-                        # same prompt with the generic 5/15/30/60s backoff.
                         if _tool_argument_repairs >= 2:
                             yield AgentEvent(type="error", data={
                                 "message": f"Model returned invalid tool arguments after two correction requests: {err_str}",
@@ -941,11 +928,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                         yield AgentEvent(type="done", data={})
                         return
                     if isinstance(stream_err, LLMReasoningReplayRequired) and not _replay_retry_used:
-                        # The client learned that stored reasoning_content must be
-                        # replayed and resent nothing. The next attempt re-runs
-                        # _enforce_char_budget, which now counts that reasoning, so
-                        # the larger request is packed (or refused) before it is
-                        # sent. Once per iteration: a repeat is a client error.
                         _replay_retry_used = True
                         yield AgentEvent(type="text", data={"content": (
                             "\n[AUTO-RECOVERY] Backend requires stored reasoning to be "
@@ -991,9 +973,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                         or _is_timeout or _is_conn_refused
                         or (isinstance(stream_err, LLMBackendHTTPError) and stream_err.retryable)
                     )
-                    # Non-retryable client error from an OpenAI-compatible gateway
-                    # (bad model name, auth, rejected tools/stream_options, ...).
-                    # Retrying these 4× wastes ~110s and never succeeds.
                     _is_client_error = (
                         "returned http 4" in err_lower
                         or "client error '4" in err_lower
@@ -1259,8 +1238,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                     )
 
                     if self._empty_response_retry_count == 3:
-                        # Reuse evidence-preserving packing instead of slicing
-                        # away earlier user instructions/scope during recovery.
                         recover = getattr(self, "_recover_context_budget", None)
                         if callable(recover) and recover(adaptive_num_predict):
                             adaptive_num_predict = min(adaptive_num_predict, self._adaptive_num_predict_cap)
@@ -1285,16 +1262,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                 if self._session:
                     save_session(self._session)
 
-                # Distinguish two very different situations that both look like
-                # "empty output":
-                #   1. The model already produced a substantive assistant turn
-                #      this run (e.g. a recon summary that ended by asking for the
-                #      next task), and now simply has nothing more to add. That is
-                #      a NATURAL STOP — the agent is awaiting instruction, not
-                #      broken. Surfacing a scary error here makes a working run
-                #      look corrupted.
-                #   2. The model never produced anything usable at all — that is a
-                #      genuine backend/config problem worth a diagnostic error.
                 _had_prior_assistant_text = any(
                     m.get("role") == "assistant"
                     and str(m.get("content") or "").strip()
@@ -1350,7 +1317,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
 
             if not tool_calls_acc:
                 self._no_tool_iterations += 1
-                # Increment consecutive thinking counter if thinking was generated this iteration
                 if _this_iteration_thinking:
                     self._consecutive_thinking_iterations = (
                         getattr(self, "_consecutive_thinking_iterations", 0) + 1
@@ -1369,13 +1335,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                     yield AgentEvent(type="done", data={})
                     return
 
-                # Detect an LLM-side refusal: the model produced explanatory /
-                # declined text and called NO tool during an active assessment.
-                # This is the model's own safety alignment refusing the task — it
-                # is NOT an AIRecon bug or a scope/config problem. Surface it
-                # clearly instead of silently spinning through reflector nudges
-                # and empty-response retries. We give one corrective nudge first,
-                # then stop with an actionable message if it refuses again.
                 if (
                     self.state.active_target
                     and content_acc
@@ -1474,11 +1433,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                             phase=current_phase,
                         )
                         if self._watchdog_forced_calls >= 3:
-                            # If the model is simply asking for a new target/
-                            # objective (it considers the current step finished),
-                            # end gracefully instead of emitting an alarming
-                            # "stuck/recovery failed" error — mirrors the
-                            # empty-response natural-completion handling.
                             if self._looks_like_awaiting_input(content_acc):
                                 logger.info(
                                     "Text-only stop: model is awaiting a new "
@@ -1671,7 +1625,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
             async def execute_single_tool(idx: int, tc: dict, args: dict) -> tuple:
                 tn = tc["function"]["name"]
 
-                # Hard phase constraint check — block inappropriate tools
                 _phase_mode, _phase_note = self._check_phase_constraint(tn)
                 if _phase_mode == "block" and _phase_note:
                     logger.info(
@@ -1943,7 +1896,6 @@ class _ToolCycleMixin(_CyclePreludeMixin, _CycleLlmMixin, _CyclePostMixin):
                     s, d, r, o = await self._execute_web_search_tool(args)
                     self.state.missing_tool_count = 0
                 elif tn == "request_user_input":
-                    # Rate limiting: prevent spamming user with input requests
                     import time as _time_mod
 
                     _now = _time_mod.time()

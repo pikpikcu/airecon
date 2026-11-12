@@ -1,10 +1,3 @@
-"""A tight context window must cost toolset breadth, never the whole run.
-
-airecon always sent all 35 tool schemas (ranking reorders but never prunes), so
-the mandatory payload alone (~76KB) overflowed small windows and raised
-ContextBudgetError before any compression could run. fit_tools_to_budget sheds
-the lowest-ranked OPTIONAL schemas while keeping the core set.
-"""
 from __future__ import annotations
 
 import json
@@ -48,7 +41,6 @@ def test_returns_all_tools_when_already_fitting(messages):
 
 
 def test_prunes_lowest_ranked_tail_first(messages):
-    # Rank order: most relevant first. Tail must go first.
     tools = [_tool("execute"), _tool("rank_hi", 400), _tool("rank_lo", 400)]
     budget = request_chars(messages, [_tool("execute"), _tool("rank_hi", 400)])
     kept = _names(fit_tools_to_budget(messages, tools, budget))
@@ -60,14 +52,12 @@ def test_core_tools_are_never_pruned(messages):
         _tool("optional_x", 3000),
         _tool("optional_y", 3000),
     ]
-    # Budget far below even the core set.
     kept = _names(fit_tools_to_budget(messages, tools, 1))
     assert kept == list(CORE_TOOL_NAMES)
     assert "optional_x" not in kept and "optional_y" not in kept
 
 
 def test_optional_tools_dropped_before_core_regardless_of_position(messages):
-    # An optional tool sitting BEFORE core tools is still the one dropped.
     tools = [_tool("optional_big", 4000), _tool("execute", 100), _tool("read_file", 100)]
     kept = _names(fit_tools_to_budget(messages, tools, 3000))
     assert "optional_big" not in kept
@@ -94,8 +84,6 @@ def test_empty_tools_is_safe(messages):
 
 
 def test_tool_result_messages_are_not_mandatory(messages):
-    # Tool results are compressible, so they must not inflate the mandatory set
-    # and must not trigger pruning on their own.
     tools = [_tool("execute"), _tool("opt_a", 200)]
     base = request_chars(messages, tools)
     noisy = messages + [
@@ -106,7 +94,6 @@ def test_tool_result_messages_are_not_mandatory(messages):
 
 
 def test_real_toolset_fits_a_small_window_after_pruning(messages):
-    """The regression that mattered: 35 real schemas in a tight budget."""
     from airecon.proxy.agent.tool_defs import get_tool_definitions
 
     tools = get_tool_definitions()
@@ -115,7 +102,6 @@ def test_real_toolset_fits_a_small_window_after_pruning(messages):
     kept = fit_tools_to_budget(messages, tools, budget)
     assert request_chars(messages, kept) <= budget
     assert len(kept) < len(tools)
-    # Core survives, so the agent can still run commands and report findings.
     for core in ("execute", "create_vulnerability_report"):
         assert core in _names(kept)
 

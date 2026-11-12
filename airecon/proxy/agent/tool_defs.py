@@ -5,7 +5,6 @@ from ..mcp import mcp_llm_tools
 
 _DATASETS_DIR = Path.home() / ".airecon" / "datasets"
 
-# Tools that require optional components — excluded when component is absent
 _CONDITIONAL_TOOLS: dict[str, bool] = {}
 
 
@@ -21,8 +20,6 @@ def get_tool_definitions() -> list[dict]:
     with open(schema_path, "r") as f:
         tools = json.load(f)
 
-    # Exclude dataset_search when no datasets are installed — prevents LLM
-    # from calling a tool that will always return an error
     if not _datasets_installed():
         tools = [
             t for t in tools

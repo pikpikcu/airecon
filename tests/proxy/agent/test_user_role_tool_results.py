@@ -1,13 +1,3 @@
-"""Regression tests: user-role tool results (tool_response_role=user).
-
-Two validated bugs:
-1. ``AgentState._repair_tool_pairs`` counted only role=tool results, so calls
-   answered by an in-span user ``_tool_result`` message got a
-   "[Tool result unavailable ...]" stub right before the real output.
-2. ``_enforce_char_budget`` budgeted the stored conversation, not what
-   ``_messages_for_llm`` actually sends (stub messages add bytes), so the
-   projected request exceeded the budget.
-"""
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -50,10 +40,6 @@ def _num_ctx_for_budget(budget: int, num_predict: int = 1024) -> int:
     return (budget + num_predict + 256 + 2) // 3 + num_predict + 256
 
 
-# ---------------------------------------------------------------------------
-# 1 — stub wording
-
-
 def test_user_role_result_stub_points_at_following_message(agent):
     agent.state.conversation.append(_call("call_u1"))
     agent._append_tool_result("nmap", "22/tcp open ssh", True, "call_u1")
@@ -66,7 +52,6 @@ def test_user_role_result_stub_points_at_following_message(agent):
         "the result exists in the next message; the stub must not claim it is unavailable"
     )
     assert "next message" in str(stubs[0]["content"]).lower()
-    # the real output still reaches the provider, right after the stub
     idx = msgs.index(stubs[0])
     following = msgs[idx + 1]
     assert following.get("_tool_result") and "22/tcp open ssh" in following["content"]
@@ -104,7 +89,6 @@ def test_multiple_calls_pair_with_user_results_by_order(agent):
 def test_default_tool_role_behavior_unchanged(agent):
     from airecon.proxy.agent import loop_context
 
-    # same fixture but role=tool storage
     loop_context.get_config().tool_response_role = "tool"
 
     agent.state.conversation.append(_call("call_t1"))
@@ -118,10 +102,6 @@ def test_default_tool_role_behavior_unchanged(agent):
     assert "unavailable" not in str(tools[0]["content"]).lower()
 
 
-# ---------------------------------------------------------------------------
-# 2 — budget accounts for the projection
-
-
 @pytest.mark.asyncio
 async def test_enforced_budget_holds_for_projected_request(agent):
     agent.state.conversation.append(_call("call_u1"))
@@ -132,8 +112,6 @@ async def test_enforced_budget_holds_for_projected_request(agent):
     projected = request_chars(agent._messages_for_llm(), tools)
     assert projected > stored, "fixture must exercise the projection overhead"
 
-    # Learned budget binds exactly (num_ctx mapping only inflates it): the
-    # stored conversation fits, the stubs the projection adds push past it.
     budget = stored + 20
     assert stored <= budget < projected
     agent._context_char_budget = budget
@@ -151,8 +129,6 @@ async def test_enforced_budget_holds_for_projected_request(agent):
 async def test_second_budget_pass_is_fixed_point(agent):
     from airecon.proxy.context_budget import _minimum_request_messages
 
-    # A registry with one core tool plus many optional schemas, so the fit has
-    # a knife edge the pass-2 budget could re-admit schemas over.
     tools = [
         {
             "type": "function",
@@ -166,7 +142,6 @@ async def test_second_budget_pass_is_fixed_point(agent):
     ]
     agent._tools_llm = tools
 
-    # Several older groups (evictable) + one latest exact read_file group.
     for i in range(30):
         agent.state.conversation.append(_call(f"call_old_{i}", "nmap"))
         agent._append_tool_result(
@@ -183,10 +158,6 @@ async def test_second_budget_pass_is_fixed_point(agent):
         0, request_chars(repaired_minimum, tools) - request_chars(minimum, tools)
     )
 
-    # Budget chosen on the knife edge: exactly the first 25 schemas fit once
-    # the STABLE overhead (the minimum request's own projection overhead) is
-    # subtracted, so pass 1 drops optional schemas AND evicts every older
-    # group (400 slack for schema rounding).
     budget = request_chars(minimum, tools[:25]) + stable_overhead + 400
     agent._context_char_budget = budget
 
@@ -205,8 +176,6 @@ async def test_second_budget_pass_is_fixed_point(agent):
     )
     assert request_chars(agent._messages_for_llm(), schemas_1) <= budget
 
-    # Second pass on the already-packed history: identical conversation,
-    # identical schema list, projected request still within budget.
     await agent._enforce_char_budget(num_ctx=65536, num_predict=1024)
 
     assert agent.state.conversation == conversation_1, (

@@ -214,7 +214,6 @@ class _FormatterMixin:
             stdout_msg = result.get("stdout", "") or ""
             exit_code = result.get("exit_code")
 
-            # Format exit_code properly - show "unknown" if None or missing
             exit_code_str = str(exit_code) if exit_code is not None else "unknown"
             parts = [f"COMMAND FAILED (exit code: {exit_code_str})"]
             if error_msg.strip():
@@ -411,8 +410,6 @@ class _FormatterMixin:
             content = result["result"]
         else:
             content = json.dumps(result, default=str)
-        # read_file already bounds whole pages; slicing here loses exact bytes
-        # and continuation metadata, including in the smaller CTF view.
         if tool_name != "read_file" and len(content) > MAX_TOTAL:
             content = content[:MAX_TOTAL] + "\n... (truncated)"
         return content

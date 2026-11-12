@@ -1297,9 +1297,6 @@ class SessionData:
         default_factory=lambda: BoundedList(maxlen=1000)
     )
 
-    # Rolling buffer of RAW chat turns (user/assistant/tool) preserved across
-    # compaction so a resumed session can replay real history even after the main
-    # conversation was compressed into summaries.
     recent_turns: list[dict[str, Any]] = field(
         default_factory=lambda: BoundedList(maxlen=400)
     )
@@ -2036,10 +2033,6 @@ def update_from_parsed_output(
             return has_signal and (has_context or len(candidate) >= 35)
         return has_signal and (has_context or len(candidate) >= 30)
 
-    # Resolve the engagement scope once so out-of-scope third-party URLs
-    # (google.com, login.microsoftonline.com, w3.org, CDNs, example.org) never
-    # pollute the testable attack surface — the dominant reason analysis/exploit
-    # looked "dumb" regardless of model. An explicit allowlist is honored.
     _scope_allow: list[str] = []
     try:
         from ..scope import get_scope_guard
@@ -2105,13 +2098,10 @@ def update_from_parsed_output(
 
         if url_token:
             url = _normalize_url(url_token.rstrip(".,;:)]}>\"'"))
-            # Only ingest in-scope URLs into the testable surface; third-party
-            # hosts (OAuth providers, CDNs, w3.org, example.org) are noise.
             if not _in_scope(url):
                 continue
             if url not in session.urls:
                 session.urls.append(url)
-            # Live hosts: URLs from probing tools (httpx, etc.) ARE confirmed live
             if url not in session.live_hosts:
                 session.live_hosts.append(url)
 
@@ -2123,9 +2113,6 @@ def update_from_parsed_output(
         hp_match = _HOST_PORT_RE.match(item_stripped)
         if hp_match:
             host, port_str = hp_match.group(1), hp_match.group(2)
-            # NOTE: open ports are keyed by host/IP from a scan the agent
-            # explicitly ran (a domain target resolves to an IP), so these are
-            # NOT scope-filtered — only discovered URLs/injection points are.
             if port_str.isdigit():
                 port = int(port_str)
                 session.open_ports.setdefault(host, [])

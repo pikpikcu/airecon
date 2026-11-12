@@ -20,7 +20,6 @@ _HEADER_LINE = re.compile(r"\[[^\n]*\]")
 
 
 def wire(text: str) -> int:
-    """Bytes the text occupies inside a JSON request body."""
     return len(json.dumps(text, ensure_ascii=False).encode("utf-8")) - 2
 
 
@@ -43,7 +42,6 @@ def assert_exact_page(result: dict, lines: list[bytes], start: int, stop: int) -
 
 
 def read_all_pages(root: Path, name: str, **kwargs) -> list[dict]:
-    """Follow the continuation metadata exactly as a caller would."""
     path = root / name
     lines = source_lines(path)
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -71,7 +69,6 @@ def read_all_pages(root: Path, name: str, **kwargs) -> list[dict]:
 
 
 def test_byte_limit_stays_below_formatter_cut_and_reserves_framing():
-    # _smart_format_tool_result cuts any result above 12000 characters mid-line.
     assert LIMIT < 12000
     assert (
         filesystem._READ_CONTENT_WIRE_BYTES + filesystem._READ_FRAMING_RESERVE_BYTES
@@ -159,7 +156,6 @@ def test_escaping_and_multibyte_text_are_budgeted_as_serialized(tmp_path):
     pages = read_all_pages(tmp_path, "escaped.txt")
 
     assert len(pages) > 1
-    # Raw bytes alone would have fit far more lines than the wire form allows.
     assert all(page["next_offset"] - page["offset"] < LIMIT // len(line) for page in pages)
 
 
@@ -298,7 +294,6 @@ def agent(monkeypatch, tmp_path):
 @pytest.mark.parametrize("ctf", [False, True])
 @pytest.mark.asyncio
 async def test_default_read_fits_the_smallest_context_fixture(agent, tmp_path, role, kind, ctf):
-    """Reader -> formatter -> history -> budget gate, including CTF mode."""
     loop, cfg = agent
     cfg.tool_response_role = role
     cfg.model_max_tool_result_chars = 5000

@@ -30,9 +30,9 @@ _PROXY_START_EXTRA_GRACE_SECONDS: float = 25.0
 _proxy_thread: threading.Thread | None = None
 _proxy_fatal_error: list[str] = []
 
-# Single source of truth for the crash-log location so error messages can show
-# the FULL path (users were told to "check airecon_proxy_crash.log" without
-# knowing which temp dir it lives in — on macOS/Windows that is not /tmp).
+
+
+
 _CRASH_LOG_PATH: Path = Path(tempfile.gettempdir()) / "airecon_proxy_crash.log"
 
 
@@ -75,10 +75,10 @@ def _proxy_thread_body() -> None:
     for _n in ("uvicorn", "uvicorn.error", "httpx", "httpcore"):
         _log.getLogger(_n).setLevel(_log.CRITICAL)
 
-    # Import inside the guarded body: an import-time failure (missing dependency,
-    # bad config, syntax error in a proxy module) is the most common reason the
-    # thread dies WITHOUT a crash log being written. Capture it so the user gets
-    # both a log file and a visible reason instead of a silent "thread stopped".
+
+
+
+
     try:
         from airecon.proxy.server import run_server
     except BaseException as exc:  # noqa: BLE001 - must surface any startup failure
@@ -96,8 +96,8 @@ def _proxy_thread_body() -> None:
         _t0 = time.monotonic()
         try:
             run_server()
-            # run_server returning normally (e.g. uvicorn exited because the port
-            # was already in use) is also a failure to keep serving — record it.
+
+
             _proxy_fatal_error.append(
                 f"Proxy server exited unexpectedly without an error "
                 f"(possible port conflict on the proxy port). See {_CRASH_LOG_PATH}"
@@ -330,7 +330,7 @@ class StartupScreen(Screen[bool]):
                 )
                 return
         else:
-            # Auto-build disabled: never trigger a heavy build implicitly.
+
             if not await engine.image_exists():
                 self._set_step("step-docker", "fail", "image missing")
                 self._set_status(

@@ -102,7 +102,6 @@ _OK = 'data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}\n\n
 
 
 def _is_replay_signal(error: BaseException) -> bool:
-    """The distinct "requirement learned, nothing resent" error, by class name."""
     return type(error).__name__ == "LLMReasoningReplayRequired"
 
 
@@ -224,9 +223,6 @@ async def test_disabled_replay_is_not_overridden_by_learning(monkeypatch):
     assert not LLMClient._reasoning_replay_models
 
 
-# ── the agent loop owns the request budget, so it sends the larger request ──
-
-
 def _agent_history(old_groups: int, old_reasoning: int, latest_reasoning: int) -> list[dict]:
     history = [
         {"role": "system", "content": "Only authorized fixture scope."},
@@ -243,7 +239,6 @@ def _agent_history(old_groups: int, old_reasoning: int, latest_reasoning: int) -
 
 
 def _wire_chars(payload: dict) -> int:
-    """What request_chars measures, taken from the request that reached the backend."""
     body = {"messages": payload["messages"], "tools": payload.get("tools") or []}
     return len(json.dumps(body, ensure_ascii=False).encode("utf-8"))
 
@@ -261,7 +256,6 @@ def _requires_reasoning(sent: list[dict], *, accept: bool = True):
 
 
 async def _run_agent_iteration(monkeypatch, tmp_path, history, handle):
-    """One real loop iteration: budget pass, projection, client, error recovery."""
     from unittest.mock import AsyncMock, MagicMock
 
     from airecon.proxy.agent.loop import AgentLoop
@@ -279,7 +273,6 @@ async def _run_agent_iteration(monkeypatch, tmp_path, history, handle):
     loop.state.max_iterations = 1
     loop.state.conversation = list(history)
     loop._tools_llm = list(TOOLS)
-    # Periodic housekeeping and advisory injections are not part of this path.
     loop._run_iteration_housekeeping = AsyncMock()
     loop._check_and_reset_context = AsyncMock()
     loop._inject_learned_insights_async = AsyncMock()
@@ -350,9 +343,6 @@ async def test_agent_retries_a_learned_requirement_once_then_reports_the_rejecti
     assert all("reasoning_content" in m for m in sent[1]["messages"] if m["role"] == "assistant")
     errors = [event.data["message"] for event in events if event.type == "error"]
     assert len(errors) == 1 and "non-retryable" in errors[0]
-
-
-# ── YAML reads unquoted `off` as a boolean; it must still mean off ──────────
 
 
 @pytest.mark.parametrize("literal", ["off", '"off"', "false"])

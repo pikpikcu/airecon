@@ -587,9 +587,9 @@ class MemoryManager:
             logger.debug("Pattern rejected: technique_name too short/generic")
             return
 
-        #if not pattern.get("tech"):
-        #    logger.debug("Pattern rejected: missing target tech")
-        #    return
+
+
+
 
         description = pattern.get("description", "").strip()
         payload = pattern.get("payload_template", "").strip()
@@ -979,12 +979,11 @@ class MemoryManager:
         return [dict(r) for r in cursor.fetchall()]
 
     def delete_embeddings_for_refs(self, kind: str, ref_ids: list[int]) -> None:
-        """Durable forgetting: remove vectors for the given references."""
         if not self.conn or not ref_ids:
             return
         cursor = self.conn.cursor()
-        # executemany keeps the statement constant: no SQL text is built from
-        # input, and large ref lists cannot hit SQLite's variable limit.
+
+
         cursor.executemany(
             "DELETE FROM embeddings WHERE kind = ? AND ref_id = ?",
             [(kind, ref_id) for ref_id in ref_ids],
@@ -1049,7 +1048,7 @@ class MemoryManager:
         if intel:
             context_parts.append("## TARGET INTELLIGENCE")
             if intel.get("subdomains"):
-                subs = ", ".join(intel["subdomains"][:30])  # Increased from 20
+                subs = ", ".join(intel["subdomains"][:30])
                 context_parts.append(
                     f"Subdomains ({len(intel['subdomains'])} total): {subs}"
                 )

@@ -685,7 +685,7 @@ class SubAgentBlock(Vertical):
     def _update_header(self) -> None:
         try:
             header = self.query_one(".subagent-header", Static)
-            # Build completion note
+
             note_parts = []
             if self._done:
                 icon = "✓" if self._success else "✗"

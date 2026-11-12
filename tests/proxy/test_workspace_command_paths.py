@@ -1,14 +1,3 @@
-"""Host→/workspace remapping touches filesystem operands only.
-
-The sandbox mounts the host workspace at /workspace, so a host path used as a
-file operand is remapped at the DockerEngine.execute boundary. A bash payload
-also carries data — URLs, request bodies, inline source, patterns, comments,
-heredoc bodies — and those bytes must reach the container unchanged even when
-they contain the host workspace root.
-
-Every case runs the production path execute_tool → execute with the
-subprocess spawn intercepted: no Docker, no shell, nothing executes.
-"""
 from __future__ import annotations
 
 import shlex
@@ -34,7 +23,6 @@ def engine(mocker):
 
 
 async def _sent(engine, mocker, command: str) -> str:
-    """The bash payload execute_tool hands to ``docker exec`` (spawn intercepted)."""
     spawn = AsyncMock(side_effect=OSError("spawn intercepted by test"))
     mocker.patch("airecon.proxy.docker.asyncio.create_subprocess_exec", spawn)
     result = await engine.execute_tool("execute", {"command": command})
@@ -47,9 +35,6 @@ async def _sent(engine, mocker, command: str) -> str:
     assert rewrite_host_workspace_paths(command) == payload, "helper and engine disagree"
     assert rewrite_host_workspace_paths(payload) == payload, "not idempotent"
     return payload
-
-
-# --- opaque data: bytes must be preserved -----------------------------------
 
 
 async def test_url_containing_host_root_is_preserved(engine, mocker):
@@ -67,7 +52,6 @@ async def test_json_body_preserved_while_output_operand_remaps(engine, mocker):
     assert await _sent(engine, mocker, cmd) == (
         f"curl https://example.test -d {body} -o /workspace/out.json"
     )
-    # Same body in double quotes with escapes, a URL fragment, a continuation.
     escaped = f'"{{\\"p\\":\\"{ROOT}/x\\"}}"'
     cmd = f"curl https://example.test/#{ROOT} -d {escaped} \\\n  -o {ROOT}/out.json"
     assert await _sent(engine, mocker, cmd) == (
@@ -76,7 +60,6 @@ async def test_json_body_preserved_while_output_operand_remaps(engine, mocker):
 
 
 async def test_bare_path_request_body_is_preserved(engine, mocker):
-    # The body is a whole unquoted word that IS a host path: still data.
     cmd = f"curl -X POST --data-raw {ROOT}/x -H 'X-File: {ROOT}/x' https://example.test"
     assert await _sent(engine, mocker, cmd) == cmd
 
@@ -150,7 +133,6 @@ async def test_unmodelled_substitution_leaves_the_tail_unchanged(engine, mocker)
 
 
 async def test_unmodelled_compound_syntax_is_preserved(engine, mocker):
-    # Words that open these constructs are not commands; nothing after is touched.
     for cmd in (
         f"paths=({ROOT}/a {ROOT}/b); cat {ROOT}/a",
         f"case $P in ({ROOT}/a) cat {ROOT}/a;; esac",
@@ -164,9 +146,6 @@ async def test_ansi_c_quoted_data_does_not_derail_later_operands(engine, mocker)
     assert await _sent(engine, mocker, cmd) == (
         f"curl -d $'don\\'t cat {ROOT}/x' https://example.test -o /workspace/out.json"
     )
-
-
-# --- recognized filesystem operands: remapped -------------------------------
 
 
 async def test_cd_operand_remaps(engine, mocker):
@@ -191,7 +170,6 @@ async def test_output_operands_remap(engine, mocker):
         f"nuclei -l {ROOT}/t/live.txt -o {ROOT}/t/n.txt 2>&1 | tee -a {ROOT}/t/n.log": (
             "nuclei -l /workspace/t/live.txt -o /workspace/t/n.txt 2>&1 | tee -a /workspace/t/n.log"
         ),
-        # The string comparison is data; the file operand after ``then`` is not.
         f"if [ \"$P\" = {ROOT}/x ]; then cat {ROOT}/x; fi": (
             f"if [ \"$P\" = {ROOT}/x ]; then cat /workspace/x; fi"
         ),
@@ -217,7 +195,6 @@ async def test_escaped_operand_remaps_and_keeps_its_escapes(engine, mocker):
     assert await _sent(engine, mocker, f"cat {ROOT}/my\\ dir/a\\ b.txt") == (
         "cat /workspace/my\\ dir/a\\ b.txt"
     )
-    # A quote that opens inside the root cannot be replaced without unbalancing it.
     split = ROOT[:-9] + "'workspace'/x"
     assert await _sent(engine, mocker, f"cat {split}") == f"cat {split}"
 
@@ -236,9 +213,6 @@ async def test_scripts_and_find_start_paths_remap_but_their_arguments_do_not(eng
     }
     for cmd, expected in cases.items():
         assert await _sent(engine, mocker, cmd) == expected
-
-
-# --- http_observe: the production caller that quotes URL/body/headers -------
 
 
 class _ObserveAgent(_ObserveExecutorMixin):

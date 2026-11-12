@@ -21,9 +21,6 @@ _PYTHON_SESSION_DISABLED_ERROR = (
 )
 
 
-# === Notes System ===
-
-
 class _NotesManager:
     def __init__(self, storage_dir: Path):
         self.storage_dir = storage_dir
@@ -64,7 +61,6 @@ class _NotesManager:
         }
         self.notes_index[note_id] = note
         self._save_index()
-        # Also write individual markdown file for wiki export
         note_file = self.storage_dir / f"{note_id}.md"
         note_file.write_text(self._to_markdown(note), encoding="utf-8")
         return {
@@ -199,7 +195,7 @@ class _NotesManager:
 
 class _UtilsExecutorMixin:
     def __init__(self) -> None:
-        super().__init__()  # Ensure parent init
+        super().__init__()
         self._ensure_utils_runtime_state()
 
     def _get_notes_storage_dir(self) -> Path | None:
@@ -260,15 +256,6 @@ class _UtilsExecutorMixin:
             self._notes_manager = None
             self._notes_manager_dir = None
 
-    # === Python Session (removed: fail-closed) ===
-    # The legacy implementation ran model-generated Python via in-process
-    # exec()/eval() on the proxy host — arbitrary host filesystem, subprocess
-    # and network access with no sandbox. The execution machinery has been
-    # deleted; this handler remains only so persisted/attempted old calls are
-    # rejected with a structured error BEFORE any code execution or
-    # utility-state side effect. There is deliberately no config switch that
-    # re-enables host execution; run Python via the `execute` tool inside the
-    # Docker target sandbox instead. No persistent Python REPL is offered.
     async def _execute_python_session_tool(
         self, tool_name: str, arguments: dict[str, Any]
     ) -> tuple[bool, float, dict[str, Any], str | None]:
@@ -286,7 +273,6 @@ class _UtilsExecutorMixin:
             None,
         )
 
-    # === Edit File ===
     async def _execute_edit_file_tool(
         self, tool_name: str, arguments: dict[str, Any]
     ) -> tuple[bool, float, dict[str, Any], str | None]:
@@ -303,7 +289,6 @@ class _UtilsExecutorMixin:
                 None,
             )
 
-        # Resolve path
         ws_root = get_workspace_root()
         file_path = (ws_root / path).resolve()
         try:
@@ -340,10 +325,8 @@ class _UtilsExecutorMixin:
                 None,
             )
 
-        # Count occurrences
         count = content.count(old_str)
         if count > 1:
-            # Replace only first occurrence to be surgical
             new_content = content.replace(old_str, new_str, 1)
         else:
             new_content = content.replace(old_str, new_str)
@@ -370,7 +353,6 @@ class _UtilsExecutorMixin:
                 None,
             )
 
-    # === Think ===
     async def _execute_think_tool(
         self, tool_name: str, arguments: dict[str, Any]
     ) -> tuple[bool, float, dict[str, Any], str | None]:
@@ -396,7 +378,6 @@ class _UtilsExecutorMixin:
 
         self._thoughts_log.append(entry)
 
-        # Also write to log file
         try:
             ws_root = get_workspace_root()
             phase = "unknown"
@@ -423,7 +404,6 @@ class _UtilsExecutorMixin:
             None,
         )
 
-    # === Notes ===
     async def _execute_create_note_tool(
         self, tool_name: str, arguments: dict[str, Any]
     ) -> tuple[bool, float, dict[str, Any], str | None]:
@@ -584,7 +564,6 @@ class _UtilsExecutorMixin:
         result = self._notes_manager.export_wiki(full_path)
         return True, time.time() - start_time, result, None
 
-    # FTS5 chars that break MATCH syntax (operators, punctuation)
     _FTS5_SPECIAL_RE = re.compile(r'["\(\)\*\+\^<>@:!\-,\.\/\\]')
 
     @staticmethod

@@ -31,7 +31,6 @@ class ParsedOutput:
     causal_observations: list[dict[str, Any]] = field(default_factory=list)
 
 
-# Load max items by phase from config.py
 def _get_max_items_by_phase() -> dict[str, int]:
     from ..config import get_config as _get_config
 
@@ -51,7 +50,6 @@ DEFAULT_MAX_ITEMS = 100
 MAX_RAW_FALLBACK = 3000
 
 
-# Load tools_meta for other configs
 def _load_tools_meta() -> dict[str, Any]:
     try:
         path = Path(__file__).resolve().parent.parent / "data" / "tools_meta.json"
@@ -64,7 +62,6 @@ def _load_tools_meta() -> dict[str, Any]:
 _TOOLS_META: dict[str, Any] = _load_tools_meta()
 
 
-# Load causal observation confidence from config.py (moved from tools_meta.json)
 def _get_causal_confidence(key: str, default: float) -> float:
     from ..config import get_config as _get_config
 
@@ -74,7 +71,6 @@ def _get_causal_confidence(key: str, default: float) -> float:
     return max(0.0, min(float(value), 1.0)) if value else default
 
 
-# Backwards compatible alias
 _causal_confidence = _get_causal_confidence
 
 
@@ -1793,7 +1789,6 @@ def _parse_quick_fuzz(stdout: str, max_items: int = DEFAULT_MAX_ITEMS) -> Parsed
     )
 
 
-# ── Parser function registry (by pattern name) ─────────────────────
 _PARSER_FUNCS: dict[str, Any] = {
     "nmap": _parse_nmap,
     "nuclei": _parse_nuclei,
@@ -1811,8 +1806,6 @@ _PARSER_FUNCS: dict[str, Any] = {
     "metasploit": _parse_metasploit,
 }
 
-# ── Dynamic tool→parser mapping from tools_meta.json ───────────────
-# Mirrors output_parser_tool_patterns so new tools auto-register.
 _PARSERS: dict[str, Any] = {}
 
 _tools_meta_parser_path = (
@@ -1831,7 +1824,6 @@ except Exception as _e:
     warnings.warn(f"Could not load parser registration from tools_meta.json: {_e}")
     _PARSERS.update(_PARSER_FUNCS)
 
-# AIRecon-native tools (not in tools_meta.json shell binaries)
 _PARSERS["quick_fuzz"] = _parse_quick_fuzz
 _PARSERS["advanced_fuzz"] = _parse_quick_fuzz
 _PARSERS["metasploit"] = _parse_metasploit

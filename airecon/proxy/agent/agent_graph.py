@@ -12,7 +12,6 @@ from .session import session_to_context
 logger = logging.getLogger("airecon.agent.graph")
 
 
-# Load agent graph max iterations from config.py (was hardcoded)
 def _get_agent_graph_max_iters() -> dict[str, int]:
     from ..config import get_config as _get_config
 

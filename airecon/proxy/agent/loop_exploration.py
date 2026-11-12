@@ -240,7 +240,6 @@ class _ExplorationMixin:
         if not is_stagnating and not is_creative_phase:
             return ""
 
-        # ── Dynamic context from data sources ──────────────────────────
         tested_vuln_classes = self._get_tested_vuln_classes()
         untested_classes = self._get_untested_vuln_classes(tested_vuln_classes)
         session_techs = (
@@ -251,7 +250,6 @@ class _ExplorationMixin:
             getattr(self._session, "injection_points", []) if self._session else []
         )
 
-        # Build dynamic tactics from session context — no hardcoded lists
         tactics = self._generate_dynamic_tactics(
             phase=phase,
             tested_classes=tested_vuln_classes,
@@ -321,11 +319,6 @@ class _ExplorationMixin:
 
         return "\n".join(lines)
 
-    # ── Dataset knowledge base phase hint ──────────────────────────────
-
-    # Re-inject the dataset hint every N iterations if the LLM has not called
-    # dataset_search recently.  A single injection per phase is not enough —
-    # small models routinely skip a hint that appears only once.
     _DATASET_HINT_REPEAT_EVERY: int = 4
 
     def _dataset_search_called_recently(self, window: int = 10) -> bool:
@@ -341,11 +334,9 @@ class _ExplorationMixin:
         return False
 
     def _build_dataset_hint(self, phase: PipelinePhase) -> str:
-        # REPORT phase needs no knowledge-base lookup
         if phase == PipelinePhase.REPORT:
             return ""
 
-        # Check datasets actually installed
         datasets_dir = Path.home() / ".airecon" / "datasets"
         try:
             has_db = any(datasets_dir.glob("*.db"))
@@ -359,15 +350,12 @@ class _ExplorationMixin:
         last_hint_iter: int = getattr(self, "_dataset_last_hint_iter", -self._DATASET_HINT_REPEAT_EVERY)
         is_new_phase = getattr(self, "_dataset_hint_injected_phase", "") != phase_key
 
-        # Suppress if: not a new phase AND not enough iterations since last hint
         if not is_new_phase and (current_iter - last_hint_iter) < self._DATASET_HINT_REPEAT_EVERY:
             return ""
 
-        # Suppress if the LLM already called dataset_search recently
         if self._dataset_search_called_recently():
             return ""
 
-        # ── Collect session context ───────────────────────────────────────
         session_techs: list[str] = []
         if self._session:  # type: ignore[attr-defined]
             techs = getattr(self._session, "technologies", {}) or {}
@@ -376,16 +364,12 @@ class _ExplorationMixin:
         tested_vulns = sorted(self._get_tested_vuln_classes())[:3]
         tech_str = session_techs[0] if session_techs else ""
 
-        # ── Detect target type from session ──────────────────────────────
         target: str = ""
         if self._session:  # type: ignore[attr-defined]
             target = str(getattr(self._session, "target", "") or "")
         is_api_target = any(x in target.lower() for x in ("/api/", "/rest/", "/graphql", "/v1/", "/v2/", "/v3/"))
 
-        # ── Build phase-specific examples and guidance ────────────────────
         if phase == PipelinePhase.RECON:
-            # airecon-recon-playbook.db (cat: recon), airecon-network-recon.db (cat: network),
-            # airecon-api-security.db (cat: api), airecon-web-vuln-patterns.db (cat: web)
             if tech_str:
                 example = f'{{"query": "{tech_str} enumeration attack surface", "category": "recon", "limit": 3}}'
             elif is_api_target:
@@ -414,7 +398,7 @@ class _ExplorationMixin:
                 "bypass methods, and payloads for detected technologies before continuing analysis."
             )
 
-        else:  # EXPLOIT
+        else:
             if tested_vulns:
                 vuln = tested_vulns[0].replace("_", " ")
                 example = f'{{"query": "{vuln} exploit payload", "category": "pentest", "limit": 3}}'
@@ -427,7 +411,6 @@ class _ExplorationMixin:
                 "and WAF bypass payloads before crafting exploits."
             )
 
-        # Update tracking state
         self._dataset_hint_injected_phase = phase_key  # type: ignore[attr-defined]
         self._dataset_last_hint_iter = current_iter  # type: ignore[attr-defined]
 
@@ -439,23 +422,18 @@ class _ExplorationMixin:
             "Covers recon playbooks, CVEs, exploit techniques, payloads, WAF bypasses, nuclei templates."
         )
 
-    # ── Web search RECON phase hint ────────────────────────────────────
-
     def _build_web_search_hint(self, phase: PipelinePhase) -> str:
         if getattr(self, "_web_search_hint_injected", False):
             return ""
 
-        # Only at RECON phase — CVE research and dorking most useful here
         if phase != PipelinePhase.RECON:
             return ""
 
-        # Wait until at least one technology or service is fingerprinted
         session_techs: dict = {}
         target_domain: str = ""
         if self._session:  # type: ignore[attr-defined]
             session_techs = getattr(self._session, "technologies", {}) or {}
             raw_target = getattr(self._session, "target", "") or ""
-            # Extract bare domain/host from URL or raw target string
             _m = re.search(r"https?://([^/:]+)", raw_target)
             target_domain = _m.group(1) if _m else raw_target.strip().split("/")[0]
 
@@ -498,19 +476,15 @@ class _ExplorationMixin:
         self._web_search_hint_injected = True  # type: ignore[attr-defined]
         return "\n".join(lines)
 
-    # ── Dynamic vuln class tracking from data sources ──────────────────
-
     def _get_tested_vuln_classes(self) -> set[str]:
         tested: set[str] = set()
 
-        # 1. From evidence log tags
         for ev in self.state.evidence_log:
             tags = ev.get("tags", [])
             for tag in tags:
                 if tag and isinstance(tag, str):
                     tested.update(self._normalize_vuln_labels(tag))
 
-        # 2. From session vulnerability types (actual findings)
         if self._session:
             for v in getattr(self._session, "vulnerabilities", []):
                 vtype = " ".join(
@@ -520,13 +494,11 @@ class _ExplorationMixin:
                 )
                 tested.update(self._normalize_vuln_labels(vtype))
 
-        # 3. From evidence summaries — match against system.txt §11 terms
         for ev in self.state.evidence_log:
             summary = str(ev.get("summary", "")).lower()
             if summary:
                 tested.update(self._normalize_vuln_labels(summary))
 
-        # 4. From skills catalog — check which skill-based vuln classes have been loaded
         try:
             skills_index = self._load_skills_index()
             for skill_path in skills_index:
@@ -591,7 +563,6 @@ class _ExplorationMixin:
         except Exception as _e:
             logger.debug("Failed to parse vuln terms from system prompt: %s", _e)
 
-        # Fallback: derive from skills catalog
         if not terms:
             try:
                 skills_index = self._load_skills_index()
@@ -613,7 +584,6 @@ class _ExplorationMixin:
     def _get_untested_vuln_classes(self, tested: set[str]) -> set[str]:
         all_classes = set()
 
-        # Source 1: ontology categories and child labels
         try:
             all_classes.update(
                 label.lower()
@@ -622,12 +592,10 @@ class _ExplorationMixin:
         except Exception as _e:
             logger.debug("Failed to load ontology categories: %s", _e)
 
-        # Source 2: system.txt §11 terms
         system_terms = self._get_vuln_terms_from_system_prompt()
         for term in system_terms:
             all_classes.update(self._normalize_vuln_labels(term))
 
-        # Source 3: skills catalog (vulnerabilities/ category)
         try:
             skills_index = self._load_skills_index()
             for skill_path in skills_index:
@@ -640,8 +608,6 @@ class _ExplorationMixin:
             logger.debug("Failed to derive vuln classes from skills catalog: %s", _e)
 
         return all_classes - tested
-
-    # ── Dynamic tactic generation — ZERO hardcoded lists ───────────────
 
     def _generate_dynamic_tactics(
         self,
@@ -656,8 +622,6 @@ class _ExplorationMixin:
         tactics: list[str] = []
         tech_names = list(technologies.keys()) if technologies else []
 
-        # Priority 1: Untested vuln classes from data sources
-        # Pick from untested_classes (dynamically computed), not a hardcoded list
         priority_untested = sorted(untested_classes)[:5]
 
         for vuln_class in priority_untested:
@@ -667,21 +631,17 @@ class _ExplorationMixin:
             if tactic:
                 tactics.append(tactic)
 
-        # Priority 2: Phase-specific guidance from skills catalog
         phase_skill_tactics = self._tactics_from_phase_skills(phase, tested_classes)
         tactics.extend(phase_skill_tactics[:2])
 
-        # Priority 3: Tech-stack tactics from skills catalog
         if tech_names:
             tech_tactics = self._tactics_for_tech_stack(tech_names, tested_classes)
             tactics.extend(tech_tactics[:2])
 
-        # Priority 4: URL-pattern tactics from session data
         if urls:
             url_tactics = self._tactics_for_url_patterns(urls, tested_classes)
             tactics.extend(url_tactics[:2])
 
-        # Priority 5: Novel vectors from skills catalog methodology skills
         novel = self._novel_attack_vectors(tested_classes, iteration)
         tactics.extend(novel[:2])
 
@@ -703,13 +663,10 @@ class _ExplorationMixin:
             if sample:
                 param_context = f" Test on params: {', '.join(sample)}."
 
-        # Try to load skill file for this vuln class
         skill_content = self._load_vuln_skill_content(vuln_class)
         if skill_content:
             return f"{vuln_class.upper()}{tech_context}: {skill_content}{param_context}"
 
-        # Fallback: generate from vuln class name + session context
-        # The LLM knows what each vuln class means from system.txt — we just prompt it
         return (
             f"Test for {vuln_class.replace('_', ' ').upper()}{tech_context}. "
             f"Review your loaded skills for this vulnerability class for specific techniques. "
@@ -722,13 +679,10 @@ class _ExplorationMixin:
             if not skills_dir.is_dir():
                 return None
 
-            # Try exact match first
             skill_file = skills_dir / f"{vuln_class}.md"
             if skill_file.exists():
                 content = skill_file.read_text(encoding="utf-8")
-                # Extract just the first ~200 chars as a hint
                 lines = content.splitlines()
-                # Skip YAML frontmatter
                 in_content = False
                 hint_lines = []
                 for line in lines:
@@ -743,7 +697,6 @@ class _ExplorationMixin:
                             break
                 return " ".join(hint_lines)[:300] if hint_lines else None
 
-            # Try fuzzy match (replace underscores with hyphens, etc.)
             for alt_name in [
                 vuln_class.replace("_", "-"),
                 vuln_class.replace("_", " "),
@@ -775,7 +728,6 @@ class _ExplorationMixin:
         tactics = []
         try:
             skills_index = self._load_skills_index()
-            # Map phases to skill categories dynamically
             phase_skill_dirs = {
                 PipelinePhase.RECON: ["reconnaissance", "protocols", "tools"],
                 PipelinePhase.ANALYSIS: [
@@ -794,10 +746,8 @@ class _ExplorationMixin:
             relevant_dirs = phase_skill_dirs.get(phase, [])
 
             for skill_path in skills_index:
-                # Check if skill is in a relevant directory for this phase
                 if any(d in skill_path.lower() for d in relevant_dirs):
                     skill_name = skill_path.split("/")[-1].replace(".md", "")
-                    # Skip if already tested
                     if skill_name.lower() in tested_classes:
                         continue
                     tactics.append(
@@ -817,7 +767,6 @@ class _ExplorationMixin:
             skills_index = self._load_skills_index()
             for tech in tech_names:
                 tech_lower = tech.lower()
-                # Find skills related to this technology
                 for skill_path in skills_index:
                     if (
                         "technologies" in skill_path.lower()
@@ -835,7 +784,6 @@ class _ExplorationMixin:
         except Exception as _e:
             logger.debug("Failed to derive tactics for tech stack: %s", _e)
 
-        # If no skills found, generate generic tech-aware guidance
         if not tactics and tech_names:
             tactics.append(
                 f"Target technologies detected: {', '.join(tech_names[:5])}. "
@@ -849,8 +797,6 @@ class _ExplorationMixin:
     ) -> list[str]:
         tactics = []
 
-        # Dynamically detect patterns from URL content
-        # Instead of hardcoded keyword lists, analyze URL structure
         path_segments = set()
         for url in urls:
             try:
@@ -863,7 +809,6 @@ class _ExplorationMixin:
             except Exception as _e:
                 logger.debug("URL parse failed for %s: %s", url, _e)
 
-        # Generate tactics based on discovered path patterns
         interesting_paths = path_segments - {
             "index",
             "html",
@@ -883,7 +828,6 @@ class _ExplorationMixin:
                 f"Check skills/vulnerabilities/ for testing methodologies."
             )
 
-        # Check for API-like patterns
         if any("api" in seg for seg in path_segments):
             tactics.append(
                 "API endpoints detected — test for BOLA, mass assignment, "
@@ -899,7 +843,6 @@ class _ExplorationMixin:
         vectors = []
         try:
             skills_index = self._load_skills_index()
-            # Look for methodology/framework skills that suggest novel approaches
             for skill_path in skills_index:
                 if any(
                     kw in skill_path.lower()
@@ -916,7 +859,6 @@ class _ExplorationMixin:
         except Exception as _e:
             logger.debug("Failed to derive methodology pivots: %s", _e)
 
-        # If no methodology skills found, derive pivots from ontology edges.
         if not vectors:
             classifier = get_classifier()
             candidate_categories: list[str] = []
@@ -962,7 +904,6 @@ class _ExplorationMixin:
             if skills_dir.is_dir():
                 for md_file in skills_dir.rglob("*.md"):
                     rel_path = str(md_file.relative_to(skills_dir))
-                    # Read first line as description
                     try:
                         content = md_file.read_text(encoding="utf-8")
                         first_line = content.splitlines()[0].strip().lstrip("#").strip()
@@ -995,10 +936,6 @@ class _ExplorationMixin:
                 return tools
         except Exception as exc:
             logger.warning("Operation failed: %s", exc)
-        # Graceful fallback: only AIRecon-native tools, no shell binaries.
-        # Shell-specific tools (httpx, subfinder, etc.) are loaded from
-        # tools_meta.json; when unavailable, fall back to the generic
-        # execution and browser capabilities only.
         return {"execute", "browser_action"}
 
     def _self_correcting_strategy(
@@ -1010,7 +947,6 @@ class _ExplorationMixin:
         if not recent_tools:
             return None
 
-        # Detect: stuck on reconnaissance without moving to exploitation
         if phase == PipelinePhase.RECON:
             recon_tools = self._load_recon_tools_from_meta()
             recon_count = sum(1 for t in recent_tools if t in recon_tools)
@@ -1028,7 +964,6 @@ class _ExplorationMixin:
                 )
                 return hint
 
-        # Detect: browser redirect loop trap
         browser_errors = sum(1 for t in recent_tools if t == "browser_action")
         if browser_errors >= 2 and same_tool_streak >= 2:
             hint = (
@@ -1043,7 +978,6 @@ class _ExplorationMixin:
             )
             return hint
 
-        # Detect: fuzzing without findings
         if phase in (PipelinePhase.RECON, PipelinePhase.ANALYSIS):
             fuzz_count = sum(1 for t in recent_tools if "fuzz" in t)
             if fuzz_count >= 2:
@@ -1059,7 +993,6 @@ class _ExplorationMixin:
                 )
                 return hint
 
-        # Detect: tool repetition without progress — lowered from 3 to 2
         if same_tool_streak >= 2:
             hint = (
                 f"You've used the same tool {same_tool_streak} times in a row without new findings. "
@@ -1205,8 +1138,6 @@ class _ExplorationMixin:
                 len(engine.observation_log) > 0
                 and len(engine.observation_log) % 30 == 0
             ):
-                # The next async iteration awaits distillation with the current
-                # client. Never run Future.result() on the proxy event loop.
                 self._learning_distill_due = True
 
             logger.debug(
@@ -1286,9 +1217,6 @@ class _ExplorationMixin:
                 if path:
                     store.record_auth_endpoint(target, str(path))
 
-        # ── Persist high-confidence evidence to TargetMemory ───────────────
-        # Evidence with confidence >= 0.85 is saved as a session note so the
-        # next session inherits findings without needing to redo discovery.
         if self.state:
             _high_conf = [
                 e for e in self.state.evidence_log
@@ -1309,9 +1237,6 @@ class _ExplorationMixin:
                 for note in _new_notes:
                     store.add_session_note(target, f"[evidence] {note}")
 
-        # ── Persist confirmed hypotheses to TargetMemory ───────────────────
-        # Confirmed hypotheses are saved as unverified vulnerabilities so the
-        # next session starts with a lead rather than from scratch.
         if self.state:
             _confirmed = [
                 h for h in self.state.hypothesis_queue
@@ -1326,9 +1251,6 @@ class _ExplorationMixin:
                     _claim = str(_hyp.get("claim", ""))[:120]
                     _tags = _hyp.get("tags", [])
                     _vuln_type = str(_tags[0]) if _tags else "unknown"
-                    # Verified = independent cross-tool evidence already
-                    # backs this claim. Persist as confirmed so next session
-                    # inherits a real signal, not just a self-declared claim.
                     _is_verified = bool(_hyp.get("verified"))
                     store.record_vulnerability(target, {
                         "type": _vuln_type,

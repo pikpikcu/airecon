@@ -1,10 +1,3 @@
-"""The agent's request budget must measure with the ACTIVE client's replay
-policy (its own model + host), exactly like ``LLMClient._wire_payload`` does,
-so budget == wire by construction even when the client differs from the
-global config (finding X3). Also covers the projected-request guarantee after
-packing: pair-repair stubs surviving inside the reserved slack must not push
-the projected request over the budget.
-"""
 from __future__ import annotations
 
 import json
@@ -48,41 +41,30 @@ def _group(call_id: str, content: str) -> list[dict]:
     ]
 
 
-# ---------------------------------------------------------------------------
-# X3 — budget must use the active client's replay policy, not the config's.
-
-
 @pytest.mark.asyncio
 async def test_enforce_budget_measures_with_client_replay_policy(agent):
     agent.llm = SimpleNamespace(model="deepseek/chat", _host="https://api.deepseek.com")
     agent._tools_llm = []
-    reasoning = "stored chain-of-thought evidence " * 200  # replayed on the wire
+    reasoning = "stored chain-of-thought evidence " * 200
     older = _group("read_0", "older evidence page")
     older[0]["reasoning_content"] = reasoning
     latest = _group("read_1", "latest evidence page")
     agent.state.conversation.extend(older + latest)
 
-    # Sanity: the two policies disagree on this conversation.
     without_replay = request_chars(agent.state.conversation, [], replay_reasoning=False)
     with_replay = request_chars(agent.state.conversation, [], replay_reasoning=True)
     assert with_replay > without_replay
-    # Config (gpt-fixture @ gateway.example) resolves replay OFF; the client
-    # (deepseek/chat @ api.deepseek.com) resolves it ON, like _wire_payload.
-    # The budget exactly fits the config-policy measurement, so only the
-    # client-policy measurement forces the eviction.
     budget = without_replay
     agent._context_char_budget = budget
 
     await agent._enforce_char_budget(65536, 1024)
 
-    # Budget == wire: the request the client would send must fit the budget.
     projected = request_chars(agent._messages_for_llm(), agent._tools_budgeted,
                               replay_reasoning=True)
     assert projected <= budget, f"projected {projected} exceeds budget {budget}"
     assert not any(m.get("tool_call_id") == "read_0" for m in agent.state.conversation), (
         "the replay-heavy older group must be evicted under the client's policy"
     )
-    # Fixed point: a second pass on the packed conversation changes nothing.
     snapshot = json.dumps(agent.state.conversation, sort_keys=True, default=str)
     await agent._enforce_char_budget(65536, 1024)
     assert json.dumps(agent.state.conversation, sort_keys=True, default=str) == snapshot
@@ -121,11 +103,6 @@ def test_used_tokens_estimate_uses_client_replay_policy(agent):
     assert used == (projected + 2) // 3
 
 
-# ---------------------------------------------------------------------------
-# Projected-request guarantee: pair-repair stubs surviving inside the packing
-# slack must not push the projected request over the budget.
-
-
 @pytest.mark.asyncio
 async def test_packed_slack_with_stubs_cannot_exceed_budget(agent):
     from airecon.proxy.agent import loop_context
@@ -148,9 +125,6 @@ async def test_packed_slack_with_stubs_cannot_exceed_budget(agent):
             "function": {"name": "execute", "arguments": {"command": "scan fixture"}},
         }],
     })
-    # Just over the preview stand-in threshold: the reservation holds 2400
-    # wire bytes for it while the packed form stays small, leaving slack the
-    # older groups (and their pair-repair stubs) can survive inside.
     agent._append_tool_result("execute", "latest scan line ok\n" * 25, True, "exec_latest")
 
     minimum = _minimum_request_messages(agent.state.conversation)

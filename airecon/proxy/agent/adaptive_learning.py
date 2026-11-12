@@ -32,7 +32,6 @@ _TOOLS_JSON = Path(__file__).resolve().parents[1] / "data" / "tools.json"
 
 
 def _load_tools_meta() -> dict[str, Any]:
-    """Load tool metadata from data/tools_meta.json (cached at module level)."""
     try:
         return json.loads(_TOOLS_META.read_text(encoding="utf-8"))
     except Exception as exc:
@@ -41,7 +40,6 @@ def _load_tools_meta() -> dict[str, Any]:
 
 
 def _load_tool_definitions() -> list[dict[str, Any]]:
-    """Load callable tool definitions from data/tools.json."""
     try:
         data = json.loads(_TOOLS_JSON.read_text(encoding="utf-8"))
     except Exception as exc:
@@ -95,7 +93,7 @@ class ToolPerformance:
         score = self.success_rate
 
         age_hours = (time.time() - self.last_used) / 3600
-        recency_bonus = max(0.5, 1.0 - (age_hours / 168))  # Decay over 1 week
+        recency_bonus = max(0.5, 1.0 - (age_hours / 168))
         score *= recency_bonus
 
         if self.success_streak >= 3:
@@ -111,8 +109,8 @@ class StrategyPattern:
 
     pattern_id: str
     description: str
-    conditions: dict[str, Any]  # e.g., {"tech": "nginx", "phase": "EXPLOIT"}
-    tool_sequence: list[str]  # e.g., ["nmap", "httpx", "nuclei"]
+    conditions: dict[str, Any]
+    tool_sequence: list[str]
     success_count: int = 0
     failure_count: int = 0
     avg_result_confidence: float = 0.0
@@ -131,12 +129,12 @@ class LearnedInsight:
 
 
     insight_id: str
-    category: str  # "tool_tech", "vuln_pattern", "exploit_chain", "doc_pattern"
-    title: str  # e.g. "sqlmap reliably finds SQLi on Express/MySQL"
-    description: str  # human-readable summary
-    conditions: dict[str, Any]  # when this insight applies
-    recommendation: str  # what to do when conditions match
-    confidence: float  # 0-1, based on supporting observations
+    category: str
+    title: str
+    description: str
+    conditions: dict[str, Any]
+    recommendation: str
+    confidence: float
     observation_count: int = 0
     created_at: float = 0.0
     last_updated: float = 0.0
@@ -145,17 +143,15 @@ class LearnedInsight:
 
 @dataclass
 class ObservationLog:
-    """A single raw observation stored for later LLM abstraction."""
-
     timestamp: float
     tool_name: str
     arguments: dict[str, Any]
-    result_summary: str  # compressed result for learning
+    result_summary: str
     success: bool
     confidence: float
     phase: str
-    target_type: str  # e.g. "nginx/php" or "express/nodejs"
-    vuln_found: str | None = None  # if vulnerability was discovered
+    target_type: str
+    vuln_found: str | None = None
 
 
 class AdaptiveLearningEngine:
@@ -175,7 +171,6 @@ class AdaptiveLearningEngine:
         self.learned_insights: list[LearnedInsight] = []
         self.observation_log: list[ObservationLog] = []
 
-        # Semantic-recall config (all optional; lexical mode when unavailable).
         self._semantic_recall = False
         self._embedding_model = ""
         self._dedup_threshold = 0.90
@@ -187,7 +182,6 @@ class AdaptiveLearningEngine:
         self._last_recall_mode = "lexical"
         self._load_brain_config()
 
-        # Load persistent state from disk + airencon.db
         self._load_state()
         self._import_from_memory_db()
         self._bootstrap_insights_from_patterns()
@@ -215,10 +209,8 @@ class AdaptiveLearningEngine:
         except Exception as exc:
             logger.debug("Brain config load failed: %s", exc)
 
-    # ── Persistence ──────────────────────────────────────────────────────────
 
     def _load_state(self) -> None:
-        """Load learned state from disk. Non-blocking — silent on failure."""
         try:
             state_path = self._state_file
             if not state_path.exists():
@@ -251,12 +243,6 @@ class AdaptiveLearningEngine:
             logger.debug("Failed to load learning state: %s", exc)
 
     def _import_from_memory_db(self) -> None:
-        """Import existing tool_usage and patterns from ~/.airecon/memory/airecon.db.
-
-        This bridges the gap between the old SQLite-based memory system and
-        the new JSON-based persistent learning system so airecon doesn't
-        start from zero — it inherits all past session data.
-        """
         if not _MEMORY_DB.exists():
             return
 
@@ -334,7 +320,6 @@ class AdaptiveLearningEngine:
             logger.debug("Failed to import from memory DB: %s", exc)
 
     def save_state(self) -> None:
-        """Persist learned state to disk."""
         try:
             self._state_dir.mkdir(parents=True, exist_ok=True)
             data = {
@@ -499,7 +484,6 @@ class AdaptiveLearningEngine:
         insight: LearnedInsight,
         vector: list[float] | None = None,
     ) -> None:
-        """Persist an in-place merge so same-id/semantic dedups are durable."""
         try:
             conn = _open_memory_db(read_only=False)
             _init_schema(conn)
@@ -585,7 +569,6 @@ class AdaptiveLearningEngine:
                 exc,
             )
 
-    # ── Semantic recall + utility (the cross-session "brain") ────────────────
 
     @staticmethod
     def _insight_embed_text(insight: dict[str, Any] | LearnedInsight) -> str:
@@ -607,13 +590,6 @@ class AdaptiveLearningEngine:
         model: str = "",
         api_key: str = "",
     ) -> list[list[float]]:
-        """Synchronous embedding helper used only by the sync semantic path.
-
-        Avoids stalling an already-running event loop: when called from async
-        code it returns an empty list so callers fall back to lexical recall.
-        The async path uses :meth:`recall_async` / :meth:`distill_async` which
-        await the client directly on the same loop.
-        """
         if not texts or not self._embedding_model:
             return []
 
@@ -753,7 +729,6 @@ class AdaptiveLearningEngine:
         self, llm_client: Any, phase: str, tech_stack: list[str], target: str = "",
         *, limit: int = 10, min_similarity: float = 0.25, timeout: float = 3.0,
     ) -> list[LearnedInsight]:
-        """Bounded same-loop semantic recall, merged with lexical matches."""
         lexical = self.get_insights_for_context(phase, tech_stack, include_semantic=False)
 
         def finish(semantic_hits: list[LearnedInsight]) -> list[LearnedInsight]:
@@ -890,7 +865,6 @@ class AdaptiveLearningEngine:
         )
 
     def _sync_to_memory_db(self) -> None:
-        """Sync learned tool performance back to ~/.airecon/memory/airecon.db."""
         if not _MEMORY_DB.exists():
             return
         try:
@@ -974,8 +948,6 @@ class AdaptiveLearningEngine:
                         cur.executemany("DELETE FROM tool_usage WHERE id = ?", extras)
                     continue
 
-                # Only create or refresh a global aggregate row when in-memory has
-                # strictly more evidence than the rolled-up SQLite view.
                 if perf.total_uses <= current_total:
                     continue
 
@@ -1027,14 +999,8 @@ class AdaptiveLearningEngine:
     def _state_file(self) -> Path:
         return _LEARNING_DIR / "global_learning.json"
 
-    # ── Bootstrap ────────────────────────────────────────────────────────────
 
     def _bootstrap_insights_from_patterns(self) -> None:
-        """Convert imported StrategyPatterns into LearnedInsights immediately.
-
-        This ensures the agent has actionable intelligence from session 1
-        instead of waiting for 30+ observations + LLM distillation.
-        """
         now = time.time()
         type_to_category = {
             "RECON": "tool_tech",
@@ -1045,14 +1011,12 @@ class AdaptiveLearningEngine:
             "FOOTPRINT": "tool_tech",
         }
 
-        # Dedup insights that were previously bootstrapped
         bootstrapped_ids = {
             i.insight_id.removeprefix("bootstrap_")
             for i in self.learned_insights
             if i.insight_id.startswith("bootstrap_")
         }
 
-        # Aggregate raw commands per tool to find common purposes
         tool_usage: dict[str, dict] = {}
         for perf in self.tool_performances.values():
             if perf.total_uses >= 5 and perf.success_rate >= 0.5:
@@ -1070,13 +1034,11 @@ class AdaptiveLearningEngine:
             if total == 0:
                 continue
 
-            # Extract clean tool name from raw command
             raw_cmd = pat.tool_sequence[0] if pat.tool_sequence else ""
             tool_name = _extract_tool_name(raw_cmd)
             if not tool_name:
                 continue
 
-            # Build human-readable description of what the tool does
             purpose = _infer_tool_purpose(tool_name, pat.conditions)
 
             category = type_to_category.get(
@@ -1168,7 +1130,6 @@ class AdaptiveLearningEngine:
                 len(self.learned_insights),
             )
 
-    # ── Recording ────────────────────────────────────────────────────────────
 
     def record_tool_result(
         self,
@@ -1181,7 +1142,6 @@ class AdaptiveLearningEngine:
         context: dict | None = None,
         target_type: str = "",
     ) -> None:
-        """Record a tool execution result for learning."""
         if tool_name not in self.tool_performances:
             self.tool_performances[tool_name] = ToolPerformance(tool_name=tool_name)
 
@@ -1246,10 +1206,6 @@ class AdaptiveLearningEngine:
         target_type: str,
         vuln_found: str | None = None,
     ) -> None:
-        """Log a raw observation for later abstraction / LLM distillation.
-
-        These are compressed summaries — not full outputs — to keep memory light.
-        """
         obs = ObservationLog(
             timestamp=time.time(),
             tool_name=tool_name,
@@ -1273,7 +1229,6 @@ class AdaptiveLearningEngine:
         success: bool,
         confidence: float = 0.0,
     ) -> None:
-        """Record a strategy pattern result."""
         pattern_id = self._make_pattern_id(conditions, tool_sequence)
 
         existing = None
@@ -1302,23 +1257,13 @@ class AdaptiveLearningEngine:
         )
         existing.last_applied = time.time()
 
-    # ── Abstraction (LLM-assisted distillation) ──────────────────────────────
 
     def distill_insights(
         self, base_url: str = "", model: str = "", api_key: str = ""
     ) -> list[LearnedInsight]:
-        """Ask the LLM to abstract patterns from recent observations.
-
-        Returns newly created insights (not the full catalog).
-        This is how airecon 'learns' — raw data → generalized rules via LLM.
-        Routed through the OpenAI-compatible gateway (LiteLLM/vLLM/hosted).
-        """
         if not base_url or not model:
             logger.debug("distill_insights: no LLM config, skipping")
             return []
-
-        # Distill from success AND failure: the corrective "avoid X when Y" signal
-        # in failed attempts is the highest-value lesson (see ReMe/MPR research).
         new_obs = [
             o for o in self.observation_log
             if len(self.observation_log) >= self.min_observations * 3
@@ -1329,7 +1274,7 @@ class AdaptiveLearningEngine:
         obs_text = "\n".join(
             f"- phase={o.phase}, tool={o.tool_name}, target={o.target_type}, "
             f"vuln={o.vuln_found or 'none'}, result={'success' if o.success else 'fail'}"
-            for o in new_obs[-50:]  # send last 50 max
+            for o in new_obs[-50:]
         )
 
         prompt = (
@@ -1354,9 +1299,6 @@ class AdaptiveLearningEngine:
 
         try:
             async def _call():
-                # Route through LLMClient so distillation reuses the shared
-                # retry/5xx-handling, reasoning-capability detection, and timeout
-                # plumbing instead of a bespoke aiohttp call.
                 from ..llm import LLMClient
 
                 client = LLMClient(base_url=base_url, model=model)
@@ -1435,16 +1377,6 @@ class AdaptiveLearningEngine:
         self,
         llm_client: Any,
     ) -> list[LearnedInsight]:
-        """Async insight distillation that awaits the caller's LLMClient.
-
-        Learns from both successes and failures with conservative confidence,
-        deduplicates/merges semantically similar insights, persists vectors,
-        and respects negative patterns (outcome='failure' is not upgraded).
-        This path never creates a thread-pool or a second event loop.
-
-        Caller contract (parent-owned integration):
-            new_insights = await engine.distill_async(self.llm)
-        """
         new_obs = [
             o for o in self.observation_log
             if len(self.observation_log) >= self.min_observations * 3
@@ -1549,7 +1481,6 @@ class AdaptiveLearningEngine:
 
         return added
 
-    # ── Querying ─────────────────────────────────────────────────────────────
 
     def recommend_tools(
         self,
@@ -1559,7 +1490,6 @@ class AdaptiveLearningEngine:
         exclude: list[str] | None = None,
         top_n: int = 5,
     ) -> list[tuple[str, float]]:
-        """Recommend top N tools based on learned performance."""
         exclude = exclude or []
         scored: list[tuple[str, float]] = []
 
@@ -1644,11 +1574,6 @@ class AdaptiveLearningEngine:
         tech_stack: list[str] | None = None,
         *, include_semantic: bool = True,
     ) -> list[LearnedInsight]:
-        """Return insights that match the current context.
-
-        This is the 'knowledge injection' hook — before each LLM call,
-        inject relevant insights so the agent benefits from past learning.
-        """
         if not self.learned_insights:
             return []
 
@@ -1666,14 +1591,7 @@ class AdaptiveLearningEngine:
                 if tech and tech in conds_lc:
                     score += 0.3
 
-            # Keep context-specific matches AND generally-applicable
-            # (conditionless) insights, but rank the relevant ones first so the
-            # model sees its most pertinent past learning at the top of context.
             if score > 0 or not conds:
-                # Blend relevance with how trustworthy/well-supported the
-                # insight is: confidence and the number of observations behind
-                # it. This stops a high-confidence-but-irrelevant insight from
-                # crowding out a directly-relevant one.
                 support = min(getattr(insight, "observation_count", 0) / 10.0, 0.5)
                 rank = score + (insight.confidence * 0.4) + support
                 scored.append((rank, insight))
@@ -1782,15 +1700,12 @@ def _insight_ref_id(insight_id: str) -> int:
     return int.from_bytes(digest, "big") & 0x7FFFFFFFFFFFFFFF
 
 
-# ── Per-Target Memory ────────────────────────────────────────────────────────
 
 _TARGET_MEMORY_DIR = Path.home() / ".airecon" / "memory" / "by_target"
 
 
 @dataclass
 class TargetMemory:
-    """Actionable intelligence for a specific target domain/URL."""
-
     target: str
     first_seen: float = 0.0
     last_seen: float = 0.0
@@ -1803,14 +1718,12 @@ class TargetMemory:
     auth_endpoints: list[str] = field(default_factory=list)
     session_notes: str = ""
 
-    # Category caps to prevent context bloat
     _MAX_ENDPOINTS = 500
     _MAX_VULNS = 100
     _MAX_BYPASS = 50
     _MAX_PARAMS = 200
 
     def prune(self) -> None:
-        """Trim lists to their max sizes, keeping most recent entries."""
         if len(self.endpoints) > self._MAX_ENDPOINTS:
             self.endpoints = self.endpoints[-self._MAX_ENDPOINTS:]
         if len(self.vulnerabilities) > self._MAX_VULNS:
@@ -1824,13 +1737,6 @@ class TargetMemory:
 
 
 class TargetMemoryStore:
-    """Persistence layer for per-target security intelligence.
-
-    Stores: discovered endpoints, vulns with working payloads,
-            WAF bypass techniques, sensitive parameters, auth flows.
-    Loads automatically when the same target reappears in a new session.
-    """
-
     def __init__(self, base_dir: Path | None = None):
         self.base_dir = base_dir or _TARGET_MEMORY_DIR
         self.base_dir.mkdir(parents=True, exist_ok=True)
@@ -1838,7 +1744,6 @@ class TargetMemoryStore:
         self._session_touched: set[str] = set()
 
     def _normalize_target(self, target: str) -> str:
-        """Strip protocol, port, and path — returns bare domain."""
         if not target:
             return ""
         t = target.lower().strip()
@@ -1856,10 +1761,8 @@ class TargetMemoryStore:
         safe_name = norm.replace("/", "_").replace("\\", "_")
         return self.base_dir / f"{safe_name}.json"
 
-    # ── Load / Save ──────────────────────────────────────────────────────────
 
     def load(self, target: str) -> TargetMemory | None:
-        """Load memory for a target. Returns None if target is unknown."""
         norm = self._normalize_target(target)
         if norm in self._cache:
             return self._cache[norm]
@@ -1885,7 +1788,6 @@ class TargetMemoryStore:
             return None
 
     def save(self, target: str, tm: TargetMemory | None = None) -> None:
-        """Persist target memory atomically."""
         norm = self._normalize_target(target)
         mem = tm or self._cache.get(norm)
         if mem is None:
@@ -1924,10 +1826,8 @@ class TargetMemoryStore:
         if persist:
             self.save(norm, tm)
 
-    # ── Recording ────────────────────────────────────────────────────────────
 
     def ensure(self, target: str) -> TargetMemory:
-        """Get existing or create new TargetMemory."""
         norm = self._normalize_target(target)
         if norm in self._cache:
             return self._cache[norm]
@@ -1952,18 +1852,15 @@ class TargetMemoryStore:
             tm.endpoints.append(path)
 
     def record_vulnerability(self, target: str, vuln: dict[str, str]) -> None:
-        """Record a vuln dict: {type, path, param, payload, severity, confirmed}."""
         tm = self.ensure(target)
-        # Dedup by type+path+param
         key = f"{vuln.get('type','')}|{vuln.get('path','')}|{vuln.get('param','')}"
         for existing in tm.vulnerabilities:
             ekey = f"{existing.get('type','')}|{existing.get('path','')}|{existing.get('param','')}"
             if ekey == key:
-                return  # Already tracked
+                return
         tm.vulnerabilities.append(vuln)
 
     def record_bypass(self, target: str, bypass: dict[str, str]) -> None:
-        """Record WAF bypass: {technique, header, path, description}."""
         tm = self.ensure(target)
         technique = bypass.get("technique", "")
         for existing in tm.waf_bypass:
@@ -1993,21 +1890,14 @@ class TargetMemoryStore:
         tm = self.ensure(target)
         tm.session_notes = f"{tm.session_notes}\n{note}" if tm.session_notes else note
 
-    # ── Querying ─────────────────────────────────────────────────────────────
 
     def list_targets(self) -> list[str]:
-        """Return all known target domains."""
         return [
             f.stem for f in self.base_dir.glob("*.json")
             if not f.name.endswith(".tmp")
         ]
 
     def get_injection_text(self, target: str) -> str | None:
-        """Build a system message block for LLM context with target intel.
-
-        Returns None if no memory exists for this target.
-        Max ~2000 chars to preserve context budget.
-        """
         norm = self._normalize_target(target)
         tm = self._cache.get(norm) or self.load(target)
         if tm is None:
@@ -2032,7 +1922,7 @@ class TargetMemoryStore:
 
         if tm.endpoints:
             total = len(tm.endpoints)
-            show = tm.endpoints[-30:]  # last 30
+            show = tm.endpoints[-30:]
             lines.append(f"ENDPOINTS DISCOVERED ({total} total):")
             for ep in show[-20:]:
                 lines.append(f"  - {ep}")
@@ -2092,13 +1982,8 @@ class TargetMemoryStore:
         return "\n".join(lines)
 
 
-# ── Helper ───────────────────────────────────────────────────────────────────
 
 def _extract_tool_name(raw_cmd: str) -> str:
-    """Extract the base tool from a raw command string.
-
-    Uses the tool metadata catalog from data/tools_meta.json for lookup.
-    """
     if not raw_cmd:
         return ""
 
@@ -2109,7 +1994,6 @@ def _extract_tool_name(raw_cmd: str) -> str:
     part = part.split(".")[-1] if part.endswith((".py", ".sh", ".js")) else part
 
     if part in _skip or not part.isalpha():
-        # Fall back to known tool names from tools_meta.json
         known = _cache_known_tool_names()
         for k in known:
             if k in raw_cmd.lower():
@@ -2123,8 +2007,6 @@ _TOOL_NAME_CACHE: list[str] = []
 
 def _normalize_tool_names(values: list[Any]) -> set[str]:
     return {str(value).strip().lower() for value in values if str(value).strip()}
-
-
 def _iter_phase_category_tools(meta: dict[str, Any], phase_name: str) -> set[str]:
     wanted = _normalize_tool_names(
         meta.get("phase_category_map", {}).get(phase_name.upper(), [])
@@ -2147,7 +2029,6 @@ def _iter_phase_category_tools(meta: dict[str, Any], phase_name: str) -> set[str
 
 
 def _cache_known_tool_names() -> list[str]:
-    """Build a deduplicated list of all known tool names from repo metadata."""
     global _TOOL_NAME_CACHE
     if _TOOL_NAME_CACHE:
         return _TOOL_NAME_CACHE
@@ -2190,7 +2071,6 @@ _PHASE_TOOL_CACHE: dict[str, set[str]] = {}
 
 
 def _cache_phase_tools() -> dict[str, set[str]]:
-    """Build phase → tool set mapping from tools_meta.json."""
     global _PHASE_TOOL_CACHE
     if _PHASE_TOOL_CACHE:
         return _PHASE_TOOL_CACHE
@@ -2217,19 +2097,12 @@ def _cache_phase_tools() -> dict[str, set[str]]:
 
 
 def _infer_tool_purpose(tool_name: str, conditions: dict) -> str:
-    """Return a human-readable purpose summary for a tool.
-
-    Uses tool_descriptions from tools_meta.json.
-    """
     descriptions = _load_tools_meta().get("tool_descriptions", {})
     tool_lower = tool_name.lower()
 
-    # Direct match
     if tool_lower in descriptions:
         return descriptions[tool_lower]
 
-    # Airecon native tools (not in tools_meta.json tool_descriptions)
-    # Unix utility fallbacks not in tools_meta.json
     unix_utils = {
         "find": "file discovery — locate exposed JS/config files and sensitive directories",
         "execute": "execute system commands — primary action hook for tool invocations",
@@ -2250,7 +2123,6 @@ def _infer_tool_purpose(tool_name: str, conditions: dict) -> str:
 
 
 def _infer_phase_from_tool(tool_name: str) -> str:
-    """Guess which phase a tool belongs to based on tools_meta.json categories."""
     phase_tools = _cache_phase_tools()
     tool_lower = tool_name.lower()
 
@@ -2262,7 +2134,6 @@ def _infer_phase_from_tool(tool_name: str) -> str:
 
 
 def _parse_insights_json(raw: str) -> list[dict[str, Any]]:
-    """Extract JSON array from LLM response."""
     stripped = raw.strip()
     if stripped.startswith("```"):
         stripped = stripped.split("\n", 1)[-1]

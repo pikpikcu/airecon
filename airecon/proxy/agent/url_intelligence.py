@@ -9,7 +9,6 @@ from ..data_loader import load_endpoint_patterns, load_file_extensions
 
 logger = logging.getLogger("airecon.agent.url_intelligence")
 
-# ── Load file extensions from data file (single source of truth) ─────────────
 _EXT_DATA = load_file_extensions()
 
 _PURE_STATIC_EXTS: frozenset[str] = frozenset(_EXT_DATA.get("static", []))
@@ -22,17 +21,14 @@ _BACKEND_EXTS: frozenset[str] = frozenset(_EXT_DATA.get("backend", []))
 
 _DYNAMIC_EXTS: frozenset[str] = _BACKEND_EXTS
 
-# ── Load URL patterns from endpoint_patterns.json ────────────────────────────
 _ENDPOINT_DATA = load_endpoint_patterns()
 _TESTABLE_URL_PATTERNS: list[tuple[str, str]] = [
     (entry["pattern"], entry["description"])
     for entry in _ENDPOINT_DATA.get("url_patterns", [])
 ]
 
-# Directories commonly containing static assets — loaded from endpoint_patterns.json
 _STATIC_DIR_PATTERNS: list[str] = _ENDPOINT_DATA.get("static_dir_patterns", [])
 
-# JS file analysis hints — what to look for
 _JS_ANALYSIS_HINTS: str = (
     "JS FILE ANALYSIS GUIDANCE — When you find .js files, DO NOT skip them! "
     "JavaScript files are GOLD for recon because they often contain:\n"

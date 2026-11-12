@@ -20,9 +20,6 @@ from .waf_detector import (
 
 logger = logging.getLogger("airecon.agent")
 
-# Static asset extensions that should NOT be fuzzed individually
-# But their PARENT DIRECTORY might be worth fuzzing!
-# Loaded from file_extensions.json (was hardcoded — now single source of truth)
 def _load_pure_static_exts() -> frozenset[str]:
     try:
         from airecon.proxy.data_loader import load_file_extensions
@@ -37,10 +34,6 @@ def _load_pure_static_exts() -> frozenset[str]:
 
 
 _PURE_STATIC_EXTS: frozenset[str] = _load_pure_static_exts()
-
-# JS files are GOLD — do NOT block analysis
-# PDFs can leak info — do NOT block entirely
-
 
 def _detect_static_asset_abuse(tool_name: str, arguments: dict) -> str | None:
 
@@ -59,7 +52,6 @@ def _detect_static_asset_abuse(tool_name: str, arguments: dict) -> str | None:
     if not target_url:
         return None
 
-    # Check if URL is a pure static asset
     try:
         parsed = urlparse(target_url)
         path = parsed.path.rstrip("/")
@@ -67,7 +59,6 @@ def _detect_static_asset_abuse(tool_name: str, arguments: dict) -> str | None:
         if "." in last_segment:
             ext = last_segment.rsplit(".", 1)[-1].lower()
             if ext in _PURE_STATIC_EXTS:
-                # Extract parent directory for fuzzing suggestion
                 parent_dir = target_url.rsplit("/", 1)[0] + "/"
                 return (
                     f"[STATIC ASSET NOTICE] You are testing '{target_url}' which is a "
@@ -79,7 +70,6 @@ def _detect_static_asset_abuse(tool_name: str, arguments: dict) -> str | None:
                     f"SKIP individual .{ext} files. Fuzz the directory instead:\n"
                     f"  {parent_dir}"
                 )
-            # JS files — explicitly encourage analysis
             if ext in ("js", "jsx", "ts", "tsx", "mjs"):
                 return (
                     f"[JS FILE RECON] .js/.ts files are GOLD for recon! "
@@ -101,10 +91,6 @@ class _CyclePostMixin:
         self, tool_name: str, arguments: dict, success: bool
     ) -> str | None:
         return _detect_static_asset_abuse(tool_name, arguments)
-
-    # ── HTTP response structurer + behavioral diff ──────────────────────────
-    # Reuses _parse_http_response and _diff_http_responses already defined in
-    # executors_observe._ObserveExecutorMixin (available at runtime via MRO).
 
     def _auto_http_context(
         self,
@@ -135,7 +121,6 @@ class _CyclePostMixin:
         if not status:
             return ""
 
-        # Extract the endpoint being tested
         endpoint = ""
         if tool_name == "execute":
             cmd = str(arguments.get("command", ""))
@@ -212,20 +197,15 @@ class _CyclePostMixin:
         else:
             self.state.http_baselines[baseline_key] = current_entry
 
-        # Only inject card when there is actionable information:
-        # a behavioral diff, an error/redirect response, or first baseline visit
         is_first_visit = not baseline
         is_error_or_redirect = status >= 400
         if not (has_diff_changes or is_error_or_redirect or is_first_visit):
             return ""
 
-        # On first visit without diff, keep output minimal to save context
         if is_first_visit and not is_error_or_redirect:
             return f"[HTTP BASELINE] {endpoint} → {status} ({current_entry['body_size_bytes']} bytes)"
 
         return "\n".join(lines)
-
-    # ── Hypothesis feedback loop ─────────────────────────────────────────────
 
     def _hypothesis_feedback_context(
         self,
@@ -236,7 +216,6 @@ class _CyclePostMixin:
         pending = self.state.get_pending_hypotheses(max_items=6)
         if not pending:
             return ""
-        # Rate-limit: hypothesis feedback at most every 4 iterations to avoid context flood
         _last_hyp_iter = getattr(self, "_last_hyp_feedback_iter", -10)
         if self.state.iteration - _last_hyp_iter < 4:
             return ""
@@ -255,8 +234,6 @@ class _CyclePostMixin:
                     endpoint = v.split("?")[0].rstrip("/")
                     break
 
-        # Derive host+path and path-only views of the endpoint so that claims
-        # written in shorthand (e.g. "auth bypass on /login") still match.
         endpoint_lower = endpoint.lower()
         host_path = ""
         path_only = ""
@@ -273,7 +250,6 @@ class _CyclePostMixin:
             claim_lower = str(hyp.get("claim", "")).lower()
             hyp_tags = {str(t).lower() for t in hyp.get("tags", [])}
 
-            # Match by endpoint overlap — full URL, host+path, or path-only
             if endpoint_lower and len(endpoint_lower) > 5 and (
                 endpoint_lower in claim_lower
                 or (host_path and len(host_path) > 5 and host_path in claim_lower)
@@ -282,14 +258,12 @@ class _CyclePostMixin:
                 matched.append(hyp)
                 continue
 
-            # Match by keyword overlap (≥2 meaningful words shared)
             claim_words = {w for w in claim_lower.split() if len(w) >= 5}
             result_words = set(search_text.split())
             if len(claim_words & result_words) >= 2:
                 matched.append(hyp)
                 continue
 
-            # Match by tag vs tool name
             if hyp_tags & {tool_name.lower()} and hyp not in matched:
                 matched.append(hyp)
 
@@ -315,10 +289,6 @@ class _CyclePostMixin:
         self._last_hyp_feedback_iter = self.state.iteration  # type: ignore[attr-defined]
         return "\n".join(lines).strip()
 
-    # ── Context pruning ──────────────────────────────────────────────────────
-
-    # Prefixes of system messages that are safe to prune when context grows.
-    # WAF context, target intelligence, and skill blocks are kept.
     _PRUNABLE_PREFIXES = (
         "[HTTP BASELINE]",
         "[HTTP RESPONSE SNAPSHOT]",
@@ -331,11 +301,6 @@ class _CyclePostMixin:
         "[RATE LIMIT —",
     )
 
-    # These are re-injected fresh every iteration, so older copies are pure
-    # waste — keep ONLY the latest one. Left unbounded they dominated the
-    # context (HANDOFF SUMMARY appeared 15×, ~38k tokens of duplicated system
-    # boilerplate crowding out the agent's actual recon data), which is the main
-    # reason analysis/exploit underperformed regardless of model.
     _SINGLETON_SYSTEM_PREFIXES = (
         "[SYSTEM: HANDOFF SUMMARY",
         "[VISIONARY ANALYSIS",
@@ -345,7 +310,6 @@ class _CyclePostMixin:
         "[SYSTEM: RESUMED SESSION",
         "[SYSTEM: CRITICAL FINDINGS",
         "[SYSTEM: HIGH-VALUE TARGETS",
-        # Corrective nudges re-injected on stalls — keep only the latest of each.
         "[SYSTEM: HALLUCINATION WARNING",
         "[SYSTEM: MANDATORY TOOL CALL",
         "[SYSTEM: TOOL CALL REQUIRED",
@@ -366,7 +330,6 @@ class _CyclePostMixin:
         prunable_seen: dict[str, int] = {}
         keep: list[dict] = []
 
-        # Walk in reverse so the kept copy is always the most recent.
         for msg in reversed(self.state.conversation):
             if msg.get("role") != "system":
                 keep.append(msg)
@@ -411,13 +374,10 @@ class _CyclePostMixin:
                 len(self.state.conversation),
             )
 
-    # ── Scope advisory drainer ───────────────────────────────────────────────
-
     def _drain_scope_advisories(self) -> str:
         advisories = getattr(self, "_pending_scope_advisories", None) or []
         if not advisories:
             return ""
-        # Move them out so they're not emitted twice.
         self._pending_scope_advisories = []  # type: ignore[attr-defined]
 
         lines = ["[SCOPE ADVISORY]"]
@@ -443,8 +403,6 @@ class _CyclePostMixin:
             "validation-related, stop testing it and pivot back in-scope."
         )
         return "\n".join(lines)
-
-    # ── Session & rate-limit advisories ──────────────────────────────────────
 
     def _build_session_rate_advisory(
         self,
@@ -527,16 +485,12 @@ class _CyclePostMixin:
 
         return "\n\n".join(blocks)
 
-    # ── Evidence action director ─────────────────────────────────────────────
-
     def _evidence_action_directive(
         self,
         phase: str,
         meaningful_delta: int,
         new_evidence: list[dict[str, Any]],
     ) -> str:
-        # Only fire when at least 2 meaningful findings arrive at once,
-        # or every 5th meaningful find (to avoid injecting on every minor signal).
         if meaningful_delta <= 0 or not new_evidence:
             return ""
         total_meaningful = sum(
@@ -682,7 +636,6 @@ class _CyclePostMixin:
                 tool_name, result, success, raw_command
             )
 
-            # Anti-hallucination guard: detect fuzzing/testing of static assets
             if tool_name in ("execute", "quick_fuzz", "advanced_fuzz", "deep_fuzz"):
                 _static_guard_note = self._check_static_asset_abuse(
                     tool_name, arguments, success
@@ -804,9 +757,6 @@ class _CyclePostMixin:
                 ),
             )
 
-            # ── Evidence-driven skill injection ────────────────────────
-            # When new meaningful evidence is added, derive relevant skills
-            # from what was actually discovered (not from user keywords).
             if meaningful_after > meaningful_before:
                 _threshold = _get_meaningful_evidence_threshold()
                 _new_evidence = [
@@ -858,7 +808,6 @@ class _CyclePostMixin:
                                 _ev_skill_names,
                             )
 
-            # ── Intelligence: Adaptive Learning ────────────────────────
             if hasattr(self, "_record_adaptive_learning"):
                 self._record_adaptive_learning(
                     tool_name=tool_name,
@@ -1319,19 +1268,16 @@ class _CyclePostMixin:
                     "SKIP redundant execution, move to next phase or emit [TASK_COMPLETE]."
                 )
 
-            # ── Auto HTTP structure + behavioral diff ──────────────
             _http_ctx = self._auto_http_context(tool_name, arguments, result, success)
             if _http_ctx:
                 content_str += "\n\n" + _http_ctx
 
-            # ── Session state + rate-limit advisories ───────────────
             _session_ctx = self._build_session_rate_advisory(
                 tool_name, arguments, result
             )
             if _session_ctx:
                 content_str += "\n\n" + _session_ctx
 
-            # ── Hypothesis feedback loop ────────────────────────────
             _result_blob = (
                 self._extract_result_text(result)
                 if hasattr(self, "_extract_result_text")
@@ -1341,7 +1287,6 @@ class _CyclePostMixin:
             if _hyp_ctx:
                 content_str += "\n\n" + _hyp_ctx
 
-            # ── Evidence action director ────────────────────────────
             _ev_dir = self._evidence_action_directive(
                 phase=phase_after_tool.value,
                 meaningful_delta=max(0, meaningful_after - meaningful_before),
@@ -1350,12 +1295,10 @@ class _CyclePostMixin:
             if _ev_dir:
                 content_str += "\n\n" + _ev_dir
 
-            # ── Soft scope advisories (LLM reasons about pivot) ────
             _scope_adv = self._drain_scope_advisories()
             if _scope_adv:
                 content_str += "\n\n" + _scope_adv
 
-            # ── Hypothesis verification via independent evidence ───
             try:
                 _verify = getattr(self, "_verify_confirmed_hypotheses", None)
                 _build = getattr(self, "_build_verification_note", None)

@@ -20,7 +20,7 @@ def _load_json(filename: str) -> dict[str, Any]:
         return {}
 
 
-# ── Unified vulnerability patterns (merged from 6 separate files) ─────────────
+
 
 _UNIFIED_PATTERNS: dict[str, Any] | None = None
 
@@ -39,7 +39,7 @@ def _load_unified_patterns() -> dict[str, Any]:
         except Exception as exc:
             logger.warning("Failed to load unified_patterns.json: %s", exc)
 
-    # Fallback: merge legacy files
+
     result: dict[str, Any] = {"_fallback": True}
     for fname in ["patterns.json", "business_logic_patterns.json", "zeroday_patterns.json"]:
         result.update(_load_json(fname))
@@ -64,7 +64,7 @@ def load_pattern_by_category(category: str) -> dict[str, Any] | None:
     return entry if entry and not entry.get("_comment") else None
 
 
-# ── Legacy compatibility — still loads from unified catalog ──────────────────
+
 
 def load_expert_testing_patterns() -> dict[str, Any]:
     data = _load_unified_patterns()
@@ -104,14 +104,14 @@ def load_vuln_hypothesis_legacy() -> list[dict[str, Any]]:
     ]
 
 
-# ── Verification patterns ────────────────────────────────────────────────────
+
 
 
 def load_verification_patterns() -> dict[str, Any]:
     return _load_json("verification_patterns.json")
 
 
-# ── Model refusal markers ────────────────────────────────────────────────────
+
 
 
 def load_refusal_markers() -> list[str]:
@@ -126,35 +126,35 @@ def load_awaiting_input_markers() -> list[str]:
     return [str(m).lower() for m in markers if str(m).strip()]
 
 
-# ── File extensions ──────────────────────────────────────────────────────────
+
 
 
 def load_file_extensions() -> dict[str, Any]:
     return _load_json("file_extensions.json")
 
 
-# ── Endpoint patterns ────────────────────────────────────────────────────────
+
 
 
 def load_endpoint_patterns() -> dict[str, Any]:
     return _load_json("endpoint_patterns.json")
 
 
-# ── Tech correlations ────────────────────────────────────────────────────────
+
 
 
 def load_tech_correlations() -> dict[str, Any]:
     return _load_json("tech_correlations.json")
 
 
-# ── Tools metadata ───────────────────────────────────────────────────────────
+
 
 
 def load_tools_meta() -> dict[str, Any]:
     return _load_json("tools_meta.json")
 
 
-# ── Tools definitions ────────────────────────────────────────────────────────
+
 
 
 def load_tools() -> list[dict[str, Any]]:
@@ -166,21 +166,21 @@ def load_tools() -> list[dict[str, Any]]:
         return []
 
 
-# ── Fuzzer data ──────────────────────────────────────────────────────────────
+
 
 
 def load_fuzzer_data() -> dict[str, Any]:
     return _load_json("fuzzer_data.json")
 
 
-# ── WAF signatures ───────────────────────────────────────────────────────────
+
 
 
 def load_waf_signatures() -> dict[str, Any]:
     return _load_json("waf_signatures.json")
 
 
-# ── WAF bypass strategies ────────────────────────────────────────────────────
+
 
 
 def load_waf_bypass_strategies(waf_name: str) -> list[str]:
@@ -195,7 +195,7 @@ def load_waf_bypass_strategies(waf_name: str) -> list[str]:
     return []
 
 
-# ── Recon tools ──────────────────────────────────────────────────────────────
+
 
 
 def load_recon_tools() -> set[str]:
@@ -209,7 +209,7 @@ def load_recon_tools() -> set[str]:
     return tools
 
 
-# ── Attack chains ────────────────────────────────────────────────────────────
+
 
 
 def load_attack_chains() -> list[dict[str, Any]]:
@@ -255,7 +255,7 @@ def load_attack_chains() -> list[dict[str, Any]]:
     return normalized
 
 
-# ── Utility: merge headers ───────────────────────────────────────────────────
+
 
 
 def merge_headers(
@@ -272,7 +272,7 @@ def merge_headers(
     return merged
 
 
-# ── Severity ranking (consistent 1-5 scale) ──────────────────────────────────
+
 
 SEVERITY_TO_INT: dict[str, int] = {
     "CRITICAL": 5,
@@ -331,6 +331,3 @@ def severity_to_int(severity: Any) -> int:
 
 def int_to_severity(value: Any) -> str:
     return INT_TO_SEVERITY.get(severity_to_int(value), "INFO")
-
-
-# ── WAF bypass strategies ────────────────────────────────────────────────────

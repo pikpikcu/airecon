@@ -292,7 +292,7 @@ class AIReconApp(App):
             role = str(msg.get("role") or "assistant").strip().lower()
             content = cls._history_content_to_text(msg.get("content")).strip()
 
-            # Restore assistant tool-call intents even when content is empty.
+
             if role == "assistant" and not content and msg.get("tool_calls"):
                 for call in msg.get("tool_calls", []):
                     if not isinstance(call, dict):
@@ -377,7 +377,7 @@ class AIReconApp(App):
             logger.debug("Expected failure in _mark_llm_degraded set_status: %s", e)
 
     def _handle_llm_status(self, event: dict) -> None:
-        # Reachability or a partial text chunk does not prove recovery.
+
         if event.get("recovered") is not True:
             return
         self._llm_degraded_until = 0.0
@@ -2678,20 +2678,20 @@ class AIReconApp(App):
         self.push_screen(QuitConfirmScreen(), _on_dismiss)
 
     async def action_quit(self) -> None:
-        # Always reach self.exit(), even if a cleanup step stalls — otherwise the
-        # app can hang on quit (the reported Ctrl+C → "yes" freeze).
+
+
         try:
-            # 1) Stop the local SSE stream worker FIRST so it releases the HTTP
-            #    connection. Closing self._http below while a stream is still
-            #    in-flight on the same client can block indefinitely.
+
+
+
             try:
                 if self._chat_worker and self._chat_worker.is_running:
                     self._chat_worker.cancel()
             except Exception as e:
                 logger.debug("Expected failure cancelling chat worker on quit: %s", e)
 
-            # 2) Tell the server to stop the agent — hard-bounded so a slow/stuck
-            #    server can never freeze the UI.
+
+
             try:
                 await asyncio.wait_for(self._http.post("/api/stop"), timeout=2.0)
             except Exception as e:
@@ -2700,11 +2700,11 @@ class AIReconApp(App):
             if self._status_task and not self._status_task.done():
                 self._status_task.cancel()
 
-            # Remote OpenAI-compatible backends (LiteLLM/vLLM/hosted) are
-            # stateless — there is no local model in VRAM to unload on quit.
 
-            # 3) Close the HTTP client, bounded so a lingering connection can't
-            #    block the shutdown.
+
+
+
+
             try:
                 await asyncio.wait_for(self._http.aclose(), timeout=2.0)
             except Exception as e:

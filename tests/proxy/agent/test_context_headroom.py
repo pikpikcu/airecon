@@ -73,11 +73,6 @@ def test_backend_recovery_can_shed_optional_schemas(agent):
 
 
 def test_recovery_output_cap_never_drops_below_fit_floor(agent):
-    """The learned cap must be a value _fit_num_predict_to_ctx can honour.
-
-    The fitter floors every request at 256 output tokens, so a smaller cap is
-    sent to the provider while 256 is what the byte budget actually reserves.
-    """
     agent._tools_llm = []
     agent.state.conversation.extend([
         {"role": "assistant", "content": "", "tool_calls": [{

@@ -1,8 +1,3 @@
-"""Anthropic wire conversion, isolated from transport/retry ownership.
-
-Adapted from PR #129 (202c0e9); signatures/usage/errors retain their native
-contracts. No SDK or additional network endpoint is introduced here.
-"""
 from __future__ import annotations
 
 import copy
@@ -32,7 +27,6 @@ _STOP_REASONS = {
 
 
 def anthropic_tail_thinking(messages: list[dict[str, Any]]) -> bool | None:
-    """Preserve the thinking mode inside an open native tool-use turn."""
     for msg in reversed(messages or []):
         if not isinstance(msg, dict):
             return None
@@ -54,7 +48,6 @@ def anthropic_tail_thinking(messages: list[dict[str, Any]]) -> bool | None:
 
 
 def prompt_tokens(usage: dict[str, Any]) -> int:
-    """Anthropic input_tokens excludes cache reads/writes."""
     return sum(int(usage.get(k) or 0) for k in (
         "input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"))
 
@@ -87,7 +80,7 @@ def anthropic_messages(messages: list[dict[str, Any]]) -> tuple[str, list[dict[s
         if role == "assistant":
             native = msg.get("_provider_blocks")
             if isinstance(native, list) and native:
-                # Signed thinking and its tool_use blocks must be replayed exactly.
+
                 blocks = copy.deepcopy(native)
                 ids = [b["id"] for b in blocks if b.get("type") == "tool_use"]
             else:
@@ -129,7 +122,6 @@ def anthropic_messages(messages: list[dict[str, Any]]) -> tuple[str, list[dict[s
 
 
 async def anthropic_lines(response: Any, stop: Callable[[], bool] | None) -> AsyncIterator[str]:
-    """Normalize native SSE to the existing OpenAI accumulator's event shape."""
     blocks: dict[int, dict[str, Any]] = {}
     usage: dict[str, Any] = {}
     finish = None
@@ -197,7 +189,7 @@ async def anthropic_lines(response: Any, stop: Callable[[], bool] | None) -> Asy
                     try:
                         block["input"] = json.loads(partial)
                     except json.JSONDecodeError:
-                        # Shared decoding rejects this batch; never invent {}.
+
                         block["input"] = None
                 native.append(block)
             out = {"choices": [{"delta": {}, "finish_reason": finish}],

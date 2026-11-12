@@ -75,7 +75,6 @@ class _StateMixin:
                 role = msg.get("role")
                 if role not in ("user", "assistant", "tool"):
                     continue
-                # Skip empty assistant chatter with no tool_calls.
                 if role == "assistant" and not str(msg.get("content", "") or "").strip() and not msg.get("tool_calls"):
                     continue
                 sig = self._turn_signature(msg)
@@ -241,9 +240,6 @@ class _StateMixin:
         saved = 0
         verified_saved = 0
 
-        # Quality gate: the cross-session brain should learn only from VERIFIED /
-        # high-confidence findings. Learning from unverified claims would make the
-        # agent accumulate false patterns and get *dumber* over time.
         from ..config import get_config
 
         _cfg = get_config()
@@ -270,7 +266,6 @@ class _StateMixin:
                 except (TypeError, ValueError):
                     _vconf = 0.0
                 if not _is_verified and _vconf < _learn_min_conf:
-                    # Not proven enough to become long-term knowledge — skip.
                     continue
 
             finding_type = str(
@@ -613,16 +608,6 @@ class _StateMixin:
                 )
 
     def _client_replay_policy(self) -> bool | None:
-        """The reasoning-replay policy of the agent's OWN client, as its
-        ``_wire_payload`` resolves it from ``self.model`` / ``self._host``.
-
-        Budget passes must measure with this, not with the global config's
-        ``openai_model`` / ``openai_base_url``, so budget == wire by
-        construction even when the active client differs from the config.
-        ``None`` (no usable client attrs) keeps the config-resolved default.
-        Anthropic clients are unaffected: their measurement path ignores the
-        replay policy.
-        """
         llm = getattr(self, "llm", None)
         model = getattr(llm, "model", None)
         host = getattr(llm, "_host", None)
@@ -631,8 +616,6 @@ class _StateMixin:
         return reasoning_replay_enabled(model, host)
 
     def _recompute_used_tokens_from_conversation(self) -> int:
-        # Measure what chat_stream actually receives: the history projection and
-        # the budget-pruned schema list (full registry only before first budgeting).
         tools = getattr(self, "_tools_budgeted", None) or getattr(self, "_tools_llm", None)
         messages = self.state.conversation
         project = getattr(self, "_messages_for_llm", None)

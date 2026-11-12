@@ -1,10 +1,3 @@
-"""Host workspace paths must be remapped to the sandbox mount.
-
-The Docker sandbox mounts the host workspace root at /workspace. Models
-routinely emit the HOST absolute path instead, which does not exist inside the
-container, so every `execute` failed with "Permission denied" (mkdir of
-/home/<user>) or "No such file or directory" (cd into the host path).
-"""
 from __future__ import annotations
 
 import pytest
@@ -57,8 +50,6 @@ def test_commands_without_host_paths_are_untouched(host_root):
 
 
 def test_normalize_collapses_remapped_host_path_to_relative(host_root):
-    # After remapping, /workspace/<target>/ is stripped because the sandbox
-    # already cds into the target dir.
     out = D._normalize_workspace_paths(
         f"mkdir -p {host_root}/example.com/recon", "example.com"
     )
@@ -88,15 +79,10 @@ def test_prefix_sibling_of_host_root_is_untouched(host_root):
 
 
 def test_reported_literal_command_is_remapped(host_root):
-    # The exact command shape from the incident report.
     assert D._rewrite_host_workspace_paths(
         f"cd {host_root}/ && ls -la"
     ) == "cd /workspace/ && ls -la"
 
-
-# ---------------------------------------------------------------------------
-# No-active-target dispatch must still remap host paths before the engine
-# ---------------------------------------------------------------------------
 
 from types import SimpleNamespace  # noqa: E402
 
@@ -149,8 +135,6 @@ def _patch_config(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_no_active_target_still_remaps_host_path(monkeypatch):
-    """Regression: dispatch used to skip remap when active_target was empty,
-    forwarding the HOST path verbatim into the container bash -c payload."""
     from pathlib import Path
 
     host_root = "/home/testuser/Tools/airecon/workspace"
@@ -173,8 +157,6 @@ async def test_no_active_target_still_remaps_host_path(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_no_active_target_does_not_cd_prepend(monkeypatch):
-    """No target: remap only — the /workspace/<target> cd-prepend stays
-    target-dependent and must not fire with an empty target."""
     from pathlib import Path
 
     host_root = "/home/testuser/Tools/airecon/workspace"
@@ -196,8 +178,6 @@ async def test_no_active_target_does_not_cd_prepend(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_dispatch_preserves_request_body_and_remaps_output_operand(monkeypatch):
-    """Dispatch shares the engine's operand-only remap: a host path inside a
-    JSON body or python -c source is data and must reach the engine verbatim."""
     from pathlib import Path
 
     host_root = "/home/testuser/Tools/airecon/workspace"
@@ -221,18 +201,6 @@ async def test_dispatch_preserves_request_body_and_remaps_output_operand(monkeyp
         assert args["command"] == expected
 
 
-# ---------------------------------------------------------------------------
-# Active target: the relative-path cleanup touches filesystem operands only.
-#
-# With a target set, dispatch runs the command from /workspace/<target> and
-# collapses operands that name that directory again. The payload also carries
-# data that can spell the same text - request bodies, URLs, inline source,
-# heredoc bodies - and those bytes must reach `docker exec` unchanged.
-#
-# Every case runs the production path _execute_tool_and_record -> DockerEngine
-# with process spawning intercepted: no Docker, no shell, nothing executes.
-# ---------------------------------------------------------------------------
-
 import os  # noqa: E402
 import subprocess  # noqa: E402
 from unittest.mock import AsyncMock  # noqa: E402
@@ -244,7 +212,6 @@ WS = f"/workspace/{TARGET}"
 
 
 async def _active_target_payload(monkeypatch, tmp_path, command, target=TARGET):
-    """The command dispatch hands to ``docker exec`` when a target is active."""
     monkeypatch.setattr(ed, "get_workspace_root", lambda: tmp_path, raising=True)
     monkeypatch.setattr(docker_mod, "get_workspace_root", lambda: tmp_path, raising=True)
     _patch_config(monkeypatch)
@@ -270,10 +237,10 @@ async def _active_target_payload(monkeypatch, tmp_path, command, target=TARGET):
 
     assert ok is False and result["success"] is False
     assert other_spawns == []
-    spawn.assert_awaited_once()  # one process: a single docker exec
+    spawn.assert_awaited_once()
     argv = spawn.call_args.args
     assert argv[:2] == ("docker", "exec")
-    assert argv[-4:-1] == ("bash", "--login", "-c")  # one payload, last argument
+    assert argv[-4:-1] == ("bash", "--login", "-c")
     prefix = f"cd /workspace/{target} && "
     assert argv[-1].startswith(prefix), argv[-1]
     sent = argv[-1][len(prefix):]
@@ -329,7 +296,6 @@ async def test_active_target_preserves_heredoc_data(monkeypatch, tmp_path):
 
 async def test_active_target_preserves_double_and_bare_target_data(monkeypatch, tmp_path):
     cases = {
-        # A URL path and a form value that repeat the target name are data.
         (
             f"mkdir -p {TARGET}/output && curl -s https://{TARGET}/{TARGET}/api "
             f"-d 'ref={TARGET}/{TARGET}/x' -o {TARGET}/output/api.json"
@@ -337,9 +303,7 @@ async def test_active_target_preserves_double_and_bare_target_data(monkeypatch, 
             f"mkdir -p output && curl -s https://{TARGET}/{TARGET}/api "
             f"-d 'ref={TARGET}/{TARGET}/x' -o output/api.json"
         ),
-        # A URL after a file command is not that command's operand.
         f"ls output && curl -s https://{TARGET}/api": f"ls output && curl -s https://{TARGET}/api",
-        # Text and patterns are data; only the redirection target is a file.
         f"echo {TARGET}/login >> {TARGET}/output/urls.txt": (
             f"echo {TARGET}/login >> output/urls.txt"
         ),
@@ -359,12 +323,10 @@ async def test_active_target_output_operands_normalize(monkeypatch, tmp_path):
             f"httpx -l {TARGET}/output/subs.txt -o {TARGET}/output/live.txt "
             f"2>> {TARGET}/output/err.log | tee {WS}/{TARGET}/output/live.log"
         ): "httpx -l output/subs.txt -o output/live.txt 2>> output/err.log | tee output/live.log",
-        # Host path -> container path -> relative to the target directory.
         f"mkdir -p {tmp_path}/{TARGET}/output/shots": "mkdir -p output/shots",
         f"cat \"{WS}/output/a b.txt\" > './{TARGET}/output/c d.txt'": (
             "cat \"output/a b.txt\" > 'output/c d.txt'"
         ),
-        # The target directory itself stays absolute: an empty operand is not a path.
         f"cp output/a.txt {WS}/": f"cp output/a.txt {WS}/",
         f"ls -la {WS}": f"ls -la {WS}",
     }

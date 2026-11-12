@@ -21,7 +21,6 @@ class SessionPersistenceEngine:
         session_dir.mkdir(parents=True, exist_ok=True)
         return session_dir
 
-    # Internal generic helpers
     def _save_json(self, target: str, filename: str, payload: Any) -> Path:
         session_dir = self._get_session_dir(target)
         fpath = session_dir / filename
@@ -43,7 +42,6 @@ class SessionPersistenceEngine:
             logger.debug("Failed to load %s for %s: %s", filename, target, e)
             return None
 
-    # Session state
     def save_session_state(self, target: str, state: dict[str, Any]) -> Path:
         logger.info("Session state saved for %s", target)
         return self._save_json(target, "session_state.json", state)
@@ -54,7 +52,6 @@ class SessionPersistenceEngine:
             logger.info("Session state loaded for %s", target)
         return result
 
-    # Payload memory
     def save_payload_memory(self, target: str, records: list[dict[str, Any]]) -> Path:
         return self._save_json(target, "payload_memory.json", records)
 
@@ -62,7 +59,6 @@ class SessionPersistenceEngine:
         result = self._load_json(target, "payload_memory.json")
         return result if isinstance(result, list) else []
 
-    # Adaptive state
     def save_adaptive_state(self, target: str, state: dict[str, Any]) -> Path:
         return self._save_json(target, "adaptive_state.json", state)
 

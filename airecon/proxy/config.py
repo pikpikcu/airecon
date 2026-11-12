@@ -463,7 +463,6 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         100,
         "Max iterations for REPORT phase.",
     ),
-    # Phase dynamic settings (previously hardcoded in Python files)
     "pipeline_output_parser_max_items_recon": (
         200,
         "Max items for RECON phase in output parser.",
@@ -540,7 +539,6 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         100,
         "Max iterations for reporter node in agent graph.",
     ),
-    # Phase tool budgets (previously in tools_meta.json)
     "pipeline_tool_budget_recon_quick_fuzz": (
         10,
         "Tool budget: quick_fuzz for RECON phase.",
@@ -605,7 +603,6 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         2,
         "Tool budget: quick_fuzz for REPORT phase.",
     ),
-    # Phase confidence thresholds (previously in tools_meta.json)
     "pipeline_confidence_threshold_recon": (
         0.6,
         "Confidence threshold for RECON phase transition.",
@@ -666,7 +663,6 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
         0.75,
         "MIN_CONFIDENCE_FOR_PRESERVATION threshold for agent state model.",
     ),
-    # Causal observation confidence (moved from tools_meta.json)
     "causal_confidence_technology_detected": (
         0.86,
         "Confidence for technology_detected causal observation.",
@@ -826,9 +822,6 @@ _CONFIG_SCHEMA: dict[str, tuple[Any, str]] = {
 
 DEFAULT_CONFIG = {key: value for key, (value, _) in _CONFIG_SCHEMA.items()}
 
-# Mode settings whose documented values include "off": (documented values, what
-# a bare "on" means). YAML reads unquoted off/on/no/yes/false/true as booleans,
-# so these cannot go through the generic str() coercion.
 _MODE_SETTINGS: dict[str, tuple[frozenset[str], str]] = {
     "llm_reasoning_replay": (frozenset({"auto", "always", "off"}), "always"),
     "llm_thinking_request_mode": (
@@ -1161,9 +1154,6 @@ def get_workspace_root() -> Path:
     return _workspace_root_cache
 
 
-# ── Essential keys that get written to config.yaml ──────────────────────────
-# Only these are written to config.yaml. All other values stay as defaults
-# in config.py to keep the config file clean and minimal.
 _ESSENTIAL_CONFIG_KEYS: set[str] = {
     "openai_base_url",
     "openai_api_key",
@@ -1212,7 +1202,6 @@ _ESSENTIAL_CONFIG_KEYS: set[str] = {
 
 
 def _replace_with_retry(tmp_name: str, filepath: Path) -> None:
-    """Retry transient Windows sharing locks without sacrificing atomicity."""
     import time
 
     for attempt in range(5):
@@ -1277,7 +1266,6 @@ def _write_yaml_with_comments(
     lines.append("#   - Anthropic Claude is easiest via OpenRouter or a LiteLLM gateway.")
     lines.append("")
 
-    # New files stay minimal; migrations/updates retain explicit valid options.
     selected_keys = _ESSENTIAL_CONFIG_KEYS | ((preserve_keys or set()) & DEFAULT_CONFIG.keys())
     written_keys: set[str] = set()
 
@@ -1305,9 +1293,6 @@ def _write_yaml_with_comments(
                 lines.append(yaml.safe_dump({key: value}, sort_keys=False, allow_unicode=True).rstrip())
                 written_keys.add(key)
 
-    # Atomic write: render to a temp file in the same dir, then os.replace().
-    # A concurrent reader therefore never observes a half-written/truncated file
-    # (which would parse as empty/None and trigger a spurious reset-to-defaults).
     payload = "\n".join(lines) + "\n"
     fd, tmp_name = tempfile.mkstemp(
         dir=str(filepath.parent), prefix=f".{filepath.name}.", suffix=".tmp"
@@ -1428,7 +1413,6 @@ class Config:
     browser_oauth_callback_timeout_ms: int
     browser_totp_fill_timeout_ms: int
     browser_screenshot_timeout_ms: int
-    # CAPTCHA vision is routed through the OpenAI-compatible gateway (openai_model)
     waf_bypass_timeout: int
     fuzzer_threads: int
     fuzzer_timeout: int
@@ -1690,9 +1674,6 @@ class Config:
     def load_with_defaults(cls, raw: dict) -> Config:
         known_fields = {f.name for f in dataclasses.fields(cls)}
         merged = {k: DEFAULT_CONFIG[k] for k in known_fields if k in DEFAULT_CONFIG}
-        # Scan-profile layer: a named bundle of overrides applied between defaults
-        # and the user's explicit config. The profile changes the baseline; the
-        # user's config.yaml still wins over it. Data-driven via scan_profiles.json.
         _profile_name = str(
             raw.get("scan_profile", merged.get("scan_profile", "standard"))
             or "standard"
@@ -1746,19 +1727,16 @@ class Config:
                     merged[key] = default_val
 
         _BOUNDS_RULES: dict[str, tuple[float | None, float | None]] = {
-            # LLM config
             "openai_temperature": (0.0, 1.2),
             "openai_max_tokens": (64, 200000),
             "llm_context_window": (2048, 262144),
             "llm_context_window_small": (2048, 131072),
             "llm_max_concurrent_requests": (1, 8),
-            # Timeouts
             "llm_timeout": (10.0, 1800.0),
             "llm_chunk_timeout": (30.0, 1200.0),
             "command_timeout": (30.0, 7200.0),
             "per_tool_timeout_seconds": (10.0, 3600.0),
             "response_timing_alert_threshold_ms": (1000, 300000),
-            # Ratios & intensities
             "agent_exploration_intensity": (0.1, 1.0),
             "agent_exploration_temperature": (0.0, 1.0),
             "agent_phase_creative_temperature": (0.0, 1.0),
@@ -1767,10 +1745,8 @@ class Config:
             "evidence_similarity_threshold": (0.3, 0.95),
             "verification_min_certified_confidence": (0.5, 1.0),
             "verification_min_report_confidence": (0.3, 0.95),
-            # Ports
             "proxy_port": (1, 65535),
             "browser_cdp_port": (1, 65535),
-            # Iterations & limits
             "agent_max_tool_iterations": (50, 5000),
             "agent_ctf_max_iterations": (20, 1000),
             "agent_repeat_tool_call_limit": (1, 10),
@@ -1784,7 +1760,6 @@ class Config:
             "agent_max_browser_visits_per_domain": (1, 20),
             "agent_command_hash_cache_limit": (500, 50000),
             "agent_max_empty_retries": (1, 10),
-            # Browser timeouts (ms)
             "browser_connect_timeout_ms": (500, 30000),
             "browser_navigation_timeout_ms": (5000, 300000),
             "browser_login_form_wait_ms": (1000, 60000),
@@ -1792,8 +1767,6 @@ class Config:
             "browser_oauth_callback_timeout_ms": (5000, 120000),
             "browser_totp_fill_timeout_ms": (1000, 30000),
             "browser_screenshot_timeout_ms": (1000, 30000),
-            # CAPTCHA — no numeric validation needed for model name
-            # Pipeline
             "pipeline_recon_max_iterations": (50, 2000),
             "pipeline_analysis_max_iterations": (50, 2000),
             "pipeline_exploit_max_iterations": (50, 3000),
@@ -1801,7 +1774,6 @@ class Config:
             "pipeline_recon_min_subdomains": (0, 50),
             "pipeline_recon_min_urls": (0, 20),
             "pipeline_recon_soft_timeout": (10, 500),
-            # Model constants
             "model_max_tool_iterations": (10, 500),
             "model_max_tool_history": (10, 500),
             "model_max_objectives": (10, 200),
@@ -1809,7 +1781,6 @@ class Config:
             "model_max_causal_observations": (100, 10000),
             "model_max_tool_result_chars": (5000, 200000),
             "model_min_confidence_for_preservation": (0.1, 0.99),
-            # Fuzzer
             "fuzzer_threads": (1, 50),
             "fuzzer_timeout": (1, 120),
             "fuzzer_quick_max_payloads_per_type": (1, 100),
@@ -1817,26 +1788,21 @@ class Config:
             "fuzzer_deep_timeout_seconds": (30.0, 1800.0),
             "fuzzer_advanced_max_payloads": (1, 200),
             "fuzzer_waf_bypass_limit": (1, 50),
-            # Rate limiter
             "rate_limiter_base_delay": (0.0, 60.0),
             "rate_limiter_max_delay": (1.0, 600.0),
             "rate_limiter_max_retries": (1, 30),
             "rate_limiter_http_timeout": (5, 120),
             "rate_limiter_abort_threshold": (3, 50),
-            # Verification
             "verification_max_replays": (1, 20),
             "verification_timeout": (5, 120),
-            # Intelligence
             "intelligence_adaptive_min_observations": (1, 20),
             "intelligence_dedup_threshold": (0.5, 1.0),
             "intelligence_utility_floor": (0.0, 1.0),
             "intelligence_insight_ttl_days": (1, 3650),
             "intelligence_generative_population_size": (10, 500),
             "intelligence_generative_max_generations": (1, 100),
-            # Payload memory
             "payload_memory_max_records": (100, 100000),
             "payload_memory_ttl_days": (1, 365),
-            # Misc
             "waf_bypass_timeout": (5, 300),
             "observe_request_timeout": (5, 120),
             "llm_status_timeout": (1.0, 30.0),
@@ -1897,7 +1863,6 @@ class Config:
             recon_mode = str(DEFAULT_CONFIG["agent_recon_mode"])
         merged["agent_recon_mode"] = recon_mode
 
-        # Validate required fields
         if not merged.get("openai_base_url"):
             logger.error(
                 "openai_base_url is REQUIRED. Set it in ~/.airecon/config.yaml "
@@ -2011,8 +1976,6 @@ def reload_config(config_path: str | None = None) -> Config:
     global _config, _config_mtime, _config_path
     _config = None
     _config_mtime = 0.0
-    # Allow a full reload to re-point at a different config file instead of
-    # staying stuck on the first sticky path for the lifetime of the process.
     if config_path is not None:
         _config_path = _get_config_path(config_path)
     return get_config(config_path)
@@ -2020,7 +1983,6 @@ def reload_config(config_path: str | None = None) -> Config:
 
 def update_config_values(updates: dict[str, Any]) -> Config:
     cfg = get_config()
-    # Start from current effective values for every known key, then apply updates.
     current: dict[str, Any] = {
         k: getattr(cfg, k) for k in DEFAULT_CONFIG if hasattr(cfg, k)
     }

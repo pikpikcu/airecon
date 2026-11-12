@@ -24,14 +24,10 @@ from .models import ToolExecution
 
 logger = logging.getLogger("airecon.agent")
 
-# What must follow a target-directory prefix for it to be cut from an operand:
-# a separator and the first character of a relative path that is not empty and
-# cannot be read as an option.
 _RELATIVE_REMAINDER_RE = re.compile(r"/[A-Za-z0-9_.]")
 
 
 class _DispatchExecutorMixin:
-    # tool_name -> (method_name, needs_on_output)
     _TOOL_DISPATCH_MAP: dict[str, tuple[str, bool]] = {
         "advanced_fuzz": ("_execute_advanced_fuzz_tool", False),
         "quick_fuzz": ("_execute_quick_fuzz_tool", False),
@@ -52,7 +48,6 @@ class _DispatchExecutorMixin:
         "schemathesis_fuzz": ("_execute_schemathesis_tool", False),
         "request_user_input": ("_execute_request_user_input", False),
         "load_skill": ("_exec_load_skill", False),
-        # Utility tools
         "python_session": ("_execute_python_session_tool", False),
         "edit_file": ("_execute_edit_file_tool", False),
         "think": ("_execute_think_tool", False),
@@ -75,7 +70,7 @@ class _DispatchExecutorMixin:
             return False, 0.0, {"success": False, "error": scope_error}, None
         entry = self._TOOL_DISPATCH_MAP.get(tool_name)
         if entry is None:
-            return None  # not a dispatched tool
+            return None
         method_name, needs_on_output = entry
         method = getattr(self, method_name)
         if needs_on_output:
@@ -105,7 +100,6 @@ class _DispatchExecutorMixin:
             except Exception as _e:
                 logger.debug("Could not build parent context for subagents: %s", _e)
 
-        # Block tools that subagents should not use — loaded from tools_meta.json
         _meta_path = Path(__file__).parent.parent / "data" / "tools_meta.json"
         _subagent_block = {"execute", "browser_action", "web_search", "http_observe"}
         try:
@@ -113,7 +107,6 @@ class _DispatchExecutorMixin:
                 import json as _json
 
                 _meta = _json.loads(_meta_path.read_text(encoding="utf-8"))
-                # Subagents should not use parent-level orchestration tools
                 _subagent_block |= set(
                     _meta.get("categories", {})
                     .get("utilities", {})
@@ -141,7 +134,7 @@ class _DispatchExecutorMixin:
                 return
             _seen_progress.add(key)
             if message.startswith("✅") or message.startswith("❌"):
-                _seen_progress.clear()  # Reset on completion
+                _seen_progress.clear()
 
             line = f"[{target}] {message}"
             progress_lines.append(line)
@@ -391,14 +384,10 @@ class _DispatchExecutorMixin:
         if not cmd or not target:
             return cmd
 
-        # Host absolute paths become container paths first, so they collapse
-        # like any other /workspace/<target>/ operand below.
         cmd = _DispatchExecutorMixin._rewrite_host_workspace_paths(cmd)
 
         prefixes = (f"/workspace/{target}", f"./{target}", target)
         while target in cmd:
-            # Each pass cuts one leading prefix per operand; a doubled target
-            # (/workspace/<target>/<target>/x) is finished by the next pass.
             cuts = sorted(
                 {
                     (start, end + 1)
@@ -457,9 +446,6 @@ class _DispatchExecutorMixin:
         count = self._executed_tool_counts.get(args_key, 0)
         limit = get_config().agent_repeat_tool_call_limit
 
-        # MCP meta-operations (list_tools, search_tools) are read-only discovery
-        # calls — they must never be blocked by dedup. Only call_tool with the
-        # same tool+args combination is subject to repeat limits.
         _mcp_meta_action = (
             tool_name.startswith("mcp_")
             and str(arguments.get("action", "")).strip().lower()
@@ -519,7 +505,6 @@ class _DispatchExecutorMixin:
                 tool = str(arguments.get("tool", "")).strip()
                 raw_args = arguments.get("arguments", {})
 
-                # {"action":"call_tool","arguments":{"tool":"x","arguments":{...}}}
                 if not tool and isinstance(raw_args, dict):
                     tool = str(raw_args.get("tool", "")).strip()
                     nested_args = raw_args.get("arguments", {})
@@ -594,9 +579,6 @@ class _DispatchExecutorMixin:
                     None,
                 )
 
-            # Scope guard + audit trail (config-driven). Default mode "warn" is
-            # non-blocking; only scope_enforcement=block refuses out-of-scope
-            # hosts. Every command is recorded to the persistent audit log.
             try:
                 from ..scope import audit_log, get_scope_guard
 
@@ -746,11 +728,6 @@ class _DispatchExecutorMixin:
                         None,
                     )
             if cmd:
-                # Host→/workspace remap regardless of active target: with no
-                # target the host path used to be forwarded verbatim into the
-                # container bash payload (the reported path bug). The engine
-                # boundary now remaps too — this is defense in depth so the
-                # audit log and tool_start echo show the container path.
                 cmd = self._rewrite_host_workspace_paths(cmd)
                 arguments["command"] = cmd
 
@@ -767,9 +744,6 @@ class _DispatchExecutorMixin:
                     except Exception as _e:
                         logger.debug("Could not create subdir %s: %s", subdir, _e)
 
-                # Sanitize: rewrite nested workspace paths to relative equivalents.
-                # E.g. "target/target/output/file.txt" -> "output/file.txt"
-                # E.g. "target/output/file.txt" -> "output/file.txt"
                 target = self.state.active_target
                 cmd = self._normalize_workspace_paths(cmd, target)
 

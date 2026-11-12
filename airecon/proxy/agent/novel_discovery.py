@@ -82,11 +82,6 @@ _COMBINATION_PATTERNS = [
     },
 ]
 
-# Curated tactic library. Unlike the old flat list (picked at random on a
-# mechanical iteration cadence), each tactic carries `themes` — the signal
-# keywords that make it relevant. Tactics are selected only when the actual
-# findings/anomalies for THIS target contain a matching signal, so the output
-# is target-specific and stable instead of generic and repetitive.
 _TACTIC_LIBRARY: list[dict[str, Any]] = [
     {"tactic": "Test for business logic flaws in workflow sequences",
      "themes": ["logic_conflict", "behavior_anomaly", "workflow", "checkout", "cart", "order", "step"]},
@@ -130,9 +125,6 @@ _TACTIC_LIBRARY: list[dict[str, Any]] = [
      "themes": ["api", "rate", "limit", "throttle", "429", "brute"]},
 ]
 
-# Cache of LLM-generated, target-specific vectors keyed by findings signature.
-# Populated asynchronously via generate_llm_novel_vectors() and consumed by the
-# synchronous analyze_novel_vectors().
 _LLM_VECTOR_CACHE: dict[str, dict[str, Any]] = {}
 
 
@@ -207,7 +199,6 @@ def _select_relevant_tactics(
         if hits > 0:
             scored.append((hits, entry["tactic"]))
 
-    # Highest match count first; tie-break alphabetically for stable output.
     scored.sort(key=lambda x: (-x[0], x[1]))
     return [tactic for _hits, tactic in scored[:limit]]
 
@@ -216,7 +207,7 @@ def _findings_signature(findings: list[dict[str, Any]]) -> str:
     bases = sorted(
         str(f.get("title", f.get("finding", "")))[:60] for f in findings
     )
-    return hashlib.md5(  # non-cryptographic identifier
+    return hashlib.md5(
         "|".join(bases).encode(), usedforsecurity=False
     ).hexdigest()[:16]
 
@@ -236,7 +227,7 @@ def _build_emergent_vector(
         str(f.get("title", f.get("finding", "unknown")))[:60]
         for f in findings[:3]
     ]
-    sig = hashlib.md5(  # non-cryptographic identifier
+    sig = hashlib.md5(
         ("|".join(sorted(bases)) + "::" + "|".join(sorted(distinct_signals))).encode(),
         usedforsecurity=False,
     ).hexdigest()[:12]
@@ -249,7 +240,6 @@ def _build_emergent_vector(
     )
     signal_phrase = ", ".join(sorted(distinct_signals)[:3]).replace("_", " ")
     description = f"Emergent escalation path linking {signal_phrase}"
-    # Confidence grounded in real evidence: distinct signal types + breadth.
     confidence = round(
         min(0.85, 0.35 + 0.10 * len(distinct_signals) + 0.05 * min(len(findings), 5)),
         2,
@@ -300,11 +290,9 @@ def _parse_llm_vector_json(raw: str) -> dict[str, Any]:
     if not raw or not raw.strip():
         return {}
     text = raw.strip()
-    # Strip code fences if present.
     fence = re.search(r"```(?:json)?\s*(.+?)```", text, re.DOTALL | re.IGNORECASE)
     if fence:
         text = fence.group(1).strip()
-    # Find the first JSON object.
     start = text.find("{")
     end = text.rfind("}")
     if start == -1 or end == -1 or end <= start:
@@ -405,7 +393,6 @@ def analyze_novel_vectors(
         if summary:
             anomalies = _detect_anomalies(summary)
             detected_anomalies.extend(anomalies)
-        # Also scan the title — many findings carry their signal there.
         title = f.get("title", f.get("finding", ""))
         if title:
             detected_anomalies.extend(_detect_anomalies(str(title)))
@@ -415,9 +402,6 @@ def analyze_novel_vectors(
 
     combinations = _analyze_combination_potential(findings)
 
-    # Prefer LLM-generated, target-specific output when it has been produced for
-    # this finding-set; otherwise fall back to evidence-derived selection. Either
-    # way the output is tied to THIS target — never a random generic checklist.
     llm_data = _LLM_VECTOR_CACHE.get(_findings_signature(findings), {})
 
     tactics = list(llm_data.get("tactics", []))[:3]

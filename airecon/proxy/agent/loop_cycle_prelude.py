@@ -21,14 +21,8 @@ from .session import save_session, session_to_context
 
 logger = logging.getLogger("airecon.agent")
 
-# A "roomy" context window (in tokens) at/above which the loop tolerates more
-# token pressure before compacting. Driven by the actual context window — NOT a
-# hardcoded model name — so it generalises across GPT/Claude/Qwen/Gemini/etc.
-# 100K sits above the 64K default and below typical long-context tiers (128K+).
 _ROOMY_CONTEXT_TOKENS = 100_000
 
-# Static tech→known-issues dataset, used as the cold-start "brain" when the
-# cross-session memory has not yet learned anything for the detected stack.
 _TECH_CORRELATIONS_FILE = Path(__file__).parent.parent / "data" / "tech_correlations.json"
 _tech_correlations_cache: dict[str, Any] | None = None
 
@@ -178,10 +172,6 @@ def _build_novel_discovery_prompt(
     return "\n".join(lines)
 
 
-# Anti-repetition directives — dynamically generated from session context
-# at runtime. No hardcoded vuln lists or attack vectors in Python code.
-
-
 def _build_dynamic_anti_loop_rotation(
     tested_vuln_classes: set[str],
     untested_vuln_classes: set[str],
@@ -198,7 +188,6 @@ def _build_dynamic_anti_loop_rotation(
         else "all covered"
     )
 
-    # Build rotation based on what's been tested vs what's available
     rotation_idx = iteration % 5
 
     rotations = [
@@ -261,14 +250,11 @@ def _build_dynamic_anti_loop_rotation(
 
 class _CyclePreludeMixin:
     async def _run_iteration_housekeeping(self, cfg: Any, current_phase: Any) -> None:
-        # Inject attack surface coverage hint + anti-repetition directive
-        # on every iteration after iteration 2.
         tracker = getattr(self, "_surface_tracker", None)
         if tracker is not None and self.state.iteration > 2:
             try:
                 _hint = tracker.build_coverage_hint()
                 if _hint:
-                    # Build anti-loop rotation dynamically from session context
                     tested = set()
                     for ev in self.state.evidence_log:
                         for tag in ev.get("tags", []):
@@ -280,7 +266,6 @@ class _CyclePreludeMixin:
                             if vtype:
                                 tested.add(vtype.replace(" ", "_"))
 
-                    # Get untested from exploration mixin if available
                     untested = set()
                     if hasattr(self, "_get_untested_vuln_classes"):
                         untested = self._get_untested_vuln_classes(tested)
@@ -319,8 +304,6 @@ class _CyclePreludeMixin:
             except Exception as _hint_err:
                 logger.debug("Coverage hint injection failed: %s", _hint_err)
 
-        # Inject output file manifest at iteration 1 and 3 so the AI knows
-        # what artifacts already exist BEFORE running any discovery tools.
         if self.state.iteration in (1, 3) and self._session and not self._ctf_mode:
             try:
                 from ..config import get_workspace_root as _gws
@@ -422,7 +405,6 @@ class _CyclePreludeMixin:
             self._check_memory_brain_health()
             self._last_memory_health_check_iteration = self.state.iteration
 
-        # LLM-driven recon validation to reduce noise before analysis/exploit
         try:
             phase_name = getattr(current_phase, "value", str(current_phase or "")).upper()
         except Exception as exc:
@@ -680,10 +662,6 @@ class _CyclePreludeMixin:
             self._recent_tool_names.clear()
         self._prev_phase = current_phase
 
-        # Memory-as-brain: inject learned patterns from past sessions; on cold
-        # start (no learned patterns yet for the detected stack) fall back to the
-        # static tech_correlations dataset so the agent ALWAYS reasons with real
-        # domain knowledge from iteration 1. Cadence is config-driven.
         try:
             _recall_interval = max(
                 1, int(getattr(cfg, "intelligence_memory_recall_interval", 4))
@@ -711,8 +689,6 @@ class _CyclePreludeMixin:
                     target=self._session.target, limit=5
                 )
 
-                # Cold-start fallback: no learned patterns → surface dataset
-                # knowledge for the detected technologies.
                 if not _learned_patterns and _tech_names:
                     _kb = _build_cold_start_knowledge(_tech_names)
                     if _kb:
@@ -1357,7 +1333,6 @@ class _CyclePreludeMixin:
                             s.vulnerabilities,
                         )
                         if chains:
-                            # Persist chains to session memory for cross-session learning
                             try:
                                 from ..memory import get_memory_manager
                                 memory = get_memory_manager()
@@ -1380,12 +1355,6 @@ class _CyclePreludeMixin:
 
                 if s.vulnerabilities:
                     try:
-                        # Populate the target-specific LLM vector cache every few
-                        # iterations so the (sync) prompt builder below can surface
-                        # genuinely novel, finding-grounded tactics instead of a
-                        # generic checklist. No-ops if the backend is unconfigured;
-                        # the prompt builder then falls back to evidence-derived
-                        # tactics selected from the observed signals.
                         if len(s.vulnerabilities) >= 2 and self.state.iteration % 4 == 0:
                             from .novel_discovery import generate_llm_novel_vectors
 
@@ -1402,14 +1371,6 @@ class _CyclePreludeMixin:
                     except Exception as _novel_err:
                         logger.debug("Novel discovery prompt failed: %s", _novel_err)
 
-                # Inject the senior-pentester methodology scaffold when there is a
-                # REAL attack surface to test (discovered endpoints + concrete
-                # injection points / findings) — not on narrow URL-keyword guesses.
-                # The previous keyword→canned-hint matcher was removed: it spoon-fed
-                # generic advice ("api → fuzz with ffuf") on crude substring matches,
-                # which biased a capable model toward a fixed playbook and was, in
-                # fact, dead (its strings were discarded — testing.txt has no
-                # placeholder). The model now reasons over the real surface below.
                 _has_surface = bool(s.urls) and bool(
                     getattr(s, "injection_points", None) or s.vulnerabilities
                 )
@@ -1420,8 +1381,6 @@ class _CyclePreludeMixin:
                         )
                         with open(prompt_path, "r") as pf:
                             expert_template = pf.read()
-                        # Ground the methodology in the ACTUAL discovered surface so
-                        # it is target-specific, not a generic checklist.
                         _eps = [str(u) for u in (s.urls or [])][:12]
                         _ips = [
                             f"{ip.get('method','GET')} {ip.get('url','')} "
@@ -1471,9 +1430,6 @@ class _CyclePreludeMixin:
         _presummary_ratio = self.state.token_usage.get("used", 0) / max(
             self._adaptive_num_ctx or cfg.llm_context_window, 1
         )
-        # Roomy-context models can tolerate more token pressure before we
-        # compress. Decided by the effective context window (model-agnostic),
-        # not by matching a specific model family in the name.
         _effective_ctx = int(self._adaptive_num_ctx or cfg.llm_context_window or 0)
         _is_roomy_context = _effective_ctx >= _ROOMY_CONTEXT_TOKENS
         _pressure_threshold = 0.45 if _is_roomy_context else 0.35

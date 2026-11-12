@@ -99,9 +99,6 @@ def _parse_set_cookie_headers(raw_http: str) -> dict[str, str]:
     return cookies
 
 
-# Common CSRF/authenticity token patterns found across frameworks. The LLM
-# is responsible for deciding *whether* to use a captured token on its next
-# request — Python only observes and surfaces the signal.
 _CSRF_META_RE = re.compile(
     r"""<meta[^>]+name\s*=\s*['"](?P<name>csrf[_-]?token|csrf-param|authenticity[_-]?token)['"][^>]*content\s*=\s*['"](?P<val>[^'"\s]{8,200})['"]""",
     re.IGNORECASE,
@@ -177,7 +174,6 @@ def _detect_rate_limit(status_code: int, headers: dict[str, str] | None) -> dict
         try:
             signal["retry_after_seconds"] = int(retry_after)
         except ValueError:
-            # HTTP-date form — LLM can parse if needed
             pass
     reset = lower.get("x-ratelimit-reset") or lower.get("ratelimit-reset")
     if reset:
@@ -327,8 +323,8 @@ class _ObserveExecutorMixin:
             "curl",
             "-s",
             "-i",
-            "-k",                 # pentest: skip TLS verify (self-signed / internal CA)
-            "--globoff",          # treat URL literally — [ ] { } in query strings are not globs
+            "-k",
+            "--globoff",
             "--max-time",
             str(req_timeout),
             "-X",
@@ -337,9 +333,6 @@ class _ObserveExecutorMixin:
         if not follow_redirects:
             cmd_parts.append("--no-location")
 
-        # Auto-attach per-host session cookies when the LLM hasn't already
-        # set a Cookie header. Realistic bug-bounty flows need authenticated
-        # state to persist across tool calls.
         _existing_cookie_hdr = any(str(k).lower() == "cookie" for k in headers)
         _host_key = _registrable_host(url)
         _session_snapshot = self.state.http_sessions.get(_host_key, {}) if _host_key else {}
@@ -387,14 +380,12 @@ class _ObserveExecutorMixin:
             exec_success = bool(exec_result.get("success", True))
             exit_code = exec_result.get("exit_code")
 
-            # If command failed but no error message, generate one from exit code / raw output
             if not exec_success and not exec_error:
                 if exit_code is not None and exit_code != 0:
                     exec_error = f"curl exited with code {exit_code}"
                 elif raw_output:
                     exec_error = raw_output.strip()[:200]
                 else:
-                    # Handle case where exit_code is None, 0, or empty
                     exit_code_str = (
                         str(exit_code) if exit_code is not None else "unknown"
                     )
@@ -429,8 +420,6 @@ class _ObserveExecutorMixin:
         if _injected_cookies:
             result["session_cookies_used"] = sorted(_session_cookies.keys())[:8]
 
-        # Harvest Set-Cookie headers from the response and merge into the
-        # per-host session jar so subsequent calls stay authenticated.
         harvested: dict[str, str] = {}
         if _host_key and exec_success:
             harvested = _parse_set_cookie_headers(raw_output)
@@ -440,9 +429,6 @@ class _ObserveExecutorMixin:
                 jar["updated_at_iter"] = getattr(self.state, "iteration", 0)
                 result["session_cookies_harvested"] = sorted(harvested.keys())[:8]
 
-        # CSRF / authenticity token harvest. We only observe what we see
-        # (meta tag, hidden form input, or common CSRF cookie) — the LLM
-        # decides whether to re-inject on its next state-changing request.
         if _host_key and exec_success:
             csrf_info = _extract_csrf_token(body_out[:6000], harvested)
             if csrf_info:
@@ -453,7 +439,6 @@ class _ObserveExecutorMixin:
                     "source": csrf_info.get("source", ""),
                 }
 
-        # Rate-limit signal — Python flags, LLM decides backoff strategy.
         _rl_signal = _detect_rate_limit(status_code, headers_out)
         if _rl_signal:
             result["rate_limit"] = _rl_signal
@@ -792,8 +777,6 @@ class _ObserveExecutorMixin:
         report_file = f"/workspace/{active_target}/output/schemathesis_{run_id}.json"
         cmd_parts.extend(["--report json", "--report-json-path", shlex.quote(report_file)])
         joined_cmd = " ".join(cmd_parts)
-        # Preserve the scanner's status instead of tee/cat's status. Exit 1
-        # may mean findings, so also inspect the structured report below.
         full_cmd = (
             f"cd {workspace_dir} && {{ {joined_cmd} > {shlex.quote(output_file)} 2>&1; "
             f"status=$?; cat {shlex.quote(output_file)}; exit \"$status\"; }}"

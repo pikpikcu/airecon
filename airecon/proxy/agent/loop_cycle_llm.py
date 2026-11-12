@@ -25,8 +25,6 @@ except (OSError, json.JSONDecodeError) as _e:
     _TOOLS_META = {}
 
 
-# ── Safe string sanitizer for evidence text (prompt injection mitigation) ───
-
 _REPORT_ESCAPE_TABLE = str.maketrans({
     "[": "〔",
     "]": "〕",
@@ -38,16 +36,15 @@ def _sanitize_evidence_text(value: str) -> str:
 
 
 class _CycleLlmMixin:
-    _REPORT_PACKET_MAX_CHARS = 32_000  # global cap on entire evidence packet
-    _REPORT_EVIDENCE_PER_VULN = 2000   # per-vuln cap for evidence + analysis
-    _REPORT_MAX_VULNS = 50             # only report top N vulns by severity
+    _REPORT_PACKET_MAX_CHARS = 32_000
+    _REPORT_EVIDENCE_PER_VULN = 2000
+    _REPORT_MAX_VULNS = 50
 
     def _build_report_phase_evidence(self) -> str:
 
         if not self._session or not self._session.vulnerabilities:
             return ""
 
-        # Only inject once — detect by checking if evidence was already pinned.
         if getattr(self, "_report_evidence_injected", False):
             return ""
         self._report_evidence_injected = True
@@ -57,7 +54,6 @@ class _CycleLlmMixin:
             "unknown": 5,
         }
 
-        # Sort by severity; cap number of vulns reported
         sorted_vulns = sorted(
             self._session.vulnerabilities,
             key=lambda v: (
@@ -88,7 +84,6 @@ class _CycleLlmMixin:
             v_confidence = vuln.get("confidence", "")
             v_flag = vuln.get("flag", "")
 
-            # Core identification
             block_parts: list[str] = [
                 f"--- VULNERABILITY #{idx} ---",
                 f"Title: {v_title}",
@@ -109,7 +104,6 @@ class _CycleLlmMixin:
             if vuln.get("source"):
                 block_parts.append(f"Source: {vuln['source']}")
 
-            # Evidence / proof data — sanitized and capped
             proof = vuln.get("proof") or vuln.get("evidence", "")
             if proof:
                 proof_str = str(proof)
@@ -126,7 +120,6 @@ class _CycleLlmMixin:
 
                 block_parts.append(f"Proof/Evidence:\n{proof_str}")
 
-            # Technical analysis if available
             if vuln.get("technical_analysis"):
                 tech = _sanitize_evidence_text(str(vuln["technical_analysis"]))
                 tech_limit = self._REPORT_EVIDENCE_PER_VULN // 2
@@ -134,15 +127,12 @@ class _CycleLlmMixin:
                     tech = tech[:tech_limit - 10] + "\n... [truncated]"
                 block_parts.append(f"Technical Analysis:\n{tech}")
 
-            # Remediation if available
             if vuln.get("remediation"):
                 block_parts.append(f"Remediation: {vuln['remediation']}")
 
-            # CVE if available
             if vuln.get("cve"):
                 block_parts.append(f"CVE: {vuln['cve']}")
 
-            # Exploit chain context if linked
             if vuln.get("exploit_chain"):
                 block_parts.append(
                     f"Exploit chain: {vuln['exploit_chain']}"
@@ -152,7 +142,6 @@ class _CycleLlmMixin:
             block = "\n".join(block_parts)
             used_chars += len(block)
 
-            # Global budget enforcement — stop adding if we've hit the cap
             if used_chars > self._REPORT_PACKET_MAX_CHARS:
                 block = block[:80] + "\n... [truncated: budget exhausted]"
                 parts.append(block)
@@ -166,7 +155,6 @@ class _CycleLlmMixin:
                 f"not listed here. Report ALL vulnerabilities, not just those shown."
             )
 
-        # Also expose unreported vulns that the AI flagged but hasn't reported yet
         unreported = [
             v for v in self._session.vulnerabilities
             if not v.get("report_generated")
@@ -205,8 +193,6 @@ class _CycleLlmMixin:
         if tool_name.lower() not in {t.lower() for t in blocked_tools}:
             return "advisory", ""
 
-        # Evidence-driven cross-phase pivot: if the session already has
-        # meaningful findings, the agent may freely pivot across phases.
         evidence_count = len(self.state.evidence_log) if self.state else 0
         if evidence_count >= 3:
             return "advisory", ""
@@ -370,16 +356,12 @@ class _CycleLlmMixin:
                 current_phase, chain_step_hint, wrong_tool_picked, self._consecutive_failures,
             )
 
-        # Inject per-target remembered intelligence (endpoints, vulns, bypasses)
         self._inject_target_memory()
 
-        # Inject learned insights from adaptive learning engine
         self._inject_learned_insights(current_phase)
 
-        # Inject learned tool and strategy recommendations from prior runs
         self._inject_adaptive_recommendations(current_phase)
 
-        # Inject meta-reasoning self-reflection every N iterations
         self._inject_meta_reflection_context(current_phase)
 
     def _inject_target_memory(self) -> None:
@@ -397,7 +379,6 @@ class _CycleLlmMixin:
         if not text:
             return
 
-        # Remove any old injection before adding fresh one
         self.state.conversation = [
             m for m in self.state.conversation
             if not m.get("content", "").startswith("<target_intelligence:")
@@ -429,7 +410,6 @@ class _CycleLlmMixin:
             engine = self._ensure_adaptive_learning_engine()
             techs = list(getattr(self._session, "technologies", {}).keys()) if self._session else []
             insights = engine.get_insights_for_context(phase=current_phase, tech_stack=techs)
-        # Replace prior recall even when no current match exists.
         self.state.conversation = [m for m in self.state.conversation
                                    if not m.get("content", "").startswith("<system_learned_insights>")]
         if not insights:
@@ -529,7 +509,6 @@ class _CycleLlmMixin:
         if not engine.should_reflect(self.state.iteration):
             return
 
-        # Build context of recent tool actions
         recent_actions = []
         if hasattr(self.state, "evidence_log"):
             for ev in self.state.evidence_log[-20:]:
@@ -550,8 +529,6 @@ class _CycleLlmMixin:
             iterations_completed=self.state.iteration,
         )
 
-        # Inject reflection prompt as system message — LLM will reflect
-        # in its next response when it sees this context
         self.state.conversation.append({
             "role": "system",
             "content": prompt,
@@ -576,8 +553,6 @@ class _CycleLlmMixin:
         thinking_acc: str,
         tool_calls_acc: list[dict[str, Any]],
     ) -> tuple[str, str, list[dict[str, Any]], bool]:
-            # Extract text-mode tool calls before the nudges below (all gated on
-            # `not tool_calls_acc`) so a valid <tool_call> is never missed.
             if not tool_calls_acc:
                 _registered = {
                     t["function"]["name"] for t in (self._tools_llm or [])
@@ -620,7 +595,6 @@ class _CycleLlmMixin:
                 or bool(self._FAKE_PLAIN_CMD_RE.search(content_acc))
             ) if not tool_calls_acc else False
 
-            # Self-consistency check for critical LLM decisions
             if content_acc and not self._is_text_only_response(content_acc):
                 self._check_critical_decision_consistency(content_acc, tool_calls_acc)
 
@@ -742,9 +716,6 @@ class _CycleLlmMixin:
             content_acc = content_acc.replace(
                 "[TASK_COMPLETE]", "").strip()
 
-            # Ensure assistant message always has non-empty content when
-            # tool calls are emitted — models like local LLM get confused
-            # by content="" + tool_calls (appears as an empty turn).
             if tool_calls_acc and not content_acc.strip():
                 tool_names = ", ".join(
                     tc.get("function", {}).get("name", "unknown")
@@ -820,7 +791,6 @@ class _CycleLlmMixin:
                                 for _cat_tools in _vuln_cats.values():
                                     if isinstance(_cat_tools, list):
                                         _vuln_scan_tools.update(str(t).lower() for t in _cat_tools)
-                            # Also include AIRecon fuzzing tools that target endpoints
                             _vuln_scan_tools |= {"quick_fuzz", "advanced_fuzz", "deep_fuzz", "schemathesis_fuzz"}
                             for tc in tool_calls_acc:
                                 tc_name = tc.get("function", {}).get("name", "")
@@ -870,8 +840,6 @@ class _CycleLlmMixin:
 
             return content_acc, thinking_acc, tool_calls_acc, _has_task_complete
 
-    # ── Self-Consistency Check ───────────────────────────────────────────
-
     def _is_text_only_response(self, text: str) -> bool:
         return any(w in ("executing:", "[system:") for w in text.lower().split()[:2])
 
@@ -880,7 +848,6 @@ class _CycleLlmMixin:
         text: str,
         tool_calls: list[dict[str, Any]],
     ) -> None:
-        # Only check occasionally (every 8 iterations)
         if not hasattr(self, "_consistency_counter"):
             self._consistency_counter = 0
         self._consistency_counter += 1
@@ -903,7 +870,6 @@ class _CycleLlmMixin:
         if not match:
             return
 
-        # Lazy-init meta-reasoning engine
         if not hasattr(self, "_meta_reasoning_engine"):
             from .meta_reasoning import MetaReasoningEngine
             self._meta_reasoning_engine = MetaReasoningEngine()
@@ -923,9 +889,6 @@ class _CycleLlmMixin:
             },
         )
 
-        # Fire-and-forget: inject the prompt into conversation so the
-        # NEXT LLM call will see it as context for self-correction.
-        # This avoids blocking the main loop with extra API calls.
         self.state.conversation.append({
             "role": "system",
             "content": (

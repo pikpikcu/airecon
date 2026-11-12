@@ -1,10 +1,3 @@
-"""Regression tests for context-budget history packing (AIRecon review findings).
-
-Covers the archive-notice feedback loop (P1), user-role read_file page
-accumulation (P2) and one-line archive artifacts (P3) through the real
-production path: ``AgentLoop._enforce_char_budget`` called twice per
-iteration, ``pack_history`` and the byte-bounded ``filesystem.read_file``.
-"""
 from __future__ import annotations
 
 import copy
@@ -58,17 +51,13 @@ def _group(call_id: str, path: str, content: str) -> list[dict]:
     ]
 
 
-# ---------------------------------------------------------------------------
-# P1 — the archive notice must never become "the latest assistant".
-
-
 @pytest.mark.asyncio
 async def test_second_budget_pass_keeps_latest_read_group_and_single_notice(agent):
     from airecon.proxy.agent.tool_defs import get_tool_definitions
 
     agent._tools_llm = get_tool_definitions()
-    old_page = "older evidence page " * 400      # ~7.2 KB, exact read page
-    latest_page = "latest evidence page " * 400  # ~7.6 KB, exact read page
+    old_page = "older evidence page " * 400
+    latest_page = "latest evidence page " * 400
     agent.state.conversation.extend(
         _group("read_0", "fixture.txt", old_page)
         + _group("read_1", "fixture.txt", latest_page)
@@ -81,7 +70,6 @@ async def test_second_budget_pass_keeps_latest_read_group_and_single_notice(agen
         + 1600
     )
 
-    # Pass 1 (loop_tool_cycle.py ~641): evicts the older group, adds a notice.
     await agent._enforce_char_budget(_num_ctx_for_budget(budget), 1024)
 
     assert not any(m.get("content") == old_page for m in agent.state.conversation)
@@ -94,7 +82,6 @@ async def test_second_budget_pass_keeps_latest_read_group_and_single_notice(agen
     )
     assert notices_after_first == 1
 
-    # Pass 2 (loop_tool_cycle.py ~712) on the already-packed conversation.
     await agent._enforce_char_budget(_num_ctx_for_budget(budget), 1024)
 
     contents = [m.get("content") for m in agent.state.conversation]
@@ -113,10 +100,6 @@ async def test_second_budget_pass_keeps_latest_read_group_and_single_notice(agen
     assert json.dumps(agent._tools_budgeted, sort_keys=True, default=str) == tools_after_first
 
 
-# ---------------------------------------------------------------------------
-# P2 — user-role read_file pages must evict as whole groups, not accumulate.
-
-
 @pytest.mark.asyncio
 async def test_user_role_read_pages_evict_whole_groups(agent):
     from airecon.proxy.agent import loop_context
@@ -124,7 +107,7 @@ async def test_user_role_read_pages_evict_whole_groups(agent):
 
     loop_context.get_config().tool_response_role = "user"
     agent._tools_llm = get_tool_definitions()
-    pages = [f"user-role evidence page {i} " * 240 for i in range(3)]  # ~6.3 KB each
+    pages = [f"user-role evidence page {i} " * 240 for i in range(3)]
     for i, page in enumerate(pages):
         agent.state.conversation.append({
             "role": "assistant", "content": "", "tool_calls": [{
@@ -138,8 +121,6 @@ async def test_user_role_read_pages_evict_whole_groups(agent):
     latest_group = agent.state.conversation[-2:]
     budget = request_chars(mandatory, core) + request_chars(latest_group, []) + 600
 
-    # The model is paginating correctly; budgeting must evict older whole
-    # groups instead of raising ContextBudgetError.
     await agent._enforce_char_budget(_num_ctx_for_budget(budget), 1024)
 
     contents = [str(m.get("content", "")) for m in agent.state.conversation]
@@ -149,17 +130,13 @@ async def test_user_role_read_pages_evict_whole_groups(agent):
     assert pages[1] not in joined, "older pages must be evicted with their group"
 
 
-# ---------------------------------------------------------------------------
-# P3 — evicted archives must be pageable by the byte-bounded read_file.
-
-
 @pytest.mark.asyncio
 async def test_evicted_archive_is_pageable_by_read_file(agent):
     from airecon.proxy import filesystem
     from airecon.proxy.context_budget import ArtifactCompressor
 
     marker = "EVIDENCE-MARKER-7f3a"
-    old_page = f"{marker} older archive page body " * 220  # ~7 KB single line body
+    old_page = f"{marker} older archive page body " * 220
     latest_page = "latest short page"
     conversation = [
         {"role": "system", "content": "Only authorized fixture scope."},
@@ -187,11 +164,6 @@ async def test_evicted_archive_is_pageable_by_read_file(agent):
     )
     assert marker in str(result.get("result", ""))
 
-
-# ---------------------------------------------------------------------------
-# The archive notice must not be a synthetic assistant turn: DeepSeek thinking
-# mode rejects assistant turns without reasoning_content, and Anthropic needs a
-# signed thinking block first in the assistant turn that carries tool_use.
 
 NOTICE = "[Older tool groups archived"
 
@@ -240,11 +212,6 @@ def test_archive_notice_adds_no_synthetic_assistant_turn(agent):
     assert assistant_turns[0]["content"][0]["type"] == "thinking"
 
 
-# ---------------------------------------------------------------------------
-# Archives are exact evidence: unambiguous to reassemble and wire-bounded per
-# line, whatever the content (leading markers, escapes, CR, multibyte text).
-
-
 def _decode_archive(text: str) -> list[dict]:
     lines = text.split("\n")
     assert lines[0].startswith("[Archived tool group"), lines[0]
@@ -279,7 +246,7 @@ def test_archive_round_trips_exactly_and_every_line_is_pageable(agent):
         "\u00bb leading continuation marker in the original",
         "\u00bb\u00bb doubled marker",
         "| leading pipe", "@ leading at", "",
-        "\x1b[31mred\x1b[0m " * 700,           # escapes cost 6 wire bytes each
+        "\x1b[31mred\x1b[0m " * 700,
         'quote " and backslash \\ ' * 300,
         "carriage\rreturn kept",
         "multibyte \u00e9\u4e2d\U0001f600 " * 500,
@@ -299,7 +266,7 @@ def test_archive_round_trips_exactly_and_every_line_is_pageable(agent):
 
     archives = sorted((compressor.root / compressor.directory).glob("*.txt"))
     assert len(archives) == 1
-    text = archives[0].read_bytes().decode("utf-8")  # no newline translation of \r
+    text = archives[0].read_bytes().decode("utf-8")
     assert _decode_archive(text) == old
 
     per_line = filesystem._READ_CONTENT_WIRE_BYTES // 2
@@ -314,7 +281,6 @@ def test_archive_round_trips_exactly_and_every_line_is_pageable(agent):
 
 
 def test_assistant_role_notice_from_saved_sessions_is_normalized(agent):
-    """Sessions saved before the notice became system-role still budget correctly."""
     from airecon.proxy.context_budget import ArtifactCompressor, _minimum_request_messages
 
     legacy = {"role": "assistant", "content": (
@@ -339,11 +305,6 @@ def test_assistant_role_notice_from_saved_sessions_is_normalized(agent):
     assert packed == pack_history(packed, None, 10**6, compressor)
 
 
-# ---------------------------------------------------------------------------
-# Signed Anthropic turns are stored `_protected` so their blocks are never
-# rewritten; that must not pin every older signed group in the request forever.
-
-
 def _signed_group(call_id: str, content: str) -> list[dict]:
     group = _group(call_id, "fixture.txt", content)
     group[0]["_provider_blocks"] = [
@@ -352,7 +313,7 @@ def _signed_group(call_id: str, content: str) -> list[dict]:
         {"type": "tool_use", "id": call_id, "name": "read_file",
          "input": {"path": "fixture.txt"}},
     ]
-    group[0]["_protected"] = True  # as loop_cycle_llm.py stores signed turns
+    group[0]["_protected"] = True
     return group
 
 
@@ -372,15 +333,15 @@ async def test_older_signed_groups_are_archived_verbatim_and_latest_stays_exact(
     report = {"role": "system", "content": "REPORT evidence: fixture finding.", "_protected": True}
     pinned = _group("pinned_0", "fixture.txt", "pinned evidence page " * 20)
     for message in pinned:
-        message["_protected"] = True  # unsigned protected evidence stays mandatory
+        message["_protected"] = True
     latest = _signed_group("read_latest", "latest signed page " * 100)
-    agent.state.conversation.extend(  # pinned first: eviction is oldest-first
+    agent.state.conversation.extend(
         pinned + [message for group in older for message in group] + [report] + latest
     )
     kept = copy.deepcopy(agent.state.conversation[:2] + pinned + [report] + latest)
     core = _core_tools(agent.state.conversation, agent._tools_llm)
     budget = request_chars(kept, core) + 400
-    agent._context_char_budget = budget  # exact byte budget, as learned after a rejection
+    agent._context_char_budget = budget
 
     await agent._enforce_char_budget(65536, 1024)
 
@@ -398,11 +359,6 @@ async def test_older_signed_groups_are_archived_verbatim_and_latest_stays_exact(
     ]
     for group in older:
         assert group in archived, "an evicted signed group must be archived verbatim"
-
-
-# ---------------------------------------------------------------------------
-# Every result of the latest group is reserved before optional schemas are
-# kept: a non-read_file result needs room for at least its smallest preview.
 
 
 def _append_execute_group(agent, role: str, output: str) -> None:
@@ -427,7 +383,7 @@ async def test_latest_execute_result_is_reserved_before_optional_schemas(agent, 
     core = _core_tools(agent.state.conversation, registry)
     optional = [tool for tool in registry if tool not in core]
     agent._tools_llm = core + optional
-    output = "".join(f"fixture scan line {i:04d} ok\n" for i in range(300))  # ~7.5 KB
+    output = "".join(f"fixture scan line {i:04d} ok\n" for i in range(300))
     _append_execute_group(agent, role, output)
     call, result = copy.deepcopy(agent.state.conversation[-2:])
     compressor = agent._get_artifact_compressor()
@@ -435,7 +391,6 @@ async def test_latest_execute_result_is_reserved_before_optional_schemas(agent, 
         result["content"], 400, reference=result["_context_ref"], external=False,
     )
     shrunk = agent.state.conversation[:2] + [call, {**result, "content": smallest}]
-    # One byte short of 25 optional schemas beside the smallest form of the result.
     budget = request_chars(shrunk, core + optional[:25]) - 1
     agent._context_char_budget = budget
 
@@ -454,8 +409,6 @@ async def test_latest_execute_result_is_reserved_before_optional_schemas(agent, 
     await agent._enforce_char_budget(65536, 1024)
     assert agent.state.conversation == snapshot
     assert agent._tools_budgeted == tools_after_first
-    # The reservation covers the smallest form and does not shrink once the
-    # result is compacted, or a later pass would re-admit optional schemas.
     reserved = request_chars(_minimum_request_messages(snapshot), core)
     assert reserved >= request_chars(shrunk, core)
     assert reserved == request_chars(_minimum_request_messages(shrunk), core)
@@ -468,7 +421,6 @@ async def test_irreducible_latest_execute_result_still_raises_with_core_schemas(
     agent._tools_llm = get_tool_definitions()
     core = _core_tools(agent.state.conversation, agent._tools_llm)
     _append_execute_group(agent, "tool", "fixture scan line ok\n" * 300)
-    # Room for the call, not for the smallest recoverable preview of its result.
     budget = request_chars(agent.state.conversation[:3], core) + 100
     agent._context_char_budget = budget
 

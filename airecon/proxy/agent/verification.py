@@ -17,7 +17,6 @@ from ..data_loader import (
 
 logger = logging.getLogger("airecon.agent.verification")
 
-# ── Load verification patterns from data file (single source of truth) ────────
 _VERIFICATION_DATA = load_verification_patterns()
 
 _CLEAN_RESPONSE_PATTERNS: list[re.Pattern] = [
@@ -40,7 +39,6 @@ _LFI_FILE_INDICATORS: list[str] = _VERIFICATION_DATA.get("lfi_file_indicators", 
 
 _SQL_ERROR_PATTERNS: list[str] = _VERIFICATION_DATA.get("sql_error_patterns", [])
 
-# ── WAF/CDN signatures — loaded from waf_signatures.json via data_loader ─────
 _WAF_CDN_SIGNATURES: list[tuple[str, re.Pattern]] = []
 try:
     _waf_data = load_waf_signatures()
@@ -67,12 +65,8 @@ try:
 except Exception as _e:
     logger.warning("Failed to load WAF signatures for verification: %s", _e)
 
-# ── Independent verification payloads — loaded from fuzzer_data.json ──────────
 _VERIFY_PAYLOADS: dict[str, list[str]] = dict(load_fuzzer_data().get("FUZZ_PAYLOADS", {}))
 
-# Supplemental replay payloads for vuln types that benefit from deterministic
-# runtime confirmation but may be sparse/absent in fuzzer data. Additive only —
-# never overrides payloads already supplied by fuzzer_data.json.
 _SUPPLEMENTAL_VERIFY_PAYLOADS: dict[str, list[str]] = {
     "open_redirect": [
         "https://airecon-verify.example",
@@ -91,7 +85,6 @@ for _vk, _vp in _SUPPLEMENTAL_VERIFY_PAYLOADS.items():
     _existing = _VERIFY_PAYLOADS.get(_vk, [])
     _VERIFY_PAYLOADS[_vk] = list(_existing) + [p for p in _vp if p not in _existing]
 
-# ── Clean test payloads (should NOT trigger vulns) ────────────────────────────
 _CLEAN_PAYLOADS: list[str] = [
     "abc123clean",
     "test_normal_value",
@@ -108,7 +101,7 @@ class VerificationResult:
     target: str
     original_confidence: float
     verified_confidence: float
-    verification_tier: int  # 0=unverified, 1=replay, 2=cross-tool, 3=certified
+    verification_tier: int
     is_false_positive: bool
     fp_reason: str = ""
     replay_success: bool = False
@@ -233,7 +226,6 @@ class FalsePositiveDetector:
                 "Response body is empty — no HTML/DOM execution context exists for XSS.",
             )
 
-        # Check 3xx redirect where destination is same-origin
         if 300 <= status_code < 400 and headers.get("location"):
             try:
                 if len(body.strip()) == 0:
@@ -378,8 +370,6 @@ class ReplayVerifier:
                 return True
 
         elif vuln_type == "ssrf":
-            # Confirmed only when the response actually reflects internal /
-            # cloud-metadata content fetched server-side (not mere echo of URL).
             body_l = body.lower()
             ssrf_markers = (
                 "ami-id",
@@ -402,8 +392,6 @@ class ReplayVerifier:
                 return True
 
         elif vuln_type == "open_redirect":
-            # Confirmed only when a 3xx Location header redirects to the
-            # externally-controlled host injected by the payload.
             location = resp.headers.get("location", "")
             if 300 <= status < 400 and location:
                 host = self._payload_redirect_host(payload)
@@ -665,7 +653,6 @@ class VerificationEngine:
                         f"[Zero-FP] FP Detection: dynamic content detected — {dyn_reasons}"
                     )
 
-            # ── Header-only reflection check (e.g. 301 Location with no body) ──
             if response_headers is not None:
                 is_header_only, hdr_reason = (
                     self.fp_detector.detect_header_only_reflection(

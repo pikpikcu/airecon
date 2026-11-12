@@ -45,16 +45,6 @@ EXECUTE_TOOL_DEF = {
 
 _SANDBOX_WORKSPACE = "/workspace"
 
-# --- Host workspace path normalization -------------------------------------
-#
-# A convenience mapper, NOT a security boundary: isolation comes from running
-# the payload through ``docker exec``, never from this rewrite. A bash payload
-# is opaque data plus a few places where a word is known to name a file. Only
-# those places are remapped; URLs, request bodies, inline source, patterns,
-# comments and heredoc bodies keep their exact bytes. Anything not recognized
-# is left alone, so the worst outcome is "No such file" inside the sandbox.
-
-# Commands whose non-option operands are all filesystem paths.
 _PATH_OPERAND_COMMANDS = frozenset({
     "cd", "pushd", "ls", "dir", "tree", "stat", "file", "du",
     "cat", "tac", "nl", "head", "tail", "less", "more", "wc", "sort", "uniq",
@@ -62,20 +52,15 @@ _PATH_OPERAND_COMMANDS = frozenset({
     "mkdir", "rmdir", "rm", "cp", "mv", "touch", "ln", "chmod", "chown", "tee",
     "source", ".",
 })
-# Interpreters: only the word directly after the name is a script path.
 _SCRIPT_INTERPRETERS = frozenset({
     "python", "python2", "python3", "bash", "sh", "zsh", "node", "perl", "ruby", "php",
 })
-# Commands whose arguments are data (text, patterns, expressions): nothing but
-# redirection targets is remapped. Their ``-o`` is not an output file.
 _OPAQUE_ARGUMENT_COMMANDS = frozenset({
     "echo", "printf", "grep", "egrep", "fgrep", "rg", "ag", "ack", "pgrep", "pkill",
     "sed", "awk", "gawk", "jq", "yq", "tr", "expr", "test", "[",
     "ssh", "ps", "mount", "lsblk", "column", "getopt", "xargs", "env", "export",
     "eval", "exec", "set",
 })
-# Options whose value is a local file, per command; any other command (the
-# recon tools) gets the conventional output/input-list options.
 _PATH_OPTIONS_BY_COMMAND: dict[str, frozenset[str]] = {
     "curl": frozenset({
         "-o", "--output", "--output-dir", "-D", "--dump-header",
@@ -91,7 +76,6 @@ _GENERIC_PATH_OPTIONS = frozenset({
     "-oA", "-oN", "-oX", "-oG", "-oJ",
     "-l", "--list", "-iL", "-w", "--wordlist",
 })
-# Leading words that do not change which word is the command name.
 _TRANSPARENT_PREFIXES = frozenset({
     "sudo", "time", "nohup", "command",
     "if", "then", "else", "elif", "do", "while", "until", "{", "!",
@@ -101,7 +85,6 @@ _WORD_BREAK = " \t\n;|&()<>"
 
 
 def _skip_parameter(command: str, i: int) -> int:
-    """Index just past a plain ``${...}`` starting at ``i``; -1 if not plain."""
     end = command.find("}", i)
     if end < 0 or any(ch in command[i:end] for ch in "'\"`\\ \t\n") or "$(" in command[i:end]:
         return -1
@@ -109,12 +92,7 @@ def _skip_parameter(command: str, i: int) -> int:
 
 
 def _scan_word(command: str, i: int) -> int:
-    """Index just past the shell word starting at ``i``.
 
-    Returns -1 for anything this scanner does not model (command substitution,
-    backticks, nested parameter expansion, an unterminated quote): the caller
-    then stops and leaves the rest of the payload byte-for-byte.
-    """
     n = len(command)
     while i < n:
         c = command[i]
@@ -145,7 +123,7 @@ def _scan_word(command: str, i: int) -> int:
             i += 1
         elif c == "`" or command.startswith("$(", i):
             return -1
-        elif command.startswith("$'", i):  # ANSI-C quoting: \' does not close it
+        elif command.startswith("$'", i):
             i += 2
             while i < n and command[i] != "'":
                 i += 2 if command[i] == "\\" else 1
@@ -162,15 +140,7 @@ def _scan_word(command: str, i: int) -> int:
 
 
 def _host_root_span(command: str, start: int, end: int, host_root: str) -> tuple[int, int] | None:
-    """Raw span of ``host_root`` when ``command[start:end]`` is a path under it.
 
-    The word must spell the root literally from its first character (quotes
-    and backslash escapes are decoded; expansions and globs disqualify it) and
-    the root must be followed by ``/`` or the end of the word, so
-    ``/archive<root>/x``, ``<root>-backup`` and ``https://h<root>/x`` never
-    match. The span opens and closes in the same quoting state, so replacing
-    it keeps the surrounding quotes balanced.
-    """
     quote = ""
     matched = 0
     span_start = span_end = -1
@@ -223,7 +193,6 @@ def _host_root_span(command: str, start: int, end: int, host_root: str) -> tuple
 def _command_operand_spans(
     command: str, words: list[tuple[int, int]], host_root: str
 ) -> list[tuple[int, int]]:
-    """Host-root spans among one simple command's recognized path operands."""
     texts = [command[a:b] for a, b in words]
     first = 0
     while first < len(texts) and (
@@ -236,12 +205,10 @@ def _command_operand_spans(
     args = words[first + 1 :]
     arg_texts = texts[first + 1 :]
 
-    # The command word itself: ``<root>/tools/run.sh`` names a file to run.
     candidates: list[tuple[int, int]] = [words[first]]
     if name in _PATH_OPERAND_COMMANDS:
         candidates.extend(args)
     elif name == "find":
-        # Only the start paths; the expression (-name, -path, -exec ...) is data.
         for arg, text in zip(args, arg_texts):
             if text.startswith(("-", "(", "\\(", "!")):
                 break
@@ -255,11 +222,11 @@ def _command_operand_spans(
             options = _PATH_OPTIONS_BY_COMMAND.get(name, _GENERIC_PATH_OPTIONS)
         for idx, (a, b) in enumerate(args):
             if idx and arg_texts[idx - 1] in options:
-                candidates.append((a, b))  # ``-o <path>``
+                candidates.append((a, b))
                 continue
             option, eq, _ = arg_texts[idx].partition("=")
             if eq and option in options:
-                candidates.append((a + len(option) + 1, b))  # ``--output=<path>``
+                candidates.append((a + len(option) + 1, b))
 
     spans = []
     for a, b in candidates:
@@ -270,16 +237,10 @@ def _command_operand_spans(
 
 
 def _host_operand_spans(command: str, host_root: str) -> list[tuple[int, int]]:
-    """Spans of ``host_root`` that sit in a recognized filesystem operand.
-
-    A small lexical scan, not a shell parser: it splits the payload into
-    simple commands and words, skips comments and heredoc bodies, and stops at
-    the first construct it does not model. Nothing is executed or expanded.
-    """
     spans: list[tuple[int, int]] = []
     words: list[tuple[int, int]] = []
     heredocs: list[tuple[str, bool]] = []
-    expect = ""  # role of the next word: redirect | opaque | heredoc | heredoc-tabs
+    expect = ""
     i, n = 0, len(command)
     while i < n:
         c = command[i]
@@ -292,14 +253,14 @@ def _host_operand_spans(command: str, host_root: str) -> list[tuple[int, int]]:
             words = []
             i += 1
             for delimiter, strip_tabs in heredocs:
-                while True:  # skip the body: opaque data up to the delimiter line
+                while True:
                     eol = command.find("\n", i)
                     line = command[i:] if eol < 0 else command[i:eol]
                     i = n if eol < 0 else eol + 1
                     if (line.lstrip("\t") if strip_tabs else line) == delimiter:
                         break
                     if eol < 0:
-                        return spans  # unterminated heredoc: the rest is data
+                        return spans
             heredocs = []
         elif c == "#":
             eol = command.find("\n", i)
@@ -313,9 +274,9 @@ def _host_operand_spans(command: str, host_root: str) -> list[tuple[int, int]]:
             i += 1
         elif c in "<>":
             if command.startswith(("<(", ">("), i):
-                break  # process substitution is not modelled
+                break
             if command.startswith("<<<", i):
-                expect = "opaque"  # here-string: data
+                expect = "opaque"
                 i += 3
             elif command.startswith("<<", i):
                 strip_tabs = command.startswith("<<-", i)
@@ -329,8 +290,6 @@ def _host_operand_spans(command: str, host_root: str) -> list[tuple[int, int]]:
         else:
             end = _scan_word(command, i)
             if end < 0 or command[end : end + 1] == "(" or command[i:end] in ("case", "[["):
-                # Also not modelled: ``name=(...)`` / ``f()``, case patterns and
-                # ``[[ ]]`` expressions, where a leading word is not a command.
                 break
             if expect.startswith("heredoc"):
                 delimiter = re.sub(r"['\"\\]", "", command[i:end])
@@ -342,7 +301,7 @@ def _host_operand_spans(command: str, host_root: str) -> list[tuple[int, int]]:
             elif expect == "opaque":
                 pass
             elif command[i:end].isdigit() and command[end : end + 1] in ("<", ">"):
-                pass  # file-descriptor number of a redirection, e.g. ``2>``
+                pass
             else:
                 words.append((i, end))
             expect = ""
@@ -352,25 +311,6 @@ def _host_operand_spans(command: str, host_root: str) -> list[tuple[int, int]]:
 
 
 def rewrite_host_workspace_paths(command: str, host_root: str | None = None) -> str:
-    """Map HOST workspace paths in filesystem operands onto ``/workspace``.
-
-    Single normalization point at the Docker execution boundary: the sandbox
-    mounts get_workspace_root() at /workspace, but models routinely emit the
-    host absolute path instead (which does not exist inside the container).
-    Every ingress path — DockerEngine.execute, execute_tool (the /shell HTTP
-    endpoint, semgrep/http_observe callers) and the agent dispatch loop —
-    gets identical treatment, with no dependency on an active target.
-
-    Only a word that is recognizably a filesystem operand is rewritten: a
-    redirection target, an operand of a file utility (``cd``, ``ls``, ``cat``,
-    ``mkdir`` ...), the value of a file option (``-o``, ``--output`` ...), a
-    ``find`` start path, a command run by path, or the script given to an
-    interpreter. The word must start with the host root as a whole path
-    prefix. Everything else — URLs, request bodies, ``python -c`` source,
-    patterns, comments, heredoc bodies, unrelated paths that merely contain
-    the root — is returned byte-for-byte, as is any payload the scanner does
-    not understand. Idempotent.
-    """
     if not command:
         return command
     if host_root is None:
@@ -420,9 +360,6 @@ class DockerEngine:
 
     def __init__(self) -> None:
         self.cfg = get_config()
-        # Honor the configured image name as the source of truth (falls back to
-        # the class default). Container naming stays on CONTAINER_PREFIX so this
-        # only affects which image is inspected/built/run.
         self.IMAGE_NAME = (self.cfg.docker_image or "").strip() or DockerEngine.IMAGE_NAME
         self._container_id: str | None = None
         self._container_name: str | None = None
@@ -917,10 +854,6 @@ class DockerEngine:
         on_output: Callable[[str], None] | None = None,
         _retry: bool = False,
     ) -> dict[str, Any]:
-        # Common-boundary normalization: every caller of execute() — including
-        # execute_tool (the /shell endpoint and observer ingress) and direct
-        # engine.execute() callers — gets identical host→/workspace remapping,
-        # independent of any active target. Pure string rewrite; idempotent.
         command = rewrite_host_workspace_paths(command)
 
         if not self._connected and self._recovery_lock.locked():

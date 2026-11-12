@@ -1,15 +1,3 @@
-"""Vector primitives for the cross-session memory brain.
-
-Experience (distilled insights) lives in SQLite; this module adds the optional
-embedding layer that lets the agent recall *similar* past experience on a new
-target whose stack resembles an old one — cross-session transfer that exact
-target/category matching cannot do.
-
-Deliberately dependency-free: embeddings come from the gateway's /v1/embeddings
-(via LLMClient.embed), vectors are float32 BLOBs in the existing memory DB, and
-cosine similarity is pure Python. Callers fall back to lexical matching when
-embeddings are unavailable.
-"""
 
 from __future__ import annotations
 

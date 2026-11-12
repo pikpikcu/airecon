@@ -9,7 +9,6 @@ from urllib.parse import urlparse
 
 logger = logging.getLogger("airecon.agent.target_prioritizer")
 
-# ── Load patterns from data file ─────────────────────────────────────────────
 _ENDPOINT_PATTERNS_PATH = (
     Path(__file__).parent.parent / "data" / "endpoint_patterns.json"
 )
@@ -19,7 +18,6 @@ except Exception as e:
     logger.warning("Operation failed: %s", e)
     _ENDPOINT_DATA = {}
 
-# Build compiled regex lists from data file
 _URL_PATTERNS: list[tuple[re.Pattern, float, str, list[str]]] = []
 for entry in _ENDPOINT_DATA.get("url_patterns", []):
     try:
@@ -48,7 +46,6 @@ for entry in _ENDPOINT_DATA.get("subdomain_patterns", []):
     except (KeyError, re.error):
         pass
 
-# Technology risk from OWASP rules + tech_correlations
 _TECH_CORRELATIONS_PATH = (
     Path(__file__).parent.parent / "data" / "tech_correlations.json"
 )
@@ -59,7 +56,6 @@ try:
         _TECH_RISK[tech.lower()] = info.get("risk_score", 0.5)
 except Exception as e:
     logger.warning("Operation failed: %s", e)
-    # Minimal fallback
     _TECH_RISK = {
         "wordpress": 0.75,
         "redis": 0.70,
@@ -102,7 +98,6 @@ class TargetPrioritizer:
         path = parsed.path
         query = parsed.query
 
-        # Check URL patterns
         for pattern, pat_score, category, vectors in self._compiled_url_patterns:
             if pattern.search(path) or pattern.search(query):
                 score = max(score, pat_score)
@@ -123,7 +118,6 @@ class TargetPrioritizer:
                 if category == "tracking_pixel":
                     is_tracking = True
 
-        # Tech stack bonus
         if tech_stack:
             tech_bonus = sum(_TECH_RISK.get(t.lower(), 0.0) for t in tech_stack)
             if tech_bonus > 0:
@@ -131,7 +125,6 @@ class TargetPrioritizer:
                 score += tech_bonus
                 reasons.append(f"Tech risk bonus: +{tech_bonus:.2f}")
 
-        # Status code signals
         if http_status == 200:
             score += 0.05
             reasons.append("HTTP 200 (accessible)")
@@ -151,7 +144,6 @@ class TargetPrioritizer:
             score -= 0.10
             reasons.append("HTTP 404 (not found)")
 
-        # Query params increase attack surface
         if query:
             param_count = len(query.split("&"))
             score += min(0.15, param_count * 0.03)
@@ -189,7 +181,6 @@ class TargetPrioritizer:
         reasons: list[str] = []
         attack_vectors: list[str] = []
 
-        # Extract subdomain part
         parts = subdomain.split(".")
         subdomain_part = parts[0] if parts else subdomain
 
@@ -205,7 +196,6 @@ class TargetPrioritizer:
                 )
                 attack_vectors.extend(vectors)
 
-        # Tech stack bonus
         if tech_stack:
             tech_bonus = sum(_TECH_RISK.get(t.lower(), 0.0) for t in tech_stack)
             if tech_bonus > 0:

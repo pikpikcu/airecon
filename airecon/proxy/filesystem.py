@@ -30,31 +30,13 @@ _MAX_DEPTH = 3
 
 _MAX_CREATE_FILE_BYTES = 50 * 1024 * 1024
 
-# Files larger than this get a "use shell/script" advisory instead of truncated content.
-_LARGE_FILE_BYTE_THRESHOLD = 200 * 1024  # 200 KB
+_LARGE_FILE_BYTE_THRESHOLD = 200 * 1024
 _LARGE_FILE_LINE_THRESHOLD = 1000
 
-# read_file byte contract. Sizes are measured as JSON-escaped UTF-8 ("wire"
-# bytes), because that is what the request budget counts: a quote, backslash or
-# newline costs 2 bytes on the wire and a control character 6, so a raw-byte
-# limit would still overflow on minified JSON or binary-ish logs.
-#
-# Upper bound, 8192 wire bytes for the whole `result` string:
-#   * The smallest supported request is an 8192-token window with 1024 reserved
-#     for output: (8192 - 1024 - 256) * 3 = 20736 request bytes. Instructions
-#     plus the five core tool schemas take roughly 8 KiB of that, so one read of
-#     8192 leaves about 4 KiB for the call arguments, message framing and the
-#     advisories appended after a tool result.
-#   * _smart_format_tool_result cuts any result above 12000 characters mid-line
-#     with no continuation data. Characters never outnumber wire bytes, so a
-#     result within 8192 always reaches history whole.
-# Framing reserve, 512 wire bytes: the page header is at most four bracketed
-# lines (range, continuation, byte-limit notice, decode notice) of well under
-# 128 bytes each. File content gets the remaining 7680.
+
 _READ_RESULT_WIRE_BYTES = 8192
 _READ_FRAMING_RESERVE_BYTES = 512
 _READ_CONTENT_WIRE_BYTES = _READ_RESULT_WIRE_BYTES - _READ_FRAMING_RESERVE_BYTES
-# Advisory samples are context, not the payload: keep them to a quarter page.
 _READ_SAMPLE_WIRE_BYTES = 2048
 
 
@@ -176,19 +158,13 @@ def read_file(path: str, offset: int = 0, limit: int = 500) -> dict[str, Any]:
 
 
 def _wire_bytes(text: str) -> int:
-    """Bytes `text` occupies inside a JSON request body (escaped UTF-8, no quotes)."""
     return len(json.dumps(text, ensure_ascii=False).encode("utf-8")) - 2
 
 
 def _iter_lines(
     file_path: Path, keep: int
 ) -> Iterator[tuple[bytes | None, int, int]]:
-    """Yield (raw, byte_length, byte_offset) for every b"\\n"-terminated line.
 
-    The terminator stays part of `raw`, so joining the lines reproduces the
-    file byte for byte. Memory is bounded: a line longer than `keep` bytes is
-    measured but not held, and is yielded with raw=None.
-    """
     start = 0
     with file_path.open("rb") as fh:
         while True:
@@ -215,7 +191,6 @@ def _count_lines_streaming(file_path: Path) -> int:
 
 
 def _read_sample_lines(file_path: Path, n: int = 10) -> list[str]:
-    """First `n` lines, whole or not at all: an oversized line becomes a label."""
     sample: list[str] = []
     used = 0
     try:
@@ -240,7 +215,6 @@ def _read_sample_lines(file_path: Path, n: int = 10) -> list[str]:
 
 
 def _display_name(name: str, placeholder: str) -> str:
-    """Names are repeated in advisories; an extreme one must not break the bound."""
     return name if _wire_bytes(name) <= 64 else placeholder
 
 
@@ -351,12 +325,6 @@ _ARCHIVE_FIRST_LINE = b"[Archived tool group"
 
 
 def _is_context_archive(file_path: Path) -> bool:
-    """True only for files pack_history wrote as evicted-tool-group archives.
-
-    Identified precisely — path layout plus the archive legend as the first
-    line — never by a loose substring, so no other file can opt out of the
-    large-file advisory.
-    """
     if not _ARCHIVE_PATH_RE.search(file_path.resolve().as_posix()):
         return False
     try:
@@ -368,8 +336,6 @@ def _is_context_archive(file_path: Path) -> bool:
 
 
 def _read_with_pagination(file_path: Path, offset: int, limit: int) -> dict[str, Any]:
-    # For large files, return an advisory instead of truncated content so the LLM
-    # is directed to use shell one-liners or Python scripts to process the raw data.
     file_size = file_path.stat().st_size
     if file_size > _LARGE_FILE_BYTE_THRESHOLD and not _is_context_archive(file_path):
         total_lines = _count_lines_streaming(file_path)
@@ -380,8 +346,6 @@ def _read_with_pagination(file_path: Path, offset: int, limit: int) -> dict[str,
     offset = max(0, offset)
     limit = max(1, min(limit, 5000))
 
-    # One bounded-memory pass: a page holds whole lines only and closes at
-    # `limit` lines or _READ_CONTENT_WIRE_BYTES, whichever comes first.
     chunk: list[str] = []
     used = 0
     total_lines = 0
@@ -402,7 +366,7 @@ def _read_with_pagination(file_path: Path, offset: int, limit: int) -> dict[str,
             if text is None or used + cost > _READ_CONTENT_WIRE_BYTES:
                 closed = byte_limited = True
                 if not chunk:
-                    blocked = (index, length, start)  # Cannot fit even alone.
+                    blocked = (index, length, start)
                 continue
             chunk.append(text)
             used += cost

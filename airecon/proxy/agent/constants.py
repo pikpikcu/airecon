@@ -9,10 +9,6 @@ from typing import Any
 
 logger = logging.getLogger("airecon.agent.constants")
 
-# ---------------------------------------------------------------------------
-# EPHEMERAL_PREFIXES — was duplicated in models.py:1438, loop_exploration.py:143,
-# loop_message_entry.py:143
-# ---------------------------------------------------------------------------
 EPHEMERAL_PREFIXES: tuple[str, ...] = (
     "[SYSTEM: WORKSPACE",
     "[SYSTEM: ACTIVE_TARGET",
@@ -37,9 +33,6 @@ EPHEMERAL_PREFIXES: tuple[str, ...] = (
     "<waf_bypass ",
 )
 
-# ---------------------------------------------------------------------------
-# TOOL CLASSIFICATION — loaded from tools_meta.json with stable fallbacks
-# ---------------------------------------------------------------------------
 def _load_tool_classifications(
     field: str, fallback: frozenset[str] | None = None
 ) -> frozenset[str]:
@@ -116,10 +109,6 @@ MINI_AGENT_BLOCKED_TOOLS: frozenset[str] = _load_tool_classifications(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# SEVERITY TAXONOMY — was duplicated in owasp.py, chain_planner.py (2x),
-# target_profiler.py, verification.py, models.py:29
-# ---------------------------------------------------------------------------
 SEVERITY_ORDER: dict[str, int] = {
     "CRITICAL": 0,
     "HIGH": 1,
@@ -141,11 +130,6 @@ CVSS_THRESHOLDS: list[tuple[float, str]] = [
     (4.0, "MEDIUM"),
 ]
 
-# ---------------------------------------------------------------------------
-# COMMAND PARSING — _WRAPPER_TOKENS was duplicated in command_parse.py:7
-# and formatters.py:7 (slightly different). Use superset.
-# _SHELL_WRAPPERS was identically defined in both.
-# ---------------------------------------------------------------------------
 WRAPPER_TOKENS: frozenset[str] = frozenset(
     {
         "sudo",
@@ -173,29 +157,15 @@ SHELL_WRAPPERS: frozenset[str] = frozenset(
     }
 )
 
-# ---------------------------------------------------------------------------
-# MAX EMPTY RETRIES — default was =4 in loop_tool_cycle.py:28 and
-# loop_supervision.py:28; loop.py reads from config.
-# ---------------------------------------------------------------------------
 MAX_EMPTY_RETRIES: int = 4
 
-# ---------------------------------------------------------------------------
-# BROWSER — was in validators.py:443-473 as _VALID_BROWSER_ACTIONS
-# ---------------------------------------------------------------------------
 VALID_BROWSER_ACTIONS: frozenset[str] = _load_tool_schema_enum("browser_action", "action")
 
-# ---------------------------------------------------------------------------
-# User-Agent — was in browser.py:577 (Chrome/91 outdated)
-# and waf_bypass.py:115, auth_manager.py:33
-# ---------------------------------------------------------------------------
 DEFAULT_USER_AGENT: str = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 )
 
-# ---------------------------------------------------------------------------
-# WAF detection — loaded from waf_signatures.json (was duplicated)
-# ---------------------------------------------------------------------------
 def _load_waf_block_status_codes() -> frozenset[int]:
     try:
         path = Path(__file__).parent.parent / "data" / "waf_signatures.json"
@@ -204,25 +174,15 @@ def _load_waf_block_status_codes() -> frozenset[int]:
         return frozenset(int(c) for c in codes if c)
     except Exception as e:
         logger.warning("Failed to load WAF block status codes from JSON: %s", e)
-        return frozenset({403, 406, 412, 429, 501, 999})  # minimal fallback
+        return frozenset({403, 406, 412, 429, 501, 999})
 
 
 WAF_BLOCK_STATUS_CODES: frozenset[int] = _load_waf_block_status_codes()
 
-# ---------------------------------------------------------------------------
-# BODY TRUNCATION — was inconsistent: 3000 in waf_detector.py:125,
-# 4000 in waf_bypass.py:135, 5000 in verification.py. Unify to 5000.
-# ---------------------------------------------------------------------------
 BODY_TRUNCATION_LIMIT: int = 5000
 
-# ---------------------------------------------------------------------------
-# EMA ALPHA — was duplicated in payload_memory.py:83,
-# adaptive_learning.py:518/618/530, rate_limiter.py
-# ---------------------------------------------------------------------------
 ALPHA_EWMA: float = 0.3
 
-# DEAD HOST MARKERS — was in browser.py:38-51
-# ---------------------------------------------------------------------------
 DEAD_HOST_MARKERS: tuple[str, ...] = (
     "NXDOMAIN",
     "SERVFAIL",
@@ -237,9 +197,6 @@ DEAD_HOST_MARKERS: tuple[str, ...] = (
     "host not found",
 )
 
-# ---------------------------------------------------------------------------
-# RESTARTABLE ERRORS — was in browser.py:2000-2009
-# ---------------------------------------------------------------------------
 RESTARTABLE_ERRORS: tuple[str, ...] = (
     "No frame with given id",
     "No frame with given element id",
@@ -252,9 +209,6 @@ RESTARTABLE_ERRORS: tuple[str, ...] = (
     "socket disconnected",
 )
 
-# ---------------------------------------------------------------------------
-# SECURITY HEADERS — was in formatters.py:77-90, target_profiler.py:32-39
-# ---------------------------------------------------------------------------
 SECURITY_HEADERS: dict[str, str] = {
     "content-security-policy": "Controls resource loading to prevent XSS and data injection",
     "x-frame-options": "Prevents clickjacking by controlling iframe embedding",
@@ -268,9 +222,6 @@ SECURITY_HEADERS: dict[str, str] = {
     "cross-origin-embedder-policy": "Prevents loading cross-origin resources",
 }
 
-# ---------------------------------------------------------------------------
-# AUTH / LOGIN — was in auth_manager.py
-# ---------------------------------------------------------------------------
 CSRF_FIELD_NAMES: tuple[str, ...] = (
     "csrf_token",
     "csrf",
@@ -317,9 +268,6 @@ AUTH_FAILURE_PATTERNS: tuple[tuple[str, str], ...] = (
     ("account_locked", "Account has been temporarily locked"),
 )
 
-# ---------------------------------------------------------------------------
-# CAPTCHA — was in captcha_solver.py
-# ---------------------------------------------------------------------------
 CAPTCHA_PROVIDERS: tuple[str, ...] = (
     "recaptcha",
     "hCaptcha",
@@ -344,9 +292,6 @@ CAPTCHA_INPUT_NAMES: tuple[str, ...] = (
 )
 
 
-# ---------------------------------------------------------------------------
-# AGENT ROLES — unifies AgentRole from agent_graph.py and subagent.py
-# ---------------------------------------------------------------------------
 class AgentRole(str, Enum):
     RECON = "recon"
     ANALYZER = "analyzer"
@@ -357,8 +302,6 @@ class AgentRole(str, Enum):
     EXPLOIT = "exploit"
 
 
-# SUBAGENT EVENT TYPE MAP — was in loop_tool_cycle.py:40-46
-# ---------------------------------------------------------------------------
 SUBAGENT_EVENT_TYPE_MAP: dict[str, str] = {
     "subdomain": "SUBDOMAIN",
     "vulnerability": "VULNERABILITY",
@@ -370,15 +313,9 @@ SUBAGENT_EVENT_TYPE_MAP: dict[str, str] = {
     "injection_point": "INJECTION_POINT",
 }
 
-# ---------------------------------------------------------------------------
-# CD WORKSPACE PREFIX — was in formatters.py:233-234, 433-435
-# ---------------------------------------------------------------------------
 CD_WORKSPACE_PREFIX_RE = re.compile(r"^cd\s+/workspace/[^\s]+\s*&&\s*")
 CD_DIR_PREFIX_RE = re.compile(r"^cd\s+\S+\s*&&\s*")
 
-# ---------------------------------------------------------------------------
-# WAF BYPASS STRATEGY — loaded from waff_bypass.json (was duplicated)
-# ---------------------------------------------------------------------------
 def _load_waf_bypass_strategies() -> dict[str, list[dict[str, Any]]]:
     try:
         path = Path(__file__).parent.parent / "data" / "waff_bypass.json"
@@ -399,7 +336,4 @@ def _load_waf_bypass_strategies() -> dict[str, list[dict[str, Any]]]:
 
 WAF_BYPASS_STRATEGIES: dict[str, list[dict[str, Any]]] = _load_waf_bypass_strategies()
 
-# ---------------------------------------------------------------------------
-# SEVERITY MULTIPLIER — was in models.py:29
-# ---------------------------------------------------------------------------
 SEVERITY_MULTIPLIER: dict[int, float] = {5: 2.0, 4: 1.5, 3: 1.0, 2: 0.7, 1: 0.5}

@@ -49,19 +49,19 @@ WAF_SIGNATURES = _fuzzer_data.get("WAF_SIGNATURES", {})
 CHAIN_RULES = _fuzzer_data.get("CHAIN_RULES", {})
 CHAIN_PAYLOADS = _fuzzer_data.get("CHAIN_PAYLOADS", {})
 PARAM_TYPE_MAP: dict[str, list[str]] = _fuzzer_data.get("PARAM_TYPE_MAP", {})
-# Tech-stack → extra payloads, data-driven (no hardcoded tech branches in code).
-# Shape: {vuln_type: {tech_token: [payloads]}}; tech_token matches a detected
-# technology name (exact) or as a substring of the joined tech string.
+
+
+
 TECH_PAYLOAD_AUGMENTS: dict[str, dict[str, list[str]]] = _fuzzer_data.get(
     "TECH_PAYLOAD_AUGMENTS", {}
 )
-# URL-context → priority parameter names, data-driven and ordered (first match
-# wins). No hardcoded url-keyword branches in code.
+
+
 PRIORITY_PARAM_HINTS: list[dict[str, list[str]]] = _fuzzer_data.get(
     "PRIORITY_PARAM_HINTS", []
 )
-# Vuln-family → extra follow-on chain steps, data-driven (no hardcoded family
-# membership in code). Each entry: {"members": [...], "follow_ons": [...]}.
+
+
 CHAIN_FAMILY_FOLLOWONS: list[dict[str, list[str]]] = _fuzzer_data.get(
     "CHAIN_FAMILY_FOLLOWONS", []
 )
@@ -250,7 +250,7 @@ class Fuzzer:
             else None
         )
 
-        # Payload Memory Engine
+
         self.payload_memory = None
         try:
             from .config import get_config
@@ -346,7 +346,7 @@ class Fuzzer:
     async def _init_generative_fuzzing_if_enabled(self):
         try:
             cfg = self._get_fuzzer_config()
-            # Generative fuzzing is now always enabled unless explicitly disabled
+
             if not getattr(cfg, 'intelligence_generative_fuzzing_enabled', True):
                 return None
 
@@ -745,12 +745,12 @@ class Fuzzer:
         if not target_profile:
             return base_payloads
 
-        payloads = list(base_payloads)  # Start with base payloads
+        payloads = list(base_payloads)
 
-        # Tech-specific payload augmentation — fully data-driven. The vuln_type →
-        # tech_token → payloads mapping lives in fuzzer_data.json
-        # (TECH_PAYLOAD_AUGMENTS); no per-tech branches are hardcoded here, so new
-        # stacks/payloads are added by editing data, not code.
+
+
+
+
         tech_names = [t.name.lower() for t in target_profile.technologies]
         tech_str = " ".join(tech_names)
         for tech_token, extra_payloads in TECH_PAYLOAD_AUGMENTS.get(vuln_type, {}).items():
@@ -758,7 +758,7 @@ class Fuzzer:
             if token in tech_names or token in tech_str:
                 payloads.extend(extra_payloads)
 
-        # Deduplicate while preserving order
+
         seen = set()
         unique_payloads = []
         for p in payloads:
@@ -784,7 +784,7 @@ class Fuzzer:
             )
             return []
 
-        # ── Intelligence: Target Profiling ─────────────────────────────────
+
         target_profile = await self._profile_target_if_enabled()
         priority_vuln_types = self._prioritize_vuln_types(vuln_types, target_profile)
         self._payload_memory_tech_stack = [
@@ -819,10 +819,10 @@ class Fuzzer:
 
         all_vuln_types = list(FUZZ_PAYLOADS.keys())
 
-        # ── Intelligence: Generative Fuzzing Init ──────────────────────────
+
         gen_engine = await self._init_generative_fuzzing_if_enabled()
 
-        # Skip payloads that already failed
+
         _skip_count = 0
         filtered_tasks = []
         for param in clean_params:
@@ -835,7 +835,7 @@ class Fuzzer:
                 effective = priority_vuln_types or all_vuln_types
             for vt in effective:
                 base_payloads = FUZZ_PAYLOADS.get(vt, [])
-                # Apply context-aware payload selection
+
                 payloads = self._select_context_aware_payloads(
                     vt, target_profile, param, base_payloads
                 )
@@ -877,7 +877,7 @@ class Fuzzer:
             logger.info(f"Batch {batch_idx + 1}/{total_batches} ({len(_batch)} tests)")
             results.extend(await asyncio.gather(*_batch, return_exceptions=True))
 
-            # ── Intelligence: Evolve payloads after each batch ─────────────
+
             if gen_engine:
                 await self._evolve_payloads_batch(gen_engine, results, batch_idx)
 
@@ -885,7 +885,7 @@ class Fuzzer:
             if isinstance(r, FuzzResult) and r.confidence > 0.6:
                 self.results.append(r)
 
-        # ── Zero-FP Verification Stage ─────────────────────────────────────
+
         verified_results = await self._verify_findings(self.results)
         return verified_results
 
@@ -1130,12 +1130,12 @@ class Fuzzer:
                 if bypass_result.get("successful_bypasses"):
                     bypass_resp = bypass_result.get("response")
                     if isinstance(bypass_resp, httpx.Response):
-                        # Validate that bypass actually changed behavior meaningfully
-                        # A real bypass should NOT return 403 or a generic block page
+
+
                         bypass_status = bypass_resp.status_code
                         bypass_body = bypass_resp.text.lower()
 
-                        # Check if it's still a block page (false bypass)
+
                         block_indicators = [
                             "access denied",
                             "blocked",
@@ -1192,7 +1192,7 @@ class Fuzzer:
         )
 
         if analysis["vuln_confirmed"] or analysis["confidence"] > 0.5:
-            # Record successful payload
+
             if self.payload_memory:
                 self.payload_memory.record_attempt(
                     payload=payload,
@@ -1218,7 +1218,7 @@ class Fuzzer:
                 response_length=len(resp.text),
                 time_ms=elapsed,
             )
-        # Record failed payload
+
         if self.payload_memory:
             self.payload_memory.record_attempt(
                 payload=payload,
@@ -2254,9 +2254,9 @@ class ExpertHeuristics:
     def get_priority_parameters(url: str, method: str = "GET") -> list[str]:
         priority: list[str] = []
 
-        # First matching context wins (preserves the original precedence). The
-        # url-keyword → params mapping is data-driven (PRIORITY_PARAM_HINTS in
-        # fuzzer_data.json), so contexts/params are tuned in data, not code.
+
+
+
         for hint in PRIORITY_PARAM_HINTS:
             if any(kw in url for kw in hint.get("url_keywords", [])):
                 priority.extend(hint.get("params", []))
@@ -2264,10 +2264,10 @@ class ExpertHeuristics:
 
         return list(dict.fromkeys(priority))
 
-    # ── Data-driven attack surface heuristics ─────────────────────────
-    # Loads ALL expert patterns, tech correlations, and business logic
-    # patterns from data files at module level. Detection is indicator-based —
-    # no hardcoded vulnerability types. New data files automatically surface.
+
+
+
+
 
     _EXPERT_PATTERNS: dict[str, Any] = {}
     _TECH_CORRELATIONS: dict[str, Any] = {}
@@ -2283,14 +2283,14 @@ class ExpertHeuristics:
 
         from .data_loader import load_vuln_patterns
 
-        # Load unified pattern catalog (merged from patterns.json,
-        # business_logic_patterns.json, zeroday_patterns.json)
+
+
         unified = load_vuln_patterns()
         cls._EXPERT_PATTERNS = {
             k: v for k, v in unified.items() if not k.startswith("_")
         }
 
-        # Load technology correlations
+
         data_dir = Path(__file__).parent / "data"
         try:
             cls._TECH_CORRELATIONS = json.loads(
@@ -2299,7 +2299,7 @@ class ExpertHeuristics:
         except Exception as exc:
             logger.debug("Could not load tech_correlations.json: %s", exc)
 
-        # Business logic patterns are now part of unified catalog
+
         cls._BUSINESS_LOGIC = {
             k: v for k, v in unified.items()
             if not k.startswith("_") and any(
@@ -2307,7 +2307,7 @@ class ExpertHeuristics:
                 for term in ["business", "workflow", "checkout", "payment", "coupon", "subscription", "race", "loyalty"]
             )
         }
-        # Compile expert patterns into efficient matching tables
+
         for pattern_name, pattern_data in cls._EXPERT_PATTERNS.items():
             indicators = pattern_data.get("indicators", [])
             if not indicators:
@@ -2321,7 +2321,7 @@ class ExpertHeuristics:
             cls._heuristic_patterns_compiled.append(
                 (compiled, pattern_data, pattern_name)
             )
-        # Compile tech correlations for header-based detection
+
         for tech_name, tech_data in cls._TECH_CORRELATIONS.items():
             tech_indicators: list[str] = []
             tech_indicators.append(tech_name)
@@ -2345,7 +2345,7 @@ class ExpertHeuristics:
         resp_lower = {k.lower(): v.lower() for k, v in response_headers.items()}
         req_lower = {k.lower(): v.lower() for k, v in request_headers.items()}
 
-        # Build unified scan context from all observable signals
+
         scan_text = " ".join([
             url.lower(),
             " ".join(params.keys()).lower(),
@@ -2358,7 +2358,7 @@ class ExpertHeuristics:
             req_lower.get("authorization", ""),
         ])
 
-        # ── Phase 1: Match against expert patterns (36 patterns) ──
+
         matched_patterns: set[str] = set()
         for compiled, pdata, pname in Fuzzer._heuristic_patterns_compiled:
             if compiled.search(scan_text):
@@ -2376,7 +2376,7 @@ class ExpertHeuristics:
                     confidence=0.7 + (0.05 if severity == "critical" else
                                      0.03 if severity == "high" else 0.0),
                 ))
-                # Include additional actions as separate guidance entries
+
                 for action in actions[1:]:
                     guidance.append(ExpertGuidance(
                         recommendation=action,
@@ -2386,18 +2386,18 @@ class ExpertHeuristics:
                         confidence=0.55,
                     ))
 
-        # ── Phase 2: Match against tech correlations (header-based) ──
-        # Detect technologies from Server header, X-Powered-By, X-Generator
-        # and URL paths
+
+
+
         for indicator, tdata in Fuzzer._heuristic_tech_compiled:
             detected = False
             if indicator in scan_text:
                 detected = True
-            # Also check Server header for server names
+
             server_hdr = resp_lower.get("server", "")
             if indicator in server_hdr:
                 detected = True
-            # Check X-Powered-By for frameworks
+
             powered = resp_lower.get("x-powered-by", "")
             if indicator in powered:
                 detected = True
@@ -2431,7 +2431,7 @@ class ExpertHeuristics:
                             confidence=0.5,
                         ))
 
-        # ── Phase 3: Business logic patterns (8 patterns) ──
+
         for bl_name, bl_data in Fuzzer._BUSINESS_LOGIC.items():
             indicators = bl_data.get("indicators", [])
             if any(ind.lower() in scan_text for ind in indicators):
@@ -2454,7 +2454,7 @@ class ExpertHeuristics:
     def _build_vuln_suggestions_from_patterns(cls, vuln_type: str) -> list[str]:
         suggestions: list[str] = []
 
-        # 1. Look up matching expert patterns by indicator overlap
+
         for pname, pdata in cls._EXPERT_PATTERNS.items():
             if vuln_type.replace("_", "") in pname.replace("_", "").lower():
                 for action in pdata.get("suggested_actions", []):
@@ -2469,21 +2469,21 @@ class ExpertHeuristics:
                     if action not in suggestions:
                         suggestions.append(action)
 
-        # 2. Look up matching business logic patterns
+
         for bl_name, bl_data in cls._BUSINESS_LOGIC.items():
             if vuln_type.replace("_", "") in bl_name.replace("_", "").lower():
                 for action in bl_data.get("suggested_actions", []):
                     if action not in suggestions:
                         suggestions.append(action)
 
-        # 3. Look up matching tech correlations (known vulns for a tech)
+
         for tech_name, tdata in cls._TECH_CORRELATIONS.items():
             if tech_name in vuln_type.lower():
                 for vuln in tdata.get("vulns", []):
                     if vuln not in suggestions:
                         suggestions.append(vuln)
 
-        # 4. If no pattern matched, provide generic exploration guidance
+
         suggestions.extend([
             f"Test {vuln_type} with alternative payloads from "
             f"waf_bypass and exploit strategy data files",
@@ -2514,8 +2514,8 @@ class ExploitChainEngine:
         for finding in initial_findings:
             follow_ons = list(CHAIN_RULES.get(finding.vuln_type, []))
 
-            # Family-based follow-ons are data-driven (CHAIN_FAMILY_FOLLOWONS in
-            # fuzzer_data.json) — no hardcoded family membership in code.
+
+
             for _fam in CHAIN_FAMILY_FOLLOWONS:
                 if finding.vuln_type in (_fam.get("members") or []):
                     follow_ons.extend(_fam.get("follow_ons") or [])

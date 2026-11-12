@@ -495,7 +495,7 @@ class BrowserInstance:
             redirect_count = 0
             last_url = url
             seen_urls: set[str] = {url}
-            max_redirects = 10  # modern sites often chain 5-8 redirects
+            max_redirects = 10
 
             def check_redirect(
                 request: Any,
@@ -508,7 +508,7 @@ class BrowserInstance:
                     redirect_count += 1
                     last_url = current_url
 
-                    # Detect actual loops (same URL visited twice) vs long chains
+
                     if current_url in seen_urls:
                         logger.warning(
                             f"Detected redirect loop ({redirect_count} redirects, "
@@ -552,9 +552,9 @@ class BrowserInstance:
                         "Authentication required or invalid credentials for this URL"
                     ) from e
                 if "interrupted by another navigation" in err_lower:
-                    # Page itself triggered a redirect (SSO/OAuth) mid-goto.
-                    # The page is actually navigating somewhere — wait for it
-                    # to settle and report the final URL rather than failing.
+
+
+
                     try:
                         await page.wait_for_load_state(
                             "domcontentloaded", timeout=min(timeout_ms, 15000)
@@ -897,7 +897,7 @@ class BrowserInstance:
                 ),
             }
         except RuntimeError as e:
-            # Handle redirect loops consistently with _safe_action pattern
+
             err_str = str(e)
             if "Too many redirects" in err_str or "redirect loop" in err_str.lower():
                 redirected_url = ""
@@ -1592,7 +1592,7 @@ class BrowserInstance:
                 except Exception as _ss_err:
                     logger.debug("Auto-screenshot on CAPTCHA failed: %s", _ss_err)
 
-                # Auto-solve CAPTCHA via LLM vision + DOM bypass
+
                 _capt_type = r.get("captchaType") or "unknown"
                 _captcha_bypass_applied = False
                 try:
@@ -1607,10 +1607,10 @@ class BrowserInstance:
                         timeout=_cfg.llm_timeout,
                     )
 
-                    # Always try DOM bypass first for widget-type CAPTCHAs
+
                     _bypass_js = _solver._get_dom_bypass_js(_capt_type)
                     if _captcha_screenshot:
-                        # Send screenshot to LLM vision for text CAPTCHA solving
+
                         _solve_result = await _solver.solve_from_page(
                             page_screenshot_b64=base64.b64encode(
                                 await page.screenshot(type="png", full_page=False)
@@ -1630,7 +1630,7 @@ class BrowserInstance:
                                 _solve_result.get("solution"),
                             )
                     elif _bypass_js:
-                        # No screenshot available — try DOM bypass only
+
                         _dom_result = await page.evaluate(_bypass_js)
                         if isinstance(_dom_result, dict) and _dom_result.get("success"):
                             state["captcha_bypass_applied"] = True
@@ -2231,7 +2231,7 @@ class BrowserTabManager:
             error_str = str(e)
             error_lower = error_str.lower()
 
-            # Auth errors should not trigger a browser restart; return guidance.
+
             if _is_auth_error(error_lower):
                 logger.info("Browser auth error during %s: %s", action_name, error_str)
                 return {
@@ -2250,15 +2250,15 @@ class BrowserTabManager:
                     ),
                 }
 
-            # Redirect loops are server-side — restarting the browser never helps.
-            # Return a structured result immediately so the AI can pivot.
+
+
             is_redirect_loop = (
                 "too many redirects" in error_lower
                 or "redirect loop" in error_lower
                 or "redirected to static asset" in error_lower
             )
             if is_redirect_loop:
-                # Extract the final URL from the error if present
+
                 redirected_url = ""
                 _final_m = re.search(r"final URL:\s*(\S+)", error_str)
                 if _final_m:
@@ -2405,7 +2405,7 @@ class BrowserTabManager:
                         "or try a different authentication approach."
                     )
                 elif "timed out" in e_str.lower() and action_name in ("goto", "launch"):
-                    # Extract URL from args for a targeted advisory
+
                     _url_hint = str(args[0]) if args else "target"
                     error_str += (
                         f" — {_url_hint} may be WAF-blocked, unreachable, or very slow. "
@@ -2653,14 +2653,14 @@ class BrowserTabManager:
 
             page = browser.pages[tab_id]
 
-            # Build result using async event loop
+
             loop = browser._loop
             if loop is None:
                 return {"error": "No event loop available for async CAPTCHA solving"}
 
             import asyncio
 
-            # Run async page methods on the browser's event loop
+
             ss_future = asyncio.run_coroutine_threadsafe(
                 page.screenshot(type="png", full_page=False),
                 loop,
@@ -2683,7 +2683,7 @@ class BrowserTabManager:
             )
             solve_result = future.result(timeout=solver.timeout)
 
-            # If DOM bypass was provided, execute it on the page
+
             if solve_result.get("bypass_js"):
                 dom_result = page.evaluate(solve_result["bypass_js"])
                 solve_result["dom_result"] = dom_result

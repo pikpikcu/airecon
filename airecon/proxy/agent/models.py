@@ -30,8 +30,6 @@ FLAG_PATTERN = re.compile(r"flag\{[^}]+\}", re.IGNORECASE)
 _THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 _THINK_OPEN_RE = re.compile(r"<think>(?!</think>).*$", re.DOTALL | re.IGNORECASE)
 _MIN_SEVERITY_FOR_PRESERVATION = 4
-# FLEXIBILITY: Lower confidence floor to 0.30 to capture emerging/novel patterns
-# Novel discoveries often start with low confidence before validation
 _CONF_FLOOR = 0.30
 
 
@@ -419,9 +417,6 @@ class CausalState:
         return state
 
 
-# ── Runtime state grouping (replaces 50+ bare instance vars in loop.py) ──
-
-
 @dataclass
 class AntiLoopState:
     no_tool_iterations: int = 0
@@ -554,14 +549,6 @@ class AgentState:
 
     http_baselines: dict[str, dict[str, Any]] = field(default_factory=dict)
 
-    # Per-host HTTP session state. Key: registrable host (e.g. "example.com").
-    # Value: {"cookies": {name: value}, "bearer": str|None,
-    #         "updated_at_iter": int, "rate_limit_until_iter": int,
-    #         "csrf": {"token": str, "field": str, "source": str}}.
-    # Used by http_observe to preserve auth across calls in realistic
-    # authenticated bug-bounty flows. LLM controls login explicitly;
-    # Python just carries the cookie jar, flags rate limits, and harvests
-    # CSRF tokens so the LLM can re-inject them on state-changing requests.
     http_sessions: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     hypothesis_queue: list[dict[str, Any]] = field(default_factory=list)
@@ -1608,9 +1595,6 @@ class AgentState:
         if ephemeral_system:
             ephemeral_system = [ephemeral_system[-1]]
 
-        # Keep the FRESHEST message of each protected type rather than blindly the
-        # last two — so scope, pinned findings, recovery state and the compression
-        # summary all survive even when several protected messages accumulated.
         if protected_system:
             try:
                 _max_protected = int(
@@ -1624,7 +1608,7 @@ class AgentState:
                 _key = next(
                     (p for p in PROTECTED_PREFIXES if _c.startswith(p)), "_other"
                 )
-                _latest_by_type[_key] = _msg  # latest of each type wins
+                _latest_by_type[_key] = _msg
             protected_system = list(_latest_by_type.values())[-max(1, _max_protected):]
 
         limits = _get_context_limits()
@@ -1776,11 +1760,6 @@ class AgentState:
                 if cid:
                     result_call_ids.add(cid)
 
-        # tool_response_role=user stores results as role=user messages with
-        # `_tool_result` and no tool_call_id, so they never enter
-        # result_call_ids. Pair them with their assistant's calls positionally:
-        # within the span after that assistant (before the next assistant), the
-        # k-th user `_tool_result` message answers the k-th tool call.
         answered_by_user: set[str] = set()
         span_call_ids: list[str] = []
         span_user_results = 0
@@ -1834,12 +1813,6 @@ class AgentState:
                             else getattr(tc, "id", "") or ""
                         )
                         if cid in missing_results:
-                            # OpenAI-compatible servers require a role=tool message
-                            # after assistant tool_calls even when the result is stored
-                            # as a role=user `_tool_result` message (the non-default
-                            # tool_response_role=user mode): keep the pairing stub, but
-                            # point at the real output that follows instead of claiming
-                            # it was lost to compression.
                             if cid in answered_by_user:
                                 stub_content = (
                                     "[Tool result follows in the next message]"
@@ -2305,10 +2278,6 @@ class AgentState:
                     },
                 ]
 
-                # Model-agnostic compression cap: scale from the configured
-                # gateway timeout (slow models/gateways get more headroom),
-                # bounded to a sane 20–45s band. No model-name hardcoding —
-                # llm.complete already applies its own per-op dynamic timeout.
                 try:
                     _cfg_timeout = float(getattr(get_config(), "llm_timeout", 120.0) or 120.0)
                 except (TypeError, ValueError):
