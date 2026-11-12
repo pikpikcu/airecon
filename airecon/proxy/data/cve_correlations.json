@@ -1,4 +1,18 @@
 {
+  "CVE-2026-109618": {
+    "name": "PHP2Shell",
+    "product": "PHP Shell",
+    "severity": "CRITICAL",
+    "description": "PHP2Shell: version-aware research toolkit for CVE-2026-109618 / CVE-2026-109619 — pre-auth RCE in PHP session.upload_progress (mod_php). Build profiles, labs, heap calibration and detection guidance for authorized security testing.",
+    "targets": ["php", "Apache"]
+  },
+  "CVE-2026-109619": {
+    "name": "PHP2Shell",
+    "product": "PHP Shell",
+    "severity": "CRITICAL",
+    "description": "PHP2Shell: version-aware research toolkit for CVE-2026-109618 / CVE-2026-109619 — pre-auth RCE in PHP session.upload_progress (mod_php). Build profiles, labs, heap calibration and detection guidance for authorized security testing.",
+    "targets": ["php", "Apache"]
+  },
   "CVE-2021-44228": {
     "name": "Log4Shell",
     "product": "Apache Log4j",

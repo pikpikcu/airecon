@@ -1,5 +1,6 @@
 import pytest
 from airecon.proxy.correlation import (
+    CVE_CORRELATIONS,
     build_attack_graph,
     run_correlation,
     synthesize_attack_chains,
@@ -61,6 +62,25 @@ def test_correlation_by_technology_and_cve(mock_session):
     # The tech should also trigger CVE correlations
     cve_findings = [r for r in results if r.get("type") == "technology_cve"]
     assert len(cve_findings) > 0
+
+
+@pytest.mark.parametrize("cve_id", ["CVE-2026-109618", "CVE-2026-109619"])
+def test_php_session_cve_preserves_critical_severity(mock_session, cve_id):
+    mock_session.technologies = {"PHP": ""}
+
+    findings = [
+        finding
+        for finding in run_correlation(mock_session)
+        if finding.get("type") == "technology_cve"
+        and any(
+            item.startswith(f"{cve_id} - ")
+            for item in finding.get("vulnerabilities", [])
+        )
+    ]
+
+    assert len(findings) == 1
+    assert CVE_CORRELATIONS[cve_id].get("severity") == "CRITICAL"
+    assert findings[0]["severity"] == "CRITICAL"
 
 
 def test_correlation_attack_chains(mock_session):
