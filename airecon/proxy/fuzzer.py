@@ -146,6 +146,8 @@ class FuzzResult:
     response_code: int
     response_length: int
     time_ms: float
+    response_body: str = field(default="", repr=False, compare=False)
+    response_headers: dict[str, str] = field(default_factory=dict, repr=False, compare=False)
 
 
 @dataclass
@@ -376,6 +378,7 @@ class Fuzzer:
                             "waf": self.detected_wafs[0]
                             if self.detected_wafs
                             else None,
+                            "vuln_type": r.vuln_type,
                         }
                     )
 
@@ -916,9 +919,9 @@ class Fuzzer:
                 original_payload=finding.payload,
                 original_confidence=finding.confidence,
                 baseline_body=baseline.get("body", ""),
-                fuzz_body=finding.payload,
-                response_headers={},
-                response_status=finding.response_code or 200,
+                fuzz_body=finding.response_body,
+                response_headers=finding.response_headers,
+                response_status=finding.response_code,
                 http_headers=self.headers or None,
             )
 
@@ -1201,6 +1204,8 @@ class Fuzzer:
                 response_code=resp.status_code,
                 response_length=len(resp.text),
                 time_ms=elapsed,
+                response_body=resp.text,
+                response_headers=dict(resp.headers),
             )
 
         if self.payload_memory:
@@ -1270,6 +1275,8 @@ class Fuzzer:
             response_code=code,
             response_length=length,
             time_ms=time_ms,
+            response_body=response.text if response is not None else "",
+            response_headers=dict(response.headers) if response is not None else {},
         )
 
     def _record_findings(self, findings: list[FuzzResult]) -> list[FuzzResult]:

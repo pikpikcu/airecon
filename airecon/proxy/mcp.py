@@ -428,8 +428,17 @@ async def _mcp_stdio_request(
         with contextlib.suppress(Exception):
             if proc.stdin:
                 proc.stdin.close()
-        with contextlib.suppress(Exception):
+        try:
             await asyncio.wait_for(proc.wait(), timeout=3)
+        except asyncio.TimeoutError:
+            with contextlib.suppress(ProcessLookupError):
+                proc.kill()
+            await proc.wait()
+        except asyncio.CancelledError:
+            with contextlib.suppress(ProcessLookupError):
+                proc.kill()
+            await asyncio.shield(proc.wait())
+            raise
 
     if isinstance(resp, dict) and resp.get("error"):
         return False, {"error": str(resp.get("error"))}
@@ -490,7 +499,14 @@ async def mcp_call_tool(
     if not bool(server_cfg.get("enabled", True)):
         return False, {"error": f"MCP server '{server_name}' is disabled"}
 
+    from .scope import check_network_tool_scope
+
     payload_args = arguments if isinstance(arguments, dict) else {}
+    scope_error = check_network_tool_scope(
+        f"mcp_{server_name}", {"action": "call_tool", "arguments": payload_args},
+    )
+    if scope_error:
+        return False, {"error": scope_error}
     params = {"name": tool, "arguments": payload_args}
 
     if server_cfg.get("command"):

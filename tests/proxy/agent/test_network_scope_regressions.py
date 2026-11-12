@@ -84,3 +84,18 @@ async def test_browser_navigation_enforces_config_scope(policy, monkeypatch):
     assert result[0] is False
     assert "scope" in result[2]["error"].lower()
     browser.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_execute_fails_closed_when_scope_guard_raises(policy, monkeypatch):
+    def boom():
+        raise RuntimeError("guard down")
+
+    monkeypatch.setattr("airecon.proxy.scope.get_scope_guard", boom)
+    agent = Agent()
+    agent.engine = MagicMock()
+    agent.engine.execute_tool = AsyncMock(return_value={"success": True})
+    outcome = await agent._execute_tool_and_record("execute", {"command": "echo fixture"})
+    assert outcome[0] is False
+    assert "not run" in outcome[2]["error"]
+    agent.engine.execute_tool.assert_not_awaited()

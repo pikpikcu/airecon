@@ -181,6 +181,19 @@ class TestGetStatus:
         r = _client().get("/api/status")
         assert r.json()["status"] == "degraded"
 
+    def test_explicit_health_failure_invalidates_sticky_success(self, _patch_server_globals, monkeypatch):
+        monkeypatch.setattr(srv, "_llm_last_known_ok", True)
+        monkeypatch.setattr(srv, "_llm_last_ok_at", srv.time.time())
+        monkeypatch.setattr(srv, "_llm_health_cooldown_until", 0.0)
+        monkeypatch.setattr(srv, "_llm_health_failures", [])
+        monkeypatch.setattr(srv, "_llm_sticky_ok_seconds", lambda: 60.0)
+        backend = _patch_server_globals["llm"]
+        backend.health_check = AsyncMock(return_value=False)
+        assert _client().get("/api/status").json()["llm"]["connected"] is False
+        assert srv._llm_last_known_ok is False
+        backend.health_check = AsyncMock(side_effect=asyncio.TimeoutError())
+        assert _client().get("/api/status").json()["llm"]["connected"] is False
+
     def test_status_degraded_when_docker_down(self, _patch_server_globals):
         _patch_server_globals["engine"].is_connected = False
         r = _client().get("/api/status")
@@ -545,6 +558,22 @@ class TestShell:
         r = _client().post("/api/shell", json={"command": "curl https://api.acme.test/x"})
         assert r.status_code == 200
         assert r.json()["success"] is True
+
+    def test_shell_fails_closed_when_scope_guard_raises(self, _patch_server_globals, monkeypatch):
+        import airecon.proxy.scope as scope_mod
+
+        def boom():
+            raise RuntimeError("guard down")
+
+        monkeypatch.setattr(scope_mod, "get_scope_guard", boom)
+        _patch_server_globals["engine"].execute_tool = AsyncMock(return_value={"success": True})
+        r = _client().post("/api/shell", json={"command": "echo fixture"})
+        assert r.status_code == 500
+        data = r.json()
+        assert data["blocked"] is True
+        assert data["success"] is False
+        assert "not run" in data["error"]
+        _patch_server_globals["engine"].execute_tool.assert_not_awaited()
 
 
 class TestListSkills:

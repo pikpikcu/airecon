@@ -631,7 +631,10 @@ class LLMClient:
                 headers=self._auth_headers(),
                 timeout=httpx.Timeout(10.0),
             )
-            return resp.status_code < 500
+            if not resp.is_success:
+                return False
+            data = resp.json()
+            return isinstance(data, dict) and isinstance(data.get("data"), list)
         except Exception as e:
             logger.warning("LLM health check failed: %s", e)
             return False

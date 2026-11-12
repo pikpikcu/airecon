@@ -1,55 +1,126 @@
-# Stability & Quality Status (2026-03-27)
+# Stability & Quality Status (2026-11-12)
 
 This page documents the current, test-backed stability state of AIRecon.
 
 ## Executive Summary
 
-AIRecon is **not yet in fully stable state** for all components.
+The current candidate passed its local regression and configured static-analysis
+gates, including the verified `/api/status` sticky-health fix. No result here
+certifies every real integration or establishes that AIRecon is free of bugs.
 
-- Core proxy/agent logic is largely functional and many tests pass.
-- Full quality gate is still blocked by type-check errors and hanging test suites.
-- "All features 100% working" cannot be claimed yet.
+- Baseline: 2575 tests passed and 5 skipped before these fixes.
+- Candidate: 2666 tests passed and 5 skipped on both Python 3.12 and 3.13,
+  with 91 additional cases against the original baseline.
+- Configured Pyright, Ruff, and the medium/high Bandit gate are clean.
+- The installed wheel passed three consecutive localhost API + real Docker +
+  Playwright/Chromium + headless Textual TUI + report round trips. The LLM endpoint
+  was an explicitly synthetic protocol fixture, not a real model acceptance test.
+- Public release acceptance remains open: remote CI still refers to the old PR
+  head, and the chosen real provider/model and production rollout are unverified.
+- Claude and GLM supplied read-only reviews. Grok attempts failed with HTTP 402
+  or insufficient credits and do not count as a completed review.
+
+This snapshot supersedes the March type-error and hanging-suite observations.
+The work is local on `airecon-openai`; PR #130 was still OPEN when checked.
 
 ## Validation Snapshot
 
-Commands used during this review:
+The full suite ran with Python 3.12.12 and 3.13.15 in disposable Bubblewrap environments:
+the checkout was read-only, HOME/XDG paths were private, process and network
+namespaces were isolated, and runtime files were written outside the repository.
+Optional native compressors were disabled for deterministic local tests.
+
+Core verification commands (pytest additionally supplied private temporary,
+JUnit, and coverage-output paths inside the isolated environment):
 
 ```bash
-pyright airecon tests --outputjson
-pytest --collect-only -q
-timeout 180 pytest -q tests/tui
-timeout 240 pytest -q tests/proxy
-timeout 60 pytest -q tests/proxy/test_server.py
-timeout 30 pytest -vv tests/tui/test_widgets.py -s
-timeout 120 pytest -q tests/tui/test_app.py
-timeout 120 pytest -q tests/tui/test_path_completer.py
-timeout 180 pytest -q tests/benchmark
+python -m pytest tests/ -q --tb=short -p no:cacheprovider \
+  -p pytest_timeout --timeout=60 --cov=airecon --cov-fail-under=52
+ruff check .
+pyright --outputjson
+bandit -r airecon/ -x '**/tests/**,**/__pycache__/**' --skip B105,B107 -ll
+git diff --check
 ```
 
 Observed results:
 
-- `pyright`: **12 errors** (browser, fuzzer, startup, chat widgets).
-- `pytest --collect-only`: **1376 tests collected**.
-- `tests/benchmark`: **17 passed**.
-- `tests/tui`: **timeout** (hang).
-- `tests/proxy`: **timeout** (hang near completion).
-- Per-file scan in `tests/proxy`: timeout concentrated in `tests/proxy/test_server.py`.
+- Python 3.12.12: **2665 passed, 5 skipped**, in 164.13 seconds. One upstream
+  Starlette deprecation warning concerns its test-client httpx adapter.
+- Python 3.13.15: **2665 passed, 5 skipped**, in 134.93 seconds, without warnings.
+- Both runs have no test failures/errors; coverage is **63.54%**, above the
+  configured 52% threshold. Neither run proves real-model planning quality.
+- All five skips are existing output-merge tests whose feature is not implemented;
+  they are not successful feature checks.
+- Configured production type check: **0 errors and 0 warnings**, 108 files analyzed.
+  This is `pyright` using the project configuration, not a type check of every test.
+- Ruff and whitespace checks: passed.
+- Bandit: no medium/high findings with B105 and B107 excluded; this is not a
+  claim that all security findings or all lower-severity checks are absent.
+- The wheel built in a read-only checkout, installed in a separate clean Python
+  3.12 environment, and passed dependency compatibility checks. Packaged source
+  and required data/container assets matched the candidate. CLI version/help,
+  start help, and proxy help all exited successfully outside the checkout.
+- Three installed-wheel runs exercised a real localhost API, TUI shell rendering,
+  Playwright CDP connection to Chromium, synthetic LLM wire response, and report
+  file round trip. A uniquely named disposable Docker sandbox also preserved
+  partial timeout output, spared a concurrent job, reaped the timed-out job,
+  survived misleading stderr, and recovered after deliberate container removal.
+  The disposable container was confirmed absent afterward.
+- Ten follow-up syntax-valid mutations were killed by named regressions covering
+  SQLite locks/transactions/ownership/publication, browser cancellation/shared
+  startup/reaping, partial startup cleanup, and LLM health status. No fixture or
+  import errors counted as kills. The earlier scope/redirect audit also killed
+  five guards before this follow-up.
+- Gitleaks found no leaks in the tracked diff or the new test files. This is a
+  bounded candidate scan, not a claim about all stored assessment data.
 
-## Current Blockers
+## Reproduced Fixes
 
-1. Type-check regressions (`pyright` not clean):
-- `airecon/proxy/browser.py` optional-member errors.
-- `airecon/proxy/fuzzer.py` optional-member errors.
-- `airecon/tui/startup.py` unused coroutine warning/error path.
-- `airecon/tui/widgets/chat.py` optional-member errors.
+The parent validated accepted review hypotheses with failing regression tests
+before applying fixes. Unit tests isolate external boundaries. Installed-wheel
+acceptance additionally exercises real disposable Docker, Playwright, localhost
+HTTP, and headless TUI components; only the LLM model itself is a protocol fixture.
 
-2. Hanging tests prevent full CI confidence:
-- `tests/proxy/test_server.py` hangs from first status test in current environment.
-- `tests/tui/test_app.py` and `tests/tui/test_widgets.py` time out.
+| Area | Corrected behavior | Regression coverage |
+| --- | --- | --- |
+| Docker recovery | Ordinary stderr cannot reset a running sandbox; failed inspection is unknown, not confirmed loss. | `tests/proxy/test_docker.py` |
+| Scope failures | Execution and `/api/shell` fail closed if the scope guard raises. | `test_network_scope_regressions.py`, `test_server.py` |
+| Host extraction | Path-qualified local files are not hosts; single/triple-slash URLs, scheme-relative hosts, and escaped slashes remain checked. | `test_scope_guard.py` |
+| MCP policy | Scope is checked at the shared transport boundary using raw nested strings and keys, including supported JSON-encoded argument objects. | `test_mcp_scope.py` |
+| Workspace operands | Absolute container paths retain their meaning after `cd` and in symbolic links. | `test_workspace_path_remap.py` |
+| Command timeout | Partial output survives; cleanup targets only the invocation marker, not unrelated process names. | `test_docker_job_cleanup.py` |
+| Parallel cancellation | Only newly added tool blocks are removed in `finally`; pre-existing blocks survive. | `test_parallel_tool_cleanup.py` |
+| HTTP redirects | Each hop is bounded and scope-checked; loops, malformed destinations, HTTPS downgrades, and cross-origin request-body forwarding are rejected. | `test_http_observe_redirects.py` |
+| Browser evaluation | The CAPTCHA DOM coroutine is scheduled and awaited on the browser loop. | `test_browser.py` |
+| Fuzzer evolution | Vulnerability-type metadata reaches the evolution grouping. | `test_fuzzer.py` |
+| Finding verification | Verification uses captured response evidence and the actual status, not the input payload or an invented HTTP 200. | `test_fuzzer_verification_evidence.py` |
+| MCP lifecycle | Stdio servers that ignore EOF are killed and reaped, including cancellation during cleanup. | `test_mcp_process_cleanup.py` |
+| Integration fixture | Filesystem round trips write into the test workspace, not the real checkout workspace. | `tests/test_integration.py` |
+| SQLite ownership/concurrency | Managers own connections, serialize each connection, reserve writes before read/update sequences, and roll back failed batches. Busy writers do not stall readers on another manager. | `test_memory_concurrency.py` |
+| SQLite initialization | Failed schema setup closes its connection; the singleton is published only after successful connection and can retry a failed initialization. | `test_memory_concurrency.py` |
+| Browser startup | Startup has a bounded retry/fallback budget, overlapping callers share one future/deadline, and timeout/cancellation cleans up the driver and Docker exec process. | `test_browser_startup.py` |
+| Server lifespan | Partial startup, serving exceptions, and initialization cancellation still clean up created resources; one cleanup failure does not skip other resources. | `test_server_lifecycle.py` |
+| LLM readiness | Authentication, quota, missing endpoints, malformed model payloads, and HTML proxy fallbacks no longer appear connected. A successful models response is required. | `test_llm_health_contract.py` |
 
-3. End-to-end runtime coverage is still limited:
-- No complete local proof yet for all real integrations together (`Ollama + Docker + Browser + TUI`) in one automated run.
+## Remaining Risks and Untested Boundaries
 
+- The former SQLite and browser-startup risks were reproduced and corrected.
+  Cancellation during Playwright's own driver startup, before it returns a handle,
+  was not separately fault-injected and is not certified by the later-stage mocks.
+- Console-log stringification was not shown to cause measurable lag; no
+  performance fix was applied on that hypothesis alone.
+- Claude's lower-priority long-line retrieval advisory and absolute-host-path
+  file creation concerns were not reproduced or traced through their callers;
+  neither is certified as a fixed defect.
+- Scope parsing is a heuristic, not universal network isolation for arbitrary
+  commands or third-party MCP implementations. Unqualified dotted filenames
+  still receive conservative host treatment.
+- Real Docker recovery/job cleanup and live Playwright/API/TUI/report round trips
+  are now observed. An autonomous workflow using the chosen real model/provider
+  still needs environment-specific acceptance; synthetic protocol replies do not
+  establish model correctness, performance, or production provider availability.
+- Both supported Python versions pass locally. Remote PR checks were green for
+  `5e4b641`, not this uncommitted candidate; they cannot certify the new changes.
 ## Is Ollama Performance Degraded?
 
 Short answer: **it depends on model size and context configuration**, not only AIRecon code.
@@ -227,6 +298,10 @@ partial calls. Restart AIRecon to load this behavior in an existing process.
 
 AIRecon can be labeled "stable" after all are true:
 
-1. `pyright airecon tests` reports **0 errors**.
+1. The configured production-source `pyright` gate reports **0 errors**;
+   test-source type checking is not implied by that configuration.
 2. Full `pytest` suite finishes without hangs/timeouts.
-3. One automated smoke run validates startup + chat + tool call + report flow against real local dependencies.
+3. Installed-package startup + chat/tool/report flows pass with the chosen real
+   provider/model and approved local dependencies, not only synthetic replies.
+4. Exact-candidate remote CI and environment-specific rollout/rollback evidence
+   are recorded before declaring a production release.

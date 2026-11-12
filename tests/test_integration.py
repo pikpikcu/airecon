@@ -94,13 +94,14 @@ class TestSessionPersistenceIntegration:
 class TestFilesystemIntegration:
     """Test filesystem operations with real disk."""
 
-    def test_create_and_read_file_roundtrip(self, tmp_path):
+    def test_create_and_read_file_roundtrip(self, tmp_path, monkeypatch):
         """Verify file creation and reading works end-to-end."""
         from airecon.proxy.filesystem import create_file, read_file
 
         workspace = tmp_path / "workspace" / "example.com"
         workspace.mkdir(parents=True)
         (workspace / "output").mkdir()
+        monkeypatch.setattr("airecon.proxy.filesystem.get_workspace_root", lambda: workspace)
 
         result = create_file("output/test.txt", "Hello, World!\nLine 2\nLine 3")
         assert result.get("success") is True

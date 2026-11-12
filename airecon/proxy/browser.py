@@ -12,6 +12,7 @@ import re
 import struct
 import threading
 import time
+from concurrent.futures import CancelledError as FutureCancelledError, Future
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -292,6 +293,10 @@ class _BrowserState:
     event_loop_thread: threading.Thread | None = None
     playwright: Playwright | None = None
     browser: Browser | None = None
+    initialization: Future[Browser] | None = None
+    initialization_token: object | None = None
+    initialization_deadline: float = 0.0
+    initialization_budget: float = 0.0
 
 
 _state = _BrowserState()
@@ -332,6 +337,7 @@ async def _start_docker_chromium() -> bool:
         "--ignore-certificate-errors "
         ">/dev/null 2>&1 &"
     )
+    proc = None
     try:
         proc = await asyncio.create_subprocess_exec(
             "docker",
@@ -360,24 +366,41 @@ async def _start_docker_chromium() -> bool:
     except Exception as exc:
         logger.debug("Could not start Docker Chromium: %s", exc)
         return False
+    finally:
+        if proc is not None and proc.returncode is None:
+            with contextlib.suppress(ProcessLookupError):
+                proc.kill()
+            await asyncio.shield(proc.wait())
 
 
 async def _create_browser() -> Browser:
     if _state.browser is not None and _state.browser.is_connected():
         return _state.browser
 
-    if _state.browser is not None:
+    previous_browser, previous_playwright = _state.browser, _state.playwright
+    _state.browser = None
+    _state.playwright = None
+    if previous_browser is not None:
         with contextlib.suppress(Exception):
-            await _state.browser.close()
-        _state.browser = None
-    if _state.playwright is not None:
+            await asyncio.wait_for(previous_browser.close(), timeout=2)
+    if previous_playwright is not None:
         with contextlib.suppress(Exception):
-            await _state.playwright.stop()
-        _state.playwright = None
+            await asyncio.wait_for(previous_playwright.stop(), timeout=2)
 
     playwright = await async_playwright().start()
     _state.playwright = playwright
+    try:
+        return await _connect_browser(playwright)
+    except BaseException:
+        if _state.playwright is playwright:
+            _state.browser = None
+            _state.playwright = None
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(playwright.stop(), timeout=2)
+        raise
 
+
+async def _connect_browser(playwright: Playwright) -> Browser:
     _cfg = get_config()
     _CDP_URL = f"http://localhost:{_cfg.browser_cdp_port}"
     _docker_chromium_started = False
@@ -413,6 +436,7 @@ async def _create_browser() -> Browser:
     try:
         _state.browser = await playwright.chromium.launch(
             headless=True,
+            timeout=30_000,
             args=[
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
@@ -421,12 +445,22 @@ async def _create_browser() -> Browser:
         )
         return _state.browser
     except Exception as e2:
-        if _state.playwright:
-            await _state.playwright.stop()
-            _state.playwright = None
         raise RuntimeError(
             f"Failed to launch both Docker and fallback browsers: {e2}"
         ) from e2
+
+
+async def _initialize_browser(budget: float, token: object) -> Browser:
+    try:
+        with _state.lock:
+            if _state.initialization_token is not token:
+                raise asyncio.CancelledError
+        return await asyncio.wait_for(_create_browser(), timeout=budget)
+    finally:
+        with _state.lock:
+            if _state.initialization_token is token:
+                _state.initialization = None
+                _state.initialization_token = None
 
 
 def _get_browser() -> Browser:
@@ -435,15 +469,34 @@ def _get_browser() -> Browser:
         if _state.event_loop is None:
             raise RuntimeError("Event loop not initialized")
 
-        if _state.browser is None or not _state.browser.is_connected():
+        if _state.browser is not None and _state.browser.is_connected():
+            return _state.browser
+        future = _state.initialization
+        if future is None or future.done():
+            cfg = get_config()
+            required = 4 * cfg.browser_connect_timeout_ms / 1000.0 + 51.0
+            budget = min(required, max(1.0, cfg.browser_action_timeout - 5.0))
+            token = object()
+            _state.initialization_token = token
+            _state.initialization_budget = budget
+            _state.initialization_deadline = time.monotonic() + budget + 3.0
             future = asyncio.run_coroutine_threadsafe(
-                _create_browser(), _state.event_loop
+                _initialize_browser(budget, token), _state.event_loop
             )
-            future.result(timeout=30)
+            _state.initialization = future
+        remaining = max(0.001, _state.initialization_deadline - time.monotonic())
+        budget = _state.initialization_budget
+    try:
+        future.result(timeout=remaining)
+    except TimeoutError as exc:
+        future.cancel()
+        raise RuntimeError(f"Browser startup timed out after {budget:g}s") from exc
+    except FutureCancelledError as exc:
+        raise RuntimeError("Browser startup was cancelled") from exc
 
-        if _state.browser is None:
-            raise RuntimeError("Browser failed to initialize")
-        return _state.browser
+    if _state.browser is None:
+        raise RuntimeError("Browser failed to initialize")
+    return _state.browser
 
 
 class BrowserInstance:
@@ -2666,7 +2719,11 @@ class BrowserTabManager:
             solve_result = future.result(timeout=solver.timeout)
 
             if solve_result.get("bypass_js"):
-                dom_result = page.evaluate(solve_result["bypass_js"])
+                dom_future = asyncio.run_coroutine_threadsafe(
+                    page.evaluate(solve_result["bypass_js"]),
+                    loop,
+                )
+                dom_result = dom_future.result(timeout=solver.timeout)
                 solve_result["dom_result"] = dom_result
                 if isinstance(dom_result, dict) and dom_result.get("success"):
                     solve_result["success"] = True

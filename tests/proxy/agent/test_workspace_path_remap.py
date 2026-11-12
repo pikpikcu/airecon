@@ -49,18 +49,26 @@ def test_commands_without_host_paths_are_untouched(host_root):
         assert D._rewrite_host_workspace_paths(cmd) == cmd
 
 
-def test_normalize_collapses_remapped_host_path_to_relative(host_root):
+def test_normalize_preserves_remapped_absolute_host_path(host_root):
     out = D._normalize_workspace_paths(
         f"mkdir -p {host_root}/example.com/recon", "example.com"
     )
     assert "/home/testuser" not in out
-    assert out == "mkdir -p recon"
+    assert out == "mkdir -p /workspace/example.com/recon"
 
 
 def test_normalize_still_handles_plain_container_paths(host_root):
     assert D._normalize_workspace_paths(
         "mkdir -p /workspace/example.com/output", "example.com"
-    ) == "mkdir -p output"
+    ) == "mkdir -p /workspace/example.com/output"
+
+
+@pytest.mark.parametrize("cmd", [
+    "mkdir -p /tmp/fixture; cd /tmp/fixture && cat /workspace/example.com/output/a.txt",
+    "ln -s /workspace/example.com/output/a.txt /tmp/fixture-link",
+])
+def test_normalize_keeps_absolute_operands_after_cd_or_in_symlink(host_root, cmd):
+    assert D._normalize_workspace_paths(cmd, "example.com") == cmd
 
 
 def test_normalize_does_not_break_urls(host_root):
@@ -255,7 +263,7 @@ async def test_active_target_preserves_json_request_body(monkeypatch, tmp_path):
         tmp_path,
         f"curl https://example.invalid --data-raw {body} -o {WS}/output/response.json",
     )
-    assert sent == f"curl https://example.invalid --data-raw {body} -o output/response.json"
+    assert sent == f"curl https://example.invalid --data-raw {body} -o {WS}/output/response.json"
 
 
 async def test_active_target_preserves_url_path(monkeypatch, tmp_path):
@@ -266,7 +274,7 @@ async def test_active_target_preserves_url_path(monkeypatch, tmp_path):
         sent = await _active_target_payload(
             monkeypatch, tmp_path, f"curl -s {url} -o {WS}/output/response.json"
         )
-        assert sent == f"curl -s {url} -o output/response.json"
+        assert sent == f"curl -s {url} -o {WS}/output/response.json"
 
 
 async def test_active_target_preserves_inline_source(monkeypatch, tmp_path):
@@ -274,7 +282,7 @@ async def test_active_target_preserves_inline_source(monkeypatch, tmp_path):
     sent = await _active_target_payload(
         monkeypatch, tmp_path, f"python3 -c {source} > {WS}/output/summary.txt"
     )
-    assert sent == f"python3 -c {source} > output/summary.txt"
+    assert sent == f"python3 -c {source} > {WS}/output/summary.txt"
 
     inline_shell = f"bash -c 'ls {WS}/output | wc -l'"
     assert await _active_target_payload(monkeypatch, tmp_path, inline_shell) == inline_shell
@@ -291,7 +299,7 @@ async def test_active_target_preserves_heredoc_data(monkeypatch, tmp_path):
         tmp_path,
         f"cat > {WS}/tools/probe.py <<'EOF'\n{body}EOF\npython3 {WS}/tools/probe.py",
     )
-    assert sent == f"cat > tools/probe.py <<'EOF'\n{body}EOF\npython3 tools/probe.py"
+    assert sent == f"cat > {WS}/tools/probe.py <<'EOF'\n{body}EOF\npython3 {WS}/tools/probe.py"
 
 
 async def test_active_target_preserves_double_and_bare_target_data(monkeypatch, tmp_path):
@@ -315,17 +323,17 @@ async def test_active_target_preserves_double_and_bare_target_data(monkeypatch, 
 
 async def test_active_target_output_operands_normalize(monkeypatch, tmp_path):
     cases = {
-        f"nmap -sV {TARGET} -oN {WS}/output/nmap.txt": f"nmap -sV {TARGET} -oN output/nmap.txt",
+        f"nmap -sV {TARGET} -oN {WS}/output/nmap.txt": f"nmap -sV {TARGET} -oN {WS}/output/nmap.txt",
         f"subfinder -d {TARGET} -silent --output={WS}/output/subs.txt": (
-            f"subfinder -d {TARGET} -silent --output=output/subs.txt"
+            f"subfinder -d {TARGET} -silent --output={WS}/output/subs.txt"
         ),
         (
             f"httpx -l {TARGET}/output/subs.txt -o {TARGET}/output/live.txt "
             f"2>> {TARGET}/output/err.log | tee {WS}/{TARGET}/output/live.log"
-        ): "httpx -l output/subs.txt -o output/live.txt 2>> output/err.log | tee output/live.log",
-        f"mkdir -p {tmp_path}/{TARGET}/output/shots": "mkdir -p output/shots",
+        ): f"httpx -l output/subs.txt -o output/live.txt 2>> output/err.log | tee {WS}/{TARGET}/output/live.log",
+        f"mkdir -p {tmp_path}/{TARGET}/output/shots": f"mkdir -p {WS}/output/shots",
         f"cat \"{WS}/output/a b.txt\" > './{TARGET}/output/c d.txt'": (
-            "cat \"output/a b.txt\" > 'output/c d.txt'"
+            f"cat \"{WS}/output/a b.txt\" > 'output/c d.txt'"
         ),
         f"cp output/a.txt {WS}/": f"cp output/a.txt {WS}/",
         f"ls -la {WS}": f"ls -la {WS}",

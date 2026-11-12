@@ -3,8 +3,9 @@ import logging
 import os
 import sqlite3
 import threading
+from functools import wraps
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Concatenate
 from urllib.parse import urlparse
 
 logger = logging.getLogger("airecon.memory")
@@ -42,8 +43,7 @@ _DB_JOURNAL_MODE = os.getenv("AIRECON_DB_JOURNAL_MODE", "WAL").upper()
 _DB_SYNCHRONOUS = os.getenv("AIRECON_DB_SYNCHRONOUS", "NORMAL").upper()
 
 
-_MEMORY_CONN: sqlite3.Connection | None = None
-_MEMORY_CONN_LOCK = threading.Lock()
+_MEMORY_CONN_LOCK = threading.RLock()
 
 
 def get_sqlite_timeout_seconds() -> float:
@@ -74,18 +74,7 @@ def configure_sqlite_connection(conn: sqlite3.Connection) -> None:
 
 
 def get_memory_db() -> sqlite3.Connection:
-    global _MEMORY_CONN
-    if _MEMORY_CONN is not None:
-        try:
-            _MEMORY_CONN.execute("SELECT 1")
-            return _MEMORY_CONN
-        except sqlite3.Error:
-            _MEMORY_CONN = None
-
     with _MEMORY_CONN_LOCK:
-        if _MEMORY_CONN is not None:
-            return _MEMORY_CONN
-
         if not MEMORY_DIR.exists():
             MEMORY_DIR.mkdir(parents=True, exist_ok=True)
             logger.info("Created memory directory: %s", MEMORY_DIR)
@@ -98,15 +87,15 @@ def get_memory_db() -> sqlite3.Connection:
             timeout=_DB_TIMEOUT_SECONDS,
         )
         conn.row_factory = sqlite3.Row
-        configure_sqlite_connection(conn)
-
-        if not db_exists:
-            logger.info("Created new memory database: %s", MEMORY_DB)
+        try:
+            configure_sqlite_connection(conn)
+            if not db_exists:
+                logger.info("Created new memory database: %s", MEMORY_DB)
             _init_schema(conn)
-        else:
-            _init_schema(conn)
+        except BaseException:
+            conn.close()
+            raise
 
-        _MEMORY_CONN = conn
         return conn
 
 
@@ -411,19 +400,42 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     logger.info("Memory database initialized at %s", MEMORY_DB)
 
 
+def _serialized[T, **P](
+    method: Callable[Concatenate["MemoryManager", P], T],
+) -> Callable[Concatenate["MemoryManager", P], T]:
+    @wraps(method)
+    def locked(self: "MemoryManager", *args: P.args, **kwargs: P.kwargs) -> T:
+        with self._lock:
+            if self.conn is not None and method.__name__.startswith(
+                ("save_", "record_", "upsert_", "delete_", "bump_")
+            ):
+                with self.conn:
+                    if not self.conn.in_transaction:
+                        self.conn.execute("BEGIN IMMEDIATE")
+                    return method(self, *args, **kwargs)
+            return method(self, *args, **kwargs)
+
+    return locked
+
+
 class MemoryManager:
     def __init__(self):
+        self._lock = threading.RLock()
         self.conn = None
 
+    @_serialized
     def connect(self) -> None:
-        self.conn = get_memory_db()
+        if self.conn is None:
+            self.conn = get_memory_db()
         logger.debug("Memory manager connected")
 
+    @_serialized
     def close(self) -> None:
         if self.conn:
             self.conn.close()
             self.conn = None
 
+    @_serialized
     def save_session(self, session_data: dict[str, Any]) -> None:
         if not self.conn:
             return
@@ -451,6 +463,7 @@ class MemoryManager:
         )
         self.conn.commit()
 
+    @_serialized
     def get_past_sessions(
         self, target: str | None = None, limit: int = 10
     ) -> list[dict]:
@@ -480,6 +493,7 @@ class MemoryManager:
 
         return [dict(row) for row in cursor.fetchall()]
 
+    @_serialized
     def save_finding(self, finding: dict[str, Any]) -> None:
         if not self.conn:
             return
@@ -519,6 +533,7 @@ class MemoryManager:
         )
         self.conn.commit()
 
+    @_serialized
     def get_similar_findings(
         self, target: str, finding_type: str | None = None, limit: int = 20
     ) -> list[dict]:
@@ -560,6 +575,7 @@ class MemoryManager:
 
         return findings
 
+    @_serialized
     def save_pattern(self, pattern: dict[str, Any]) -> None:
         if not self.conn:
             return
@@ -674,6 +690,7 @@ class MemoryManager:
             times_used,
         )
 
+    @_serialized
     def get_patterns(
         self,
         target_tech: str | None = None,
@@ -732,6 +749,7 @@ class MemoryManager:
         )
         return patterns
 
+    @_serialized
     def save_target_intel(self, intel: dict[str, Any]) -> None:
         if not self.conn:
             return
@@ -758,6 +776,7 @@ class MemoryManager:
         )
         self.conn.commit()
 
+    @_serialized
     def get_target_intel(self, target: str) -> dict | None:
         if not self.conn:
             return None
@@ -791,6 +810,7 @@ class MemoryManager:
 
         return intel
 
+    @_serialized
     def save_knowledge(self, knowledge: dict[str, Any]) -> None:
         if not self.conn:
             return
@@ -878,6 +898,7 @@ class MemoryManager:
             )
         self.conn.commit()
 
+    @_serialized
     def get_knowledge(self, category: str | None = None, limit: int = 50) -> list[dict]:
         if not self.conn:
             return []
@@ -915,6 +936,7 @@ class MemoryManager:
 
         return knowledge_entries
 
+    @_serialized
     def upsert_embedding(
         self,
         kind: str,
@@ -942,6 +964,7 @@ class MemoryManager:
         )
         self.conn.commit()
 
+    @_serialized
     def get_embedding(self, kind: str, ref_id: int) -> dict | None:
         if not self.conn:
             return None
@@ -954,6 +977,7 @@ class MemoryManager:
         row = cursor.fetchone()
         return dict(row) if row else None
 
+    @_serialized
     def get_embeddings(
         self, kind: str, model: str | None = None, limit: int = 100000
     ) -> list[dict]:
@@ -974,6 +998,7 @@ class MemoryManager:
             )
         return [dict(r) for r in cursor.fetchall()]
 
+    @_serialized
     def delete_embeddings_for_refs(self, kind: str, ref_ids: list[int]) -> None:
         if not self.conn or not ref_ids:
             return
@@ -985,6 +1010,7 @@ class MemoryManager:
         )
         self.conn.commit()
 
+    @_serialized
     def bump_utility(
         self,
         kind: str,
@@ -1020,6 +1046,7 @@ class MemoryManager:
                 )
         self.conn.commit()
 
+    @_serialized
     def get_utility(self, kind: str) -> dict[int, dict]:
         if not self.conn:
             return {}
@@ -1030,6 +1057,7 @@ class MemoryManager:
         )
         return {int(r["ref_id"]): dict(r) for r in cursor.fetchall()}
 
+    @_serialized
     def get_context_for_small_model(
         self,
         target: str,
@@ -1154,6 +1182,7 @@ class MemoryManager:
 
         return "\n".join(context_parts)
 
+    @_serialized
     def get_similar_targets(self, target: str, limit: int = 5) -> list[dict]:
         if not self.conn:
             return []
@@ -1187,6 +1216,7 @@ class MemoryManager:
         similar.sort(key=lambda x: x.get("similarity_score", 0), reverse=True)
         return similar[:limit]
 
+    @_serialized
     def get_tool_statistics(
         self, tool_name: str | None = None
     ) -> dict[str, Any] | list[dict[str, Any]]:
@@ -1214,6 +1244,7 @@ class MemoryManager:
         """)
         return rollup_tool_usage_rows(cursor.fetchall())[:20]
 
+    @_serialized
     def get_tool_insights(self) -> dict[str, Any]:
         if not self.conn:
             return {}
@@ -1261,6 +1292,7 @@ class MemoryManager:
             "total_tools_tracked": len(stats),
         }
 
+    @_serialized
     def get_model_performance_insights(self) -> dict[str, Any]:
         if not self.conn:
             return {}
@@ -1287,6 +1319,7 @@ class MemoryManager:
             "total_records": len(results),
         }
 
+    @_serialized
     def health_snapshot(self, target: str | None = None) -> dict[str, Any]:
         if not self.conn:
             return {"ok": False, "error": "memory_db_not_connected"}
@@ -1364,6 +1397,7 @@ class MemoryManager:
             or requested.endswith(f".{stored}")
         )
 
+    @_serialized
     def get_skill_recommendations(
         self, target: str, current_phase: str
     ) -> list[dict[str, Any]]:
@@ -1467,6 +1501,7 @@ class MemoryManager:
         )
         return recommendations[:15]
 
+    @_serialized
     def save_skill_usage(
         self,
         skill_name: str,
@@ -1504,6 +1539,7 @@ class MemoryManager:
         )
         self.conn.commit()
 
+    @_serialized
     def record_tool_usage(
         self,
         tool_name: str,
@@ -1562,6 +1598,7 @@ class MemoryManager:
 
         self.conn.commit()
 
+    @_serialized
     def record_model_performance(
         self,
         model_name: str,
@@ -1660,6 +1697,7 @@ class MemoryManager:
 
         self.conn.commit()
 
+    @_serialized
     def save_chain_discovery(self, chain_data: dict[str, Any]) -> None:
         if not self.conn:
             return
@@ -1686,6 +1724,7 @@ class MemoryManager:
         )
         self.conn.commit()
 
+    @_serialized
     def get_learned_chains(self, target: str = "", limit: int = 10) -> list[dict[str, Any]]:
         if not self.conn:
             return []
@@ -1728,6 +1767,7 @@ class MemoryManager:
             })
         return chains
 
+    @_serialized
     def get_model_recommendation(self, task_type: str) -> str:
         def _config_default_model() -> str:
             try:
@@ -1785,6 +1825,7 @@ def get_memory_manager() -> MemoryManager:
     if _memory_manager is None:
         with _memory_manager_lock:
             if _memory_manager is None:
-                _memory_manager = MemoryManager()
-                _memory_manager.connect()
+                manager = MemoryManager()
+                manager.connect()
+                _memory_manager = manager
     return _memory_manager

@@ -117,7 +117,9 @@ class _DispatchExecutorMixin:
                 "Could not load subagent blocklist from tools_meta.json: %s", exc
             )
         tools_to_block = _subagent_block
+        newly_blocked: set[str] = set()
         if hasattr(self, "_blocked_tools"):
+            newly_blocked = tools_to_block - self._blocked_tools
             self._blocked_tools.update(tools_to_block)
             logger.info("Blocked tools during run_parallel_agents: %s", tools_to_block)
 
@@ -332,10 +334,10 @@ class _DispatchExecutorMixin:
                 "progress_log": progress_lines[-20:] if progress_lines else [],
             }
             success = False
-
-        if hasattr(self, "_blocked_tools"):
-            self._blocked_tools.difference_update(tools_to_block)
-            logger.info("Unblocked tools after run_parallel_agents: %s", tools_to_block)
+        finally:
+            if hasattr(self, "_blocked_tools"):
+                self._blocked_tools.difference_update(newly_blocked)
+                logger.info("Unblocked tools after run_parallel_agents: %s", newly_blocked)
 
         duration = time.time() - start_time
 
@@ -386,7 +388,7 @@ class _DispatchExecutorMixin:
 
         cmd = _DispatchExecutorMixin._rewrite_host_workspace_paths(cmd)
 
-        prefixes = (f"/workspace/{target}", f"./{target}", target)
+        prefixes = (f"./{target}", target)
         while target in cmd:
             cuts = sorted(
                 {
@@ -612,7 +614,16 @@ class _DispatchExecutorMixin:
                 if not _in_scope:
                     logger.warning("Scope advisory (execute): %s", _scope_reason)
             except Exception as _scope_err:
-                logger.debug("scope guard check skipped: %s", _scope_err)
+                logger.error("scope guard failed closed for execute: %s", _scope_err)
+                return (
+                    False,
+                    0.0,
+                    {
+                        "success": False,
+                        "error": "Scope guard failed; command was not run.",
+                    },
+                    None,
+                )
 
             _cmd_stripped = cmd.strip().lower()
             _is_caido_setup = "caido-setup" in _cmd_stripped

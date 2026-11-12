@@ -422,3 +422,41 @@ async def test_spawn_failure_returns_error_never_host_shell(mocker, host_root):
 
     assert result["success"] is False
     assert sink and all(a[0] == "docker" for a in sink), "only docker argv attempts"
+
+
+@pytest.mark.asyncio
+async def test_tool_stderr_does_not_recover_a_running_container(docker_engine, mocker):
+    docker_engine._container_name = "airecon-sandbox-active"
+    mocker.patch("shutil.which", return_value="/usr/bin/docker")
+    proc = AsyncMock()
+    proc.returncode = 0
+    proc.communicate = AsyncMock(return_value=(b"true\n", b""))
+    mocker.patch("asyncio.create_subprocess_exec", return_value=proc)
+    assert await docker_engine._should_recover_container("curl: (56) connection reset by peer") is False
+
+
+@pytest.mark.asyncio
+async def test_stopped_container_still_recovers_on_docker_eof(docker_engine, mocker):
+    docker_engine._container_name = "airecon-sandbox-active"
+    mocker.patch("shutil.which", return_value="/usr/bin/docker")
+    proc = AsyncMock()
+    proc.returncode = 0
+    proc.communicate = AsyncMock(return_value=(b"false\n", b""))
+    mocker.patch("asyncio.create_subprocess_exec", return_value=proc)
+    assert await docker_engine._should_recover_container("unexpected EOF") is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status,stdout,stderr,expected", [
+    (1, b"", b"cannot connect to the Docker daemon", False),
+    (0, b"unrecognized", b"", False),
+    (1, b"", b"Error: No such object: airecon-sandbox-active", True),
+])
+async def test_recovery_requires_confirmed_container_loss(docker_engine, mocker, status, stdout, stderr, expected):
+    docker_engine._container_name = "airecon-sandbox-active"
+    mocker.patch("shutil.which", return_value="/usr/bin/docker")
+    proc = AsyncMock()
+    proc.returncode = status
+    proc.communicate = AsyncMock(return_value=(stdout, stderr))
+    mocker.patch("asyncio.create_subprocess_exec", return_value=proc)
+    assert await docker_engine._should_recover_container("broken pipe") is expected

@@ -561,67 +561,85 @@ async def lifespan(app: FastAPI):
     )
     logger.info(f"  Docker image: {cfg.docker_image}")
 
-    startup_failed = False
+    created_llm = None
+    created_engine = None
+    created_agent = None
+    llm_client = None
+    engine = None
+    agent = None
 
     try:
-        llm_client = create_llm_client()
-        await llm_client._async_init()
-        engine = DockerEngine()
-        agent = AgentLoop(llm=llm_client, engine=engine)
-
-        llm_ok = await llm_client.health_check()
-        logger.info(
-            f"  LLM status: {'✓ connected' if llm_ok else '✗ unavailable'}"
-        )
-
-        if cfg.docker_auto_build:
-            image_ok = await engine.ensure_image()
-            logger.info(f"  Docker image: {'✓ ready' if image_ok else '✗ failed'}")
-
-        container_ok = await engine.start_container()
-        logger.info(f"  Container: {'✓ running' if container_ok else '✗ failed'}")
-
         try:
-            await agent.initialize()
-            try:
-                _mcp_prewarm_task = asyncio.create_task(
-                    _prewarm_mcp_servers(wait_timeout=20.0),
-                    name="mcp-prewarm",
-                )
-            except Exception as _mcp_err:
-                logger.warning("MCP prewarm scheduling failed: %s", _mcp_err)
-        except Exception as e:
-            logger.error(
-                f"Agent initialization failed: {e}. Marking agent unavailable."
+            llm_client = created_llm = create_llm_client()
+            await llm_client._async_init()
+            engine = created_engine = DockerEngine()
+            agent = created_agent = AgentLoop(llm=llm_client, engine=engine)
+
+            llm_ok = await llm_client.health_check()
+            logger.info(
+                f"  LLM status: {'✓ connected' if llm_ok else '✗ unavailable'}"
             )
+
+            if cfg.docker_auto_build:
+                image_ok = await engine.ensure_image()
+                logger.info(f"  Docker image: {'✓ ready' if image_ok else '✗ failed'}")
+
+            container_ok = await engine.start_container()
+            logger.info(f"  Container: {'✓ running' if container_ok else '✗ failed'}")
+
+            try:
+                await agent.initialize()
+                try:
+                    _mcp_prewarm_task = asyncio.create_task(
+                        _prewarm_mcp_servers(wait_timeout=20.0),
+                        name="mcp-prewarm",
+                    )
+                except Exception as _mcp_err:
+                    logger.warning("MCP prewarm scheduling failed: %s", _mcp_err)
+            except Exception as e:
+                logger.error(
+                    f"Agent initialization failed: {e}. Marking agent unavailable."
+                )
+                agent = None
+        except Exception as e:
+            logger.exception("Startup failed: %s", e)
+            llm_client = None
+            engine = None
             agent = None
 
-    except Exception as e:
-        logger.exception("Startup failed: %s", e)
-        startup_failed = True
+        yield
+    finally:
+        if _mcp_prewarm_task is not None:
+            if not _mcp_prewarm_task.done():
+                _mcp_prewarm_task.cancel()
+            try:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await _mcp_prewarm_task
+            except Exception as exc:
+                logger.error("MCP prewarm shutdown failed: %s", exc)
+            _mcp_prewarm_task = None
 
-    yield
-
-    if startup_failed:
-        logger.info("Skipping shutdown cleanup (startup failed)")
-    else:
-        if agent:
+        if created_agent is not None:
             try:
                 logger.info("Saving session before shutdown...")
-                await agent.stop()
+                await created_agent.stop()
                 logger.info("Session saved successfully")
             except Exception as e:
                 logger.error(f"Failed to save session during shutdown: {e}")
 
-        if _mcp_prewarm_task and not _mcp_prewarm_task.done():
-            _mcp_prewarm_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await _mcp_prewarm_task
-
-        if llm_client:
-            await llm_client.close()
-        if engine:
-            await engine.close()
+        if created_llm is not None:
+            try:
+                await created_llm.close()
+            except Exception as exc:
+                logger.error("LLM client shutdown failed: %s", exc)
+        if created_engine is not None:
+            try:
+                await created_engine.close()
+            except Exception as exc:
+                logger.error("Docker engine shutdown failed: %s", exc)
+        llm_client = None
+        engine = None
+        agent = None
         logger.info("AIRecon Proxy shutdown complete")
 
 
@@ -804,6 +822,9 @@ async def get_status() -> ORJSONResponse:
             if llm_ok:
                 _llm_last_ok_at = current_time
                 _llm_last_known_ok = True
+            else:
+                _llm_last_ok_at = 0.0
+                _llm_last_known_ok = False
         except asyncio.TimeoutError:
             llm_probe_soft_fail = True
             logger.debug(
@@ -1343,7 +1364,15 @@ async def shell_execute(request: ShellRequest) -> ORJSONResponse:
                 status_code=400,
             )
     except Exception as _scope_err:
-        logger.debug("scope guard skipped for /shell: %s", _scope_err)
+        logger.error("scope guard failed closed for /shell: %s", _scope_err)
+        return ORJSONResponse(
+            {
+                "success": False,
+                "blocked": True,
+                "error": "Scope guard failed; command was not run.",
+            },
+            status_code=500,
+        )
 
     args: dict[str, Any] = {"command": command}
     if request.timeout is not None:

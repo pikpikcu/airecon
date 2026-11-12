@@ -904,12 +904,20 @@ Send a raw HTTP request and receive full response for baseline establishment.
     "body": "string — Request body",
     "save_as": "string — Name to store as baseline",
     "compare_to": "string — Baseline to diff against",
-    "follow_redirects": "boolean — Follow redirects",
+    "follow_redirects": "boolean — Follow up to 5 redirects with a scope check before each request (default false)",
     "timeout": "integer — Request timeout"
   },
   "required": ["url"]
 }
 ```
+
+Redirects are followed manually; curl never follows them implicitly. Only HTTP(S)
+destinations are accepted, loops are rejected, and `save_as`/`compare_to` use the
+final response. Headers supplied for the original request are dropped when the
+origin changes, and HTTPS-to-HTTP downgrades are refused. A body-preserving
+redirect to another origin is refused rather
+than forwarding potentially private request data. POST redirects with status 301
+or 302, and non-HEAD redirects with status 303, switch to GET without a body.
 
 ---
 

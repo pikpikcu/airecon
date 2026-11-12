@@ -26,6 +26,9 @@ def extract_hosts(text: str) -> list[str]:
     for m in _URL_HOST_RE.finditer(text):
         hosts.add(m.group(1).split(":", 1)[0].lower())
     for m in _BARE_HOST_RE.finditer(text):
+        prefix = text[:m.start()]
+        if prefix.endswith("/") and not re.search(r"[:/\\]/+$", prefix):
+            continue
         hosts.add(m.group(1).split(":", 1)[0].lower())
     return sorted(hosts)
 
@@ -73,6 +76,32 @@ class ScopeGuard:
         if not self.enabled:
             return True, "", ""
 
+        if tool_name.startswith("mcp_") and arguments.get("action") == "call_tool":
+            raw = arguments.get("arguments", {})
+            if isinstance(raw, str):
+                try:
+                    raw = json.loads(raw)
+                except ValueError:
+                    return False, "MCP arguments must be a JSON object", ""
+            if not isinstance(raw, dict):
+                return False, "MCP arguments must be a JSON object", ""
+            pending = [raw]
+            seen: set[int] = set()
+            while pending:
+                value = pending.pop()
+                if isinstance(value, str):
+                    checked = self.check_command(value)
+                    if not checked[0]:
+                        return checked
+                elif isinstance(value, (dict, list, tuple)) and id(value) not in seen:
+                    seen.add(id(value))
+                    if isinstance(value, dict):
+                        pending.extend(value.keys())
+                        pending.extend(value.values())
+                    else:
+                        pending.extend(value)
+            return True, "", ""
+
         fields = {
             "schemathesis_fuzz": ("schema_url", "base_url"),
             "http_observe": ("url",),
@@ -118,8 +147,12 @@ def get_scope_guard() -> ScopeGuard:
 
 
 def check_network_tool_scope(tool_name: str, arguments: dict[str, Any]) -> str | None:
-    guard = get_scope_guard()
-    ok, reason, host = guard.check_tool(tool_name, arguments)
+    try:
+        guard = get_scope_guard()
+        ok, reason, host = guard.check_tool(tool_name, arguments)
+    except Exception as exc:
+        logger.error("scope guard failed closed for %s: %s", tool_name, exc)
+        return "Scope guard failed; tool was not run."
     if not ok:
         audit_log({"type": tool_name, "host": host, "in_scope": False,
                    "reason": reason, "mode": guard.mode})

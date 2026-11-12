@@ -8,10 +8,11 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urljoin, urlparse
 
 from .models import ToolExecution
 from ..config import get_workspace_root
+from ..scope import check_network_tool_scope
 
 logger = logging.getLogger("airecon.agent")
 
@@ -276,6 +277,92 @@ class _ObserveExecutorMixin:
         tool_name: str,
         arguments: dict[str, Any],
     ) -> tuple[bool, float, dict[str, Any], str | None]:
+        follow = arguments.get("follow_redirects", False)
+        if str(follow).lower() != "true":
+            return await self._execute_http_observe_once(tool_name, arguments)
+
+        started = time.time()
+        hop_args = {**arguments, "follow_redirects": False}
+        raw_headers = hop_args.get("headers")
+        hop_args["headers"] = dict(raw_headers) if isinstance(raw_headers, dict) else {}
+        hop_args.pop("save_as", None)
+        hop_args.pop("compare_to", None)
+        visited: set[str] = set()
+        chain: list[dict[str, Any]] = []
+        result: dict[str, Any] = {}
+        for _ in range(6):
+            url = self._str_arg(hop_args, "url")
+            try:
+                parsed = urlparse(url)
+                if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+                    raise ValueError("HTTP redirects require an HTTP(S) URL with a host")
+                origin = (parsed.scheme.lower(), parsed.hostname.lower(), parsed.port or (443 if parsed.scheme.lower() == "https" else 80))
+                normalized = parsed._replace(fragment="").geturl()
+            except ValueError as exc:
+                return False, time.time() - started, {"success": False, "error": str(exc), "redirect_chain": chain}, None
+            if normalized in visited:
+                return False, time.time() - started, {"success": False, "error": "HTTP redirect loop detected", "redirect_chain": chain}, None
+            visited.add(normalized)
+            scope_error = check_network_tool_scope("http_observe", {"url": url})
+            if scope_error:
+                return False, time.time() - started, {"success": False, "error": scope_error, "redirect_chain": chain}, None
+
+            ok, _, result, _ = await self._execute_http_observe_once(tool_name, dict(hop_args))
+            status = result.get("status_code")
+            location = result.get("headers", {}).get("location")
+            chain.append({"url": url, "status_code": status})
+            if not ok:
+                result["redirect_chain"] = chain
+                return False, time.time() - started, result, None
+            if status not in {301, 302, 303, 307, 308} or not location:
+                break
+
+            method = (self._str_arg(hop_args, "method") or "GET").upper()
+            if (status == 303 and method != "HEAD") or (status in {301, 302} and method == "POST"):
+                hop_args["method"] = "GET"
+                hop_args.pop("body", None)
+                hop_args["headers"] = {
+                    key: value for key, value in (hop_args.get("headers") or {}).items()
+                    if str(key).lower() not in {"content-length", "content-type", "transfer-encoding"}
+                }
+            try:
+                next_url = urljoin(url, str(location))
+                destination = urlparse(next_url)
+                next_origin = (destination.scheme.lower(), (destination.hostname or "").lower(), destination.port or (443 if destination.scheme.lower() == "https" else 80))
+            except ValueError as exc:
+                return False, time.time() - started, {"success": False, "error": str(exc), "redirect_chain": chain}, None
+            if origin[0] == "https" and next_origin[0] == "http":
+                return False, time.time() - started, {"success": False, "error": "Refusing HTTPS downgrade redirect", "redirect_chain": chain}, None
+            if next_origin != origin:
+                if self._str_arg(hop_args, "body"):
+                    return False, time.time() - started, {"success": False, "error": "Refusing to forward a request body across origins", "redirect_chain": chain}, None
+                hop_args["headers"] = {}
+            hop_args["url"] = next_url
+        else:
+            return False, time.time() - started, {"success": False, "error": "HTTP redirect limit exceeded (5 hops)", "redirect_chain": chain}, None
+
+        result["redirect_chain"] = chain
+        save_as = self._str_arg(arguments, "save_as")
+        if save_as:
+            self.state.http_baselines[save_as] = {
+                key: result[key] for key in ("status_code", "status_line", "headers", "body", "body_size_bytes")
+            }
+            result["saved_as"] = save_as
+        compare_to = self._str_arg(arguments, "compare_to")
+        if compare_to:
+            baseline = self.state.http_baselines.get(compare_to)
+            if baseline is None:
+                result["diff_error"] = f"No baseline named '{compare_to}' found. Use save_as first."
+            else:
+                result["diff"] = self._diff_http_responses(baseline, result)
+                result["compared_to"] = compare_to
+        return True, time.time() - started, result, None
+
+    async def _execute_http_observe_once(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any],
+    ) -> tuple[bool, float, dict[str, Any], str | None]:
         self._last_output_file = None
         start_time = time.time()
 
@@ -300,12 +387,6 @@ class _ObserveExecutorMixin:
         save_as = self._str_arg(arguments, "save_as")
         compare_to = self._str_arg(arguments, "compare_to")
 
-        _follow_raw = arguments.get("follow_redirects", False)
-        follow_redirects = (
-            _follow_raw
-            if isinstance(_follow_raw, bool)
-            else str(_follow_raw).lower() == "true"
-        )
 
         _timeout_raw = arguments.get("timeout")
         if _timeout_raw is None:
@@ -330,8 +411,7 @@ class _ObserveExecutorMixin:
             "-X",
             method,
         ]
-        if not follow_redirects:
-            cmd_parts.append("--no-location")
+        cmd_parts.append("--no-location")
 
         _existing_cookie_hdr = any(str(k).lower() == "cookie" for k in headers)
         _host_key = _registrable_host(url)

@@ -745,7 +745,7 @@ class DockerEngine:
     def _is_container_gone(self, stderr: str) -> bool:
         lower = stderr.lower()
         for marker in self._CONTAINER_GONE_MARKERS:
-            if marker in lower:
+            if marker.lower() in lower:
                 logger.warning(
                     "Container-gone marker detected: %r | stderr snippet: %s",
                     marker,
@@ -753,6 +753,42 @@ class DockerEngine:
                 )
                 return True
         return False
+
+    async def _container_is_running(self) -> bool | None:
+        if not self._container_name or not shutil.which("docker"):
+            return None
+        proc = None
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "docker",
+                "inspect",
+                "-f",
+                "{{.State.Running}}",
+                self._container_name,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
+            state = stdout.decode(errors="replace").strip().lower()
+            if proc.returncode == 0 and state in {"true", "false"}:
+                return state == "true"
+            error = stderr.decode(errors="replace").lower()
+            if "no such object" in error or "no such container" in error:
+                return False
+            return None
+        except Exception as exc:
+            logger.debug("container running check failed: %s", exc)
+            return None
+        finally:
+            if proc is not None and proc.returncode is None:
+                with contextlib.suppress(ProcessLookupError):
+                    proc.kill()
+                await proc.wait()
+
+    async def _should_recover_container(self, stderr: str) -> bool:
+        if not self._is_container_gone(stderr):
+            return False
+        return await self._container_is_running() is False
 
     async def _log_container_postmortem(self) -> None:
         if not self._container_name:
@@ -990,7 +1026,7 @@ class DockerEngine:
             stdout_str = "".join(stdout_chunks)
             stderr_str = "".join(stderr_chunks)
 
-            if self._is_container_gone(stderr_str):
+            if await self._should_recover_container(stderr_str):
                 if _retry:
                     if not self._postmortem_fired:
                         self._postmortem_fired = True
@@ -1105,6 +1141,8 @@ class DockerEngine:
             }
 
         except asyncio.TimeoutError:
+            stdout_str = "".join(stdout_chunks)
+            stderr_str = "".join(stderr_chunks)
             try:
                 if proc is not None and proc.returncode is None:
                     logger.warning(
@@ -1121,12 +1159,11 @@ class DockerEngine:
 
             try:
                 kill_cmd = (
-                    f"for pid in $(grep -rlZ '{_job_env}' /proc/*/environ 2>/dev/null "
+                    f"for pid in $(grep -l '{_job_env}' /proc/[0-9]*/environ 2>/dev/null "
                     f"| sed 's|/proc/||;s|/environ||'); do "
                     f'  kill -KILL -- -"$pid" 2>/dev/null; '
                     f'  kill -KILL "$pid" 2>/dev/null; '
-                    f"done; "
-                    "pkill -KILL -f 'wpscan|nuclei|nmap|masscan|gobuster|dirsearch|ffuf' 2>/dev/null || true"
+                    f"done; true"
                 )
                 kill_proc = await asyncio.create_subprocess_exec(
                     "docker",

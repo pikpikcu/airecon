@@ -278,7 +278,7 @@ def test_delete_embeddings_for_refs_removes_only_requested_rows():
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     _init_schema(conn)
-    manager = MemoryManager.__new__(MemoryManager)
+    manager = MemoryManager()
     manager.conn = conn
     for kind, ref in (("insight", 1), ("insight", 2), ("insight", 3), ("knowledge", 1)):
         manager.upsert_embedding(kind, ref, "fixture", b"\x00" * 8, 2)
