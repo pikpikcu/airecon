@@ -919,9 +919,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#82-python_session" class="md-nav__link">
+  <a href="#82-python_session-disabled" class="md-nav__link">
     <span class="md-ellipsis">
-      8.2 python_session
+      8.2 python_session (disabled)
     </span>
   </a>
   
@@ -1464,9 +1464,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#82-python_session" class="md-nav__link">
+  <a href="#82-python_session-disabled" class="md-nav__link">
     <span class="md-ellipsis">
-      8.2 python_session
+      8.2 python_session (disabled)
     </span>
   </a>
   
@@ -1579,7 +1579,7 @@
 <li><a href="#7-docker-sandbox-tools">Docker Sandbox Tools</a></li>
 <li><a href="#8-utility--knowledge-tools">Utility &amp; Knowledge Tools</a></li>
 <li><a href="#81-think">think</a></li>
-<li><a href="#82-python_session">python_session</a></li>
+<li><a href="#82-python_session-disabled">python_session (disabled — not available)</a></li>
 <li><a href="#83-edit_file">edit_file</a></li>
 <li><a href="#84-load_skill">load_skill</a></li>
 <li><a href="#85-notes-tools">create_note / list_notes / search_notes / read_note / export_notes_wiki</a></li>
@@ -2221,16 +2221,18 @@ For large files, use <code>offset</code> and <code>limit</code> to read in chunk
 </span></code></pre></div>
 <hr />
 <h3 id="35-schemathesis_fuzz">3.5 <code>schemathesis_fuzz</code><a class="headerlink" href="#35-schemathesis_fuzz" title="Permanent link">&para;</a></h3>
-<p><strong>Source:</strong> <code>airecon/proxy/validators.py</code></p>
-<p>API schema-aware fuzzing using Schemathesis against OpenAPI/Swagger specifications.</p>
+<p><strong>Source:</strong> <code>airecon/proxy/agent/executors_observe.py</code></p>
+<p>API schema-aware fuzzing using Schemathesis against OpenAPI/Swagger specifications.
+Requires Schemathesis 4.26 or later in the 4.x series inside the sandbox.
+New sandbox builds install this version range; older images may need an update.</p>
 <p><strong>Schema:</strong></p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="p">{</span>
 </span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"schemathesis_fuzz"</span><span class="p">,</span>
 </span><span id="__span-24-3"><a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="w">  </span><span class="nt">"parameters"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-24-4"><a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="w">    </span><span class="nt">"schema_url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string — URL to OpenAPI/Swagger spec"</span><span class="p">,</span>
 </span><span id="__span-24-5"><a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="w">    </span><span class="nt">"base_url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string — Base URL for API (if different from spec)"</span><span class="p">,</span>
-</span><span id="__span-24-6"><a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a><span class="w">    </span><span class="nt">"auth"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string — Authentication header (e.g., 'Bearer token')"</span><span class="p">,</span>
-</span><span id="__span-24-7"><a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a><span class="w">    </span><span class="nt">"headers"</span><span class="p">:</span><span class="w"> </span><span class="s2">"object — Additional headers"</span><span class="p">,</span>
+</span><span id="__span-24-6"><a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a><span class="w">    </span><span class="nt">"auth_header"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string — Authorization header value (e.g., 'Bearer token')"</span><span class="p">,</span>
+</span><span id="__span-24-7"><a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a><span class="w">    </span><span class="nt">"max_examples"</span><span class="p">:</span><span class="w"> </span><span class="s2">"integer — Maximum generated examples per operation (default 30)"</span><span class="p">,</span>
 </span><span id="__span-24-8"><a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a><span class="w">    </span><span class="nt">"checks"</span><span class="p">:</span><span class="w"> </span><span class="s2">"array — Schemathesis checks to run"</span>
 </span><span id="__span-24-9"><a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a><span class="w">  </span><span class="p">},</span>
 </span><span id="__span-24-10"><a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a><span class="w">  </span><span class="nt">"required"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"schema_url"</span><span class="p">]</span>
@@ -2242,6 +2244,18 @@ For large files, use <code>offset</code> and <code>limit</code> to read in chunk
 - Missing authentication
 - Authorization bypass
 - Content-type confusion</p>
+<p>Results are parsed from a JSON report, not console text. <code>passed</code> counts test
+cases without failures or unchecked cases; <code>violations</code> is the number of unique
+failures, while <code>failures</code> contains grouped failure details. Full text and JSON
+artifacts are saved under the target's <code>output/</code> directory with unique run names.
+A completed scan can return <code>success: true</code> with violations and scanner exit
+code 1. Missing/invalid reports, schema-loading failures, incomplete scans, and
+runtime errors return <code>success: false</code>, not a clean scan.</p>
+<p>Configured scope allow/deny rules are checked on declared network destinations
+before native scan, HTTP, Caido send, and agent-spawn dispatch, as well as browser
+URLs. This is application-level validation, not a network firewall: it does not
+provide egress containment for arbitrary scripts, MCP tools, redirects, or
+destinations embedded inside a supplied API schema.</p>
 <hr />
 <h3 id="36-code_analysis">3.6 <code>code_analysis</code><a class="headerlink" href="#36-code_analysis" title="Permanent link">&para;</a></h3>
 <p><strong>Source:</strong> <code>airecon/proxy/semgrep.py</code></p>
@@ -2354,12 +2368,19 @@ For large files, use <code>offset</code> and <code>limit</code> to read in chunk
 </span><span id="__span-31-7"><a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="w">    </span><span class="nt">"body"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string — Request body"</span><span class="p">,</span>
 </span><span id="__span-31-8"><a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a><span class="w">    </span><span class="nt">"save_as"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string — Name to store as baseline"</span><span class="p">,</span>
 </span><span id="__span-31-9"><a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="w">    </span><span class="nt">"compare_to"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string — Baseline to diff against"</span><span class="p">,</span>
-</span><span id="__span-31-10"><a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a><span class="w">    </span><span class="nt">"follow_redirects"</span><span class="p">:</span><span class="w"> </span><span class="s2">"boolean — Follow redirects"</span><span class="p">,</span>
+</span><span id="__span-31-10"><a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a><span class="w">    </span><span class="nt">"follow_redirects"</span><span class="p">:</span><span class="w"> </span><span class="s2">"boolean — Follow up to 5 redirects with a scope check before each request (default false)"</span><span class="p">,</span>
 </span><span id="__span-31-11"><a id="__codelineno-31-11" name="__codelineno-31-11" href="#__codelineno-31-11"></a><span class="w">    </span><span class="nt">"timeout"</span><span class="p">:</span><span class="w"> </span><span class="s2">"integer — Request timeout"</span>
 </span><span id="__span-31-12"><a id="__codelineno-31-12" name="__codelineno-31-12" href="#__codelineno-31-12"></a><span class="w">  </span><span class="p">},</span>
 </span><span id="__span-31-13"><a id="__codelineno-31-13" name="__codelineno-31-13" href="#__codelineno-31-13"></a><span class="w">  </span><span class="nt">"required"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"url"</span><span class="p">]</span>
 </span><span id="__span-31-14"><a id="__codelineno-31-14" name="__codelineno-31-14" href="#__codelineno-31-14"></a><span class="p">}</span>
 </span></code></pre></div>
+<p>Redirects are followed manually; curl never follows them implicitly. Only HTTP(S)
+destinations are accepted, loops are rejected, and <code>save_as</code>/<code>compare_to</code> use the
+final response. Headers supplied for the original request are dropped when the
+origin changes, and HTTPS-to-HTTP downgrades are refused. A body-preserving
+redirect to another origin is refused rather
+than forwarding potentially private request data. POST redirects with status 301
+or 302, and non-HEAD redirects with status 303, switch to GET without a body.</p>
 <hr />
 <h3 id="62-record_hypothesis">6.2 <code>record_hypothesis</code><a class="headerlink" href="#62-record_hypothesis" title="Permanent link">&para;</a></h3>
 <p>Record or update a security hypothesis.</p>
@@ -2464,19 +2485,18 @@ For large files, use <code>offset</code> and <code>limit</code> to read in chunk
 </span></code></pre></div>
 <p>Use before acting on ambiguous situations, when evaluating conflicting signals, or when planning a multi-step attack chain.</p>
 <hr />
-<h3 id="82-python_session">8.2 <code>python_session</code><a class="headerlink" href="#82-python_session" title="Permanent link">&para;</a></h3>
-<p>Persistent Python interpreter. State is maintained across calls within the same <code>session_id</code>. Pre-imports: <code>os</code>, <code>json</code>, <code>re</code>, <code>base64</code>, <code>urllib.parse</code>, <code>requests</code> (if available).</p>
-<p><strong>Schema:</strong></p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-34-1"><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="p">{</span>
-</span><span id="__span-34-2"><a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"python_session"</span><span class="p">,</span>
-</span><span id="__span-34-3"><a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="w">  </span><span class="nt">"parameters"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-34-4"><a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="w">    </span><span class="nt">"code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string — Python code to execute"</span><span class="p">,</span>
-</span><span id="__span-34-5"><a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a><span class="w">    </span><span class="nt">"session_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string — Session namespace (default: 'default')"</span>
-</span><span id="__span-34-6"><a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a><span class="w">  </span><span class="p">},</span>
-</span><span id="__span-34-7"><a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a><span class="w">  </span><span class="nt">"required"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"code"</span><span class="p">]</span>
-</span><span id="__span-34-8"><a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a><span class="p">}</span>
+<h3 id="82-python_session-disabled">8.2 <code>python_session</code> (disabled)<a class="headerlink" href="#82-python_session-disabled" title="Permanent link">&para;</a></h3>
+<p><code>python_session</code> is <strong>disabled for host safety</strong> and is <strong>not advertised</strong> to the model: it is absent from the tool catalog (<code>tools.json</code>) and from <code>tools_meta.json</code>. The former implementation ran model-generated Python in the proxy process on the host instead of inside the sandbox, so it was removed.</p>
+<ul>
+<li>Any attempted or persisted <code>python_session</code> call is rejected with a structured <code>{"success": false, "error": ...}</code> result before any code runs.</li>
+<li>There is <strong>no persistent Python REPL</strong>: interpreter state does not carry over between calls.</li>
+<li>There is <strong>no configuration switch</strong> or environment variable that re-enables it.</li>
+</ul>
+<p><strong>Use <code>execute</code> instead.</strong> Python runs inside the Docker sandbox, and anything that must survive between calls is kept in workspace files:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-34-1"><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="n">execute</span><span class="p">(</span><span class="n">command</span><span class="o">=</span><span class="s2">"python3 /workspace/example.com/tools/decode_tokens.py"</span><span class="p">)</span>
+</span><span id="__span-34-2"><a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="n">execute</span><span class="p">(</span><span class="n">command</span><span class="o">=</span><span class="s2">"python3 - &lt;&lt;'PY'</span><span class="se">\n</span><span class="s2">import base64</span><span class="se">\n</span><span class="s2">print(base64.b64decode('aGVsbG8=').decode())</span><span class="se">\n</span><span class="s2">PY"</span><span class="p">)</span>
 </span></code></pre></div>
-<p>Use cases: complex payload encoding/decoding, statistical analysis of tool output, hash computation, automated pattern matching across large result sets, generating wordlists programmatically.</p>
+<p>See <a href="../stability/">stability.md</a> ("Python execution: no host REPL") for the rationale.</p>
 <hr />
 <h3 id="83-edit_file">8.3 <code>edit_file</code><a class="headerlink" href="#83-edit_file" title="Permanent link">&para;</a></h3>
 <p>Atomic in-place string replacement in workspace files. Specify the exact old string to replace and the new string. Fails if <code>old_str</code> is not found — prevents silent overwrites.</p>
@@ -2694,8 +2714,8 @@ For large files, use <code>offset</code> and <code>limit</code> to read in chunk
 </tr>
 <tr>
 <td><code>python_session</code></td>
-<td>Utility</td>
-<td><code>executors_utils.py</code></td>
+<td>Disabled (host safety) — not advertised; use <code>execute</code></td>
+<td><code>executors_utils.py</code> (rejects every call)</td>
 </tr>
 <tr>
 <td><code>edit_file</code></td>
@@ -2739,7 +2759,7 @@ For large files, use <code>offset</code> and <code>limit</code> to read in chunk
 </tr>
 </tbody>
 </table>
-<p><strong>Total: 35 agent tools + 60+ Docker sandbox CLI tools</strong></p>
+<p><strong>Total: 34 agent tools + 60+ Docker sandbox CLI tools</strong> (the disabled <code>python_session</code> row is not counted)</p>
 
 
 

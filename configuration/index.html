@@ -771,6 +771,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#cross-session-semantic-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      Cross-session semantic memory
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1666,6 +1675,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#cross-session-semantic-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      Cross-session semantic memory
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2250,43 +2268,82 @@
 </span><span id="__span-1-52"><a id="__codelineno-1-52" name="__codelineno-1-52" href="#__codelineno-1-52"></a><span class="c1"># support at runtime (HTTP 400 unsupported -&gt; stripped &amp; remembered; no model-name list).</span>
 </span><span id="__span-1-53"><a id="__codelineno-1-53" name="__codelineno-1-53" href="#__codelineno-1-53"></a><span class="c1"># off | reasoning_effort | enable_thinking (vLLM/SGLang chat-template flag) to force.</span>
 </span><span id="__span-1-54"><a id="__codelineno-1-54" name="__codelineno-1-54" href="#__codelineno-1-54"></a><span class="nt">llm_thinking_request_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">auto</span>
-</span><span id="__span-1-55"><a id="__codelineno-1-55" name="__codelineno-1-55" href="#__codelineno-1-55"></a>
-</span><span id="__span-1-56"><a id="__codelineno-1-56" name="__codelineno-1-56" href="#__codelineno-1-56"></a><span class="c1"># ======================================</span>
-</span><span id="__span-1-57"><a id="__codelineno-1-57" name="__codelineno-1-57" href="#__codelineno-1-57"></a><span class="c1"># Proxy Server</span>
-</span><span id="__span-1-58"><a id="__codelineno-1-58" name="__codelineno-1-58" href="#__codelineno-1-58"></a><span class="c1"># ======================================</span>
-</span><span id="__span-1-59"><a id="__codelineno-1-59" name="__codelineno-1-59" href="#__codelineno-1-59"></a><span class="c1"># Host to bind proxy server. 127.0.0.1 = localhost only.</span>
-</span><span id="__span-1-60"><a id="__codelineno-1-60" name="__codelineno-1-60" href="#__codelineno-1-60"></a><span class="nt">proxy_host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">127.0.0.1</span>
-</span><span id="__span-1-61"><a id="__codelineno-1-61" name="__codelineno-1-61" href="#__codelineno-1-61"></a><span class="c1"># Port for proxy server. Default 3000.</span>
-</span><span id="__span-1-62"><a id="__codelineno-1-62" name="__codelineno-1-62" href="#__codelineno-1-62"></a><span class="nt">proxy_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3000</span>
-</span><span id="__span-1-63"><a id="__codelineno-1-63" name="__codelineno-1-63" href="#__codelineno-1-63"></a>
+</span><span id="__span-1-55"><a id="__codelineno-1-55" name="__codelineno-1-55" href="#__codelineno-1-55"></a><span class="c1"># Send stored provider reasoning_content back on assistant turns: auto | always | off.</span>
+</span><span id="__span-1-56"><a id="__codelineno-1-56" name="__codelineno-1-56" href="#__codelineno-1-56"></a><span class="c1"># auto = DeepSeek API hosts and deepseek/-prefixed gateway models (their thinking mode</span>
+</span><span id="__span-1-57"><a id="__codelineno-1-57" name="__codelineno-1-57" href="#__codelineno-1-57"></a><span class="c1"># rejects tool requests without it) and any host+model whose backend rejected a request</span>
+</span><span id="__span-1-58"><a id="__codelineno-1-58" name="__codelineno-1-58" href="#__codelineno-1-58"></a><span class="c1"># for missing reasoning_content. Locally served DeepSeek-named models are not matched.</span>
+</span><span id="__span-1-59"><a id="__codelineno-1-59" name="__codelineno-1-59" href="#__codelineno-1-59"></a><span class="c1"># Other backends do not receive it, so it costs no context there.</span>
+</span><span id="__span-1-60"><a id="__codelineno-1-60" name="__codelineno-1-60" href="#__codelineno-1-60"></a><span class="nt">llm_reasoning_replay</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">auto</span>
+</span><span id="__span-1-61"><a id="__codelineno-1-61" name="__codelineno-1-61" href="#__codelineno-1-61"></a>
+</span><span id="__span-1-62"><a id="__codelineno-1-62" name="__codelineno-1-62" href="#__codelineno-1-62"></a><span class="c1"># ======================================</span>
+</span><span id="__span-1-63"><a id="__codelineno-1-63" name="__codelineno-1-63" href="#__codelineno-1-63"></a><span class="c1"># Proxy Server</span>
 </span><span id="__span-1-64"><a id="__codelineno-1-64" name="__codelineno-1-64" href="#__codelineno-1-64"></a><span class="c1"># ======================================</span>
-</span><span id="__span-1-65"><a id="__codelineno-1-65" name="__codelineno-1-65" href="#__codelineno-1-65"></a><span class="c1"># Timeouts</span>
-</span><span id="__span-1-66"><a id="__codelineno-1-66" name="__codelineno-1-66" href="#__codelineno-1-66"></a><span class="c1"># ======================================</span>
-</span><span id="__span-1-67"><a id="__codelineno-1-67" name="__codelineno-1-67" href="#__codelineno-1-67"></a><span class="c1"># Docker command timeout (seconds). 900s = 15 min for long scans (nmap, nuclei).</span>
-</span><span id="__span-1-68"><a id="__codelineno-1-68" name="__codelineno-1-68" href="#__codelineno-1-68"></a><span class="nt">command_timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">900.0</span>
+</span><span id="__span-1-65"><a id="__codelineno-1-65" name="__codelineno-1-65" href="#__codelineno-1-65"></a><span class="c1"># Host to bind proxy server. 127.0.0.1 = localhost only.</span>
+</span><span id="__span-1-66"><a id="__codelineno-1-66" name="__codelineno-1-66" href="#__codelineno-1-66"></a><span class="nt">proxy_host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">127.0.0.1</span>
+</span><span id="__span-1-67"><a id="__codelineno-1-67" name="__codelineno-1-67" href="#__codelineno-1-67"></a><span class="c1"># Port for proxy server. Default 3000.</span>
+</span><span id="__span-1-68"><a id="__codelineno-1-68" name="__codelineno-1-68" href="#__codelineno-1-68"></a><span class="nt">proxy_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3000</span>
 </span><span id="__span-1-69"><a id="__codelineno-1-69" name="__codelineno-1-69" href="#__codelineno-1-69"></a>
 </span><span id="__span-1-70"><a id="__codelineno-1-70" name="__codelineno-1-70" href="#__codelineno-1-70"></a><span class="c1"># ======================================</span>
-</span><span id="__span-1-71"><a id="__codelineno-1-71" name="__codelineno-1-71" href="#__codelineno-1-71"></a><span class="c1"># Docker Sandbox</span>
+</span><span id="__span-1-71"><a id="__codelineno-1-71" name="__codelineno-1-71" href="#__codelineno-1-71"></a><span class="c1"># Timeouts</span>
 </span><span id="__span-1-72"><a id="__codelineno-1-72" name="__codelineno-1-72" href="#__codelineno-1-72"></a><span class="c1"># ======================================</span>
-</span><span id="__span-1-73"><a id="__codelineno-1-73" name="__codelineno-1-73" href="#__codelineno-1-73"></a><span class="c1"># Container memory limit. '16g' = 16GB (stable for 32GB+ RAM host, 18GB image + Chromium). Prevents OOM kills. Set to '12g' for 32GB RAM, '8g' for 16GB systems, '4g' for 8GB systems.</span>
-</span><span id="__span-1-74"><a id="__codelineno-1-74" name="__codelineno-1-74" href="#__codelineno-1-74"></a><span class="nt">docker_memory_limit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16g</span>
+</span><span id="__span-1-73"><a id="__codelineno-1-73" name="__codelineno-1-73" href="#__codelineno-1-73"></a><span class="c1"># Docker command timeout (seconds). 900s = 15 min for long scans (nmap, nuclei).</span>
+</span><span id="__span-1-74"><a id="__codelineno-1-74" name="__codelineno-1-74" href="#__codelineno-1-74"></a><span class="nt">command_timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">900.0</span>
 </span><span id="__span-1-75"><a id="__codelineno-1-75" name="__codelineno-1-75" href="#__codelineno-1-75"></a>
 </span><span id="__span-1-76"><a id="__codelineno-1-76" name="__codelineno-1-76" href="#__codelineno-1-76"></a><span class="c1"># ======================================</span>
-</span><span id="__span-1-77"><a id="__codelineno-1-77" name="__codelineno-1-77" href="#__codelineno-1-77"></a><span class="c1"># Deep Recon</span>
+</span><span id="__span-1-77"><a id="__codelineno-1-77" name="__codelineno-1-77" href="#__codelineno-1-77"></a><span class="c1"># Docker Sandbox</span>
 </span><span id="__span-1-78"><a id="__codelineno-1-78" name="__codelineno-1-78" href="#__codelineno-1-78"></a><span class="c1"># ======================================</span>
-</span><span id="__span-1-79"><a id="__codelineno-1-79" name="__codelineno-1-79" href="#__codelineno-1-79"></a><span class="c1"># Auto-start deep recon on session start.</span>
-</span><span id="__span-1-80"><a id="__codelineno-1-80" name="__codelineno-1-80" href="#__codelineno-1-80"></a><span class="nt">deep_recon_autostart</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-</span><span id="__span-1-81"><a id="__codelineno-1-81" name="__codelineno-1-81" href="#__codelineno-1-81"></a><span class="c1"># Recon execution mode: standard|full. standard=respect user scope, full=auto-expand simple target prompts into comprehensive recon.</span>
-</span><span id="__span-1-82"><a id="__codelineno-1-82" name="__codelineno-1-82" href="#__codelineno-1-82"></a><span class="nt">agent_recon_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">standard</span>
-</span><span id="__span-1-83"><a id="__codelineno-1-83" name="__codelineno-1-83" href="#__codelineno-1-83"></a>
+</span><span id="__span-1-79"><a id="__codelineno-1-79" name="__codelineno-1-79" href="#__codelineno-1-79"></a><span class="c1"># Container memory limit. '16g' = 16GB (stable for 32GB+ RAM host, 18GB image + Chromium). Prevents OOM kills. Set to '12g' for 32GB RAM, '8g' for 16GB systems, '4g' for 8GB systems.</span>
+</span><span id="__span-1-80"><a id="__codelineno-1-80" name="__codelineno-1-80" href="#__codelineno-1-80"></a><span class="nt">docker_memory_limit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16g</span>
+</span><span id="__span-1-81"><a id="__codelineno-1-81" name="__codelineno-1-81" href="#__codelineno-1-81"></a>
+</span><span id="__span-1-82"><a id="__codelineno-1-82" name="__codelineno-1-82" href="#__codelineno-1-82"></a><span class="c1"># ======================================</span>
+</span><span id="__span-1-83"><a id="__codelineno-1-83" name="__codelineno-1-83" href="#__codelineno-1-83"></a><span class="c1"># Deep Recon</span>
 </span><span id="__span-1-84"><a id="__codelineno-1-84" name="__codelineno-1-84" href="#__codelineno-1-84"></a><span class="c1"># ======================================</span>
-</span><span id="__span-1-85"><a id="__codelineno-1-85" name="__codelineno-1-85" href="#__codelineno-1-85"></a><span class="c1"># Safety</span>
-</span><span id="__span-1-86"><a id="__codelineno-1-86" name="__codelineno-1-86" href="#__codelineno-1-86"></a><span class="c1"># ======================================</span>
-</span><span id="__span-1-87"><a id="__codelineno-1-87" name="__codelineno-1-87" href="#__codelineno-1-87"></a><span class="c1"># Allow destructive tests (e.g., DELETE requests). Default: False for safety.</span>
-</span><span id="__span-1-88"><a id="__codelineno-1-88" name="__codelineno-1-88" href="#__codelineno-1-88"></a><span class="nt">allow_destructive_testing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</span><span id="__span-1-85"><a id="__codelineno-1-85" name="__codelineno-1-85" href="#__codelineno-1-85"></a><span class="c1"># Auto-start deep recon on session start.</span>
+</span><span id="__span-1-86"><a id="__codelineno-1-86" name="__codelineno-1-86" href="#__codelineno-1-86"></a><span class="nt">deep_recon_autostart</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span><span id="__span-1-87"><a id="__codelineno-1-87" name="__codelineno-1-87" href="#__codelineno-1-87"></a><span class="c1"># Recon execution mode: standard|full. standard=respect user scope, full=auto-expand simple target prompts into comprehensive recon.</span>
+</span><span id="__span-1-88"><a id="__codelineno-1-88" name="__codelineno-1-88" href="#__codelineno-1-88"></a><span class="nt">agent_recon_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">standard</span>
+</span><span id="__span-1-89"><a id="__codelineno-1-89" name="__codelineno-1-89" href="#__codelineno-1-89"></a>
+</span><span id="__span-1-90"><a id="__codelineno-1-90" name="__codelineno-1-90" href="#__codelineno-1-90"></a><span class="c1"># ======================================</span>
+</span><span id="__span-1-91"><a id="__codelineno-1-91" name="__codelineno-1-91" href="#__codelineno-1-91"></a><span class="c1"># Safety</span>
+</span><span id="__span-1-92"><a id="__codelineno-1-92" name="__codelineno-1-92" href="#__codelineno-1-92"></a><span class="c1"># ======================================</span>
+</span><span id="__span-1-93"><a id="__codelineno-1-93" name="__codelineno-1-93" href="#__codelineno-1-93"></a><span class="c1"># Allow destructive tests (e.g., DELETE requests). Default: False for safety.</span>
+</span><span id="__span-1-94"><a id="__codelineno-1-94" name="__codelineno-1-94" href="#__codelineno-1-94"></a><span class="nt">allow_destructive_testing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
 </span></code></pre></div>
 <hr />
 <h2 id="3-llm-backend-settings">3. LLM Backend Settings<a class="headerlink" href="#3-llm-backend-settings" title="Permanent link">&para;</a></h2>
+<p>Select the wire protocol explicitly with <code>llm_provider</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Endpoint appended to <code>openai_base_url</code></th>
+<th>Authentication</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>openai</code> (default)</td>
+<td><code>/chat/completions</code></td>
+<td>Bearer, if configured</td>
+</tr>
+<tr>
+<td><code>anthropic</code> (alias <code>claude</code>)</td>
+<td><code>/messages</code></td>
+<td><code>llm_anthropic_auth: x-api-key</code> by default</td>
+</tr>
+</tbody>
+</table>
+<p>Keep the <code>/v1</code> suffix in the base URL. For native Anthropic use
+<code>https://api.anthropic.com/v1</code>, your exact available model ID in <code>openai_model</code>,
+and your API key in <code>openai_api_key</code>. Gateways requiring OAuth/Bearer headers
+must explicitly select <code>llm_anthropic_auth: bearer</code> or <code>both</code>; auth is not
+inferred from the hostname or key shape. <code>AIRECON_LLM_PROVIDER</code> is the equivalent
+environment override. No Anthropic SDK is required.</p>
+<p>Native signed thinking blocks, narration and tool-use blocks are retained for
+continuation. Thinking is omitted when the output budget cannot fit its minimum;
+when enabled its budget is below <code>max_tokens</code> and incompatible sampling fields
+are omitted. OpenAI-compatible reasoning/optional-parameter negotiation remains
+separate. Schema and signed-block bytes are included in context budgeting.</p>
 <h3 id="openai_base_url"><code>openai_base_url</code><a class="headerlink" href="#openai_base_url" title="Permanent link">&para;</a></h3>
 <p><strong>Type:</strong> string | <strong>Default:</strong> <code>"http://localhost:20128/v1"</code> | <strong>Required</strong></p>
 <p>The OpenAI-compatible <code>/v1</code> endpoint AIRecon talks to. <strong>Must include the <code>/v1</code> suffix.</strong></p>
@@ -2655,6 +2712,54 @@
 </table>
 <p>Most models work correctly with <code>"tool"</code>. If you see the model failing to parse tool results, try <code>"user"</code>.</p>
 <hr />
+<h3 id="cross-session-semantic-memory">Cross-session semantic memory<a class="headerlink" href="#cross-session-semantic-memory" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>intelligence_semantic_recall</code></td>
+<td><code>true</code></td>
+<td>Prefer semantic recall when available; otherwise lexical matching</td>
+</tr>
+<tr>
+<td><code>intelligence_embeddings_enabled</code></td>
+<td><code>true</code></td>
+<td>Permit embeddings on the configured gateway</td>
+</tr>
+<tr>
+<td><code>embedding_model</code></td>
+<td><code>""</code></td>
+<td>Exact embedding model; empty means lexical-only</td>
+</tr>
+<tr>
+<td><code>intelligence_dedup_threshold</code></td>
+<td><code>0.90</code></td>
+<td>Similarity threshold for merging duplicate insights</td>
+</tr>
+<tr>
+<td><code>intelligence_utility_floor</code></td>
+<td><code>0.2</code></td>
+<td>Retire old low-utility insights after enough recalls</td>
+</tr>
+<tr>
+<td><code>intelligence_insight_ttl_days</code></td>
+<td><code>90</code></td>
+<td>Retire stale unused low-confidence insights</td>
+</tr>
+</tbody>
+</table>
+<p>Native Anthropic has no embeddings endpoint. AIRecon uses lexical fallback
+instead of guessing another provider or transmitting data to an undeclared host.
+Recall is awaited without blocking the proxy event loop. Failure-derived lessons
+carry lower confidence than successful observations. <code>/brain</code> and <code>GET /api/brain</code>
+show learned insights and recall/hit counters; those counters are not evidence
+that a proposed vulnerability has been verified.</p>
 <h2 id="5-docker-sandbox">5. Docker Sandbox<a class="headerlink" href="#5-docker-sandbox" title="Permanent link">&para;</a></h2>
 <h3 id="docker_image"><code>docker_image</code><a class="headerlink" href="#docker_image" title="Permanent link">&para;</a></h3>
 <p><strong>Type:</strong> string | <strong>Default:</strong> <code>"airecon-sandbox"</code></p>

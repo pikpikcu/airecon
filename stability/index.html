@@ -20,7 +20,7 @@
     
     
       
-        <title>Stability & Quality Status (2026-03-27) - AIRecon</title>
+        <title>Stability & Quality Status (2026-11-12) - AIRecon</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#stability-quality-status-2026-03-27" class="md-skip">
+        <a href="#stability-quality-status-2026-11-12" class="md-skip">
           Skip to content
         </a>
       
@@ -111,7 +111,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Stability &amp; Quality Status (2026-03-27)
+              Stability &amp; Quality Status (2026-11-12)
             
           </span>
         </div>
@@ -654,9 +654,18 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#current-blockers" class="md-nav__link">
+  <a href="#reproduced-fixes" class="md-nav__link">
     <span class="md-ellipsis">
-      Current Blockers
+      Reproduced Fixes
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remaining-risks-and-untested-boundaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      Remaining Risks and Untested Boundaries
     </span>
   </a>
   
@@ -672,11 +681,71 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#ollama-repeated-no-user-query-found-in-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      Ollama: repeated no user query found in messages
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#provider-conversation-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      Provider conversation state
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recoverable-output-compression-rtk-and-caveman" class="md-nav__link">
+    <span class="md-ellipsis">
+      Recoverable output compression: RTK and Caveman
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#python-execution-no-host-repl-python_session-removed" class="md-nav__link">
+    <span class="md-ellipsis">
+      Python execution: no host REPL (python_session removed)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#stability-exit-criteria" class="md-nav__link">
     <span class="md-ellipsis">
       Stability Exit Criteria
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Stability Exit Criteria">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#invalid-or-empty-native-tool-arguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      Invalid or empty native tool arguments
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#release-criteria" class="md-nav__link">
+    <span class="md-ellipsis">
+      Release criteria
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -699,57 +768,199 @@
   
 
 
-<h1 id="stability-quality-status-2026-03-27">Stability &amp; Quality Status (2026-03-27)<a class="headerlink" href="#stability-quality-status-2026-03-27" title="Permanent link">&para;</a></h1>
+<h1 id="stability-quality-status-2026-11-12">Stability &amp; Quality Status (2026-11-12)<a class="headerlink" href="#stability-quality-status-2026-11-12" title="Permanent link">&para;</a></h1>
 <p>This page documents the current, test-backed stability state of AIRecon.</p>
 <h2 id="executive-summary">Executive Summary<a class="headerlink" href="#executive-summary" title="Permanent link">&para;</a></h2>
-<p>AIRecon is <strong>not yet in fully stable state</strong> for all components.</p>
+<p>The current candidate passed its local regression and configured static-analysis
+gates, including the verified <code>/api/status</code> sticky-health fix. No result here
+certifies every real integration or establishes that AIRecon is free of bugs.</p>
 <ul>
-<li>Core proxy/agent logic is largely functional and many tests pass.</li>
-<li>Full quality gate is still blocked by type-check errors and hanging test suites.</li>
-<li>"All features 100% working" cannot be claimed yet.</li>
+<li>Baseline: 2575 tests passed and 5 skipped before these fixes.</li>
+<li>Candidate: 2666 tests passed and 5 skipped on both Python 3.12 and 3.13,
+  with 91 additional cases against the original baseline.</li>
+<li>Configured Pyright, Ruff, and the medium/high Bandit gate are clean.</li>
+<li>The installed wheel passed three consecutive localhost API + real Docker +
+  Playwright/Chromium + headless Textual TUI + report round trips. The LLM endpoint
+  was an explicitly synthetic protocol fixture, not a real model acceptance test.</li>
+<li>Public release acceptance remains open: remote CI still refers to the old PR
+  head, and the chosen real provider/model and production rollout are unverified.</li>
+<li>Claude and GLM supplied read-only reviews. Grok attempts failed with HTTP 402
+  or insufficient credits and do not count as a completed review.</li>
 </ul>
+<p>This snapshot supersedes the March type-error and hanging-suite observations.
+The work is local on <code>airecon-openai</code>; PR #130 was still OPEN when checked.</p>
 <h2 id="validation-snapshot">Validation Snapshot<a class="headerlink" href="#validation-snapshot" title="Permanent link">&para;</a></h2>
-<p>Commands used during this review:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pyright<span class="w"> </span>airecon<span class="w"> </span>tests<span class="w"> </span>--outputjson
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pytest<span class="w"> </span>--collect-only<span class="w"> </span>-q
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>timeout<span class="w"> </span><span class="m">180</span><span class="w"> </span>pytest<span class="w"> </span>-q<span class="w"> </span>tests/tui
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>timeout<span class="w"> </span><span class="m">240</span><span class="w"> </span>pytest<span class="w"> </span>-q<span class="w"> </span>tests/proxy
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>timeout<span class="w"> </span><span class="m">60</span><span class="w"> </span>pytest<span class="w"> </span>-q<span class="w"> </span>tests/proxy/test_server.py
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>timeout<span class="w"> </span><span class="m">30</span><span class="w"> </span>pytest<span class="w"> </span>-vv<span class="w"> </span>tests/tui/test_widgets.py<span class="w"> </span>-s
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>timeout<span class="w"> </span><span class="m">120</span><span class="w"> </span>pytest<span class="w"> </span>-q<span class="w"> </span>tests/tui/test_app.py
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>timeout<span class="w"> </span><span class="m">120</span><span class="w"> </span>pytest<span class="w"> </span>-q<span class="w"> </span>tests/tui/test_path_completer.py
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>timeout<span class="w"> </span><span class="m">180</span><span class="w"> </span>pytest<span class="w"> </span>-q<span class="w"> </span>tests/benchmark
+<p>The full suite ran with Python 3.12.12 and 3.13.15 in disposable Bubblewrap environments:
+the checkout was read-only, HOME/XDG paths were private, process and network
+namespaces were isolated, and runtime files were written outside the repository.
+Optional native compressors were disabled for deterministic local tests.</p>
+<p>Core verification commands (pytest additionally supplied private temporary,
+JUnit, and coverage-output paths inside the isolated environment):</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w"> </span>-q<span class="w"> </span>--tb<span class="o">=</span>short<span class="w"> </span>-p<span class="w"> </span>no:cacheprovider<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span>-p<span class="w"> </span>pytest_timeout<span class="w"> </span>--timeout<span class="o">=</span><span class="m">60</span><span class="w"> </span>--cov<span class="o">=</span>airecon<span class="w"> </span>--cov-fail-under<span class="o">=</span><span class="m">52</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>ruff<span class="w"> </span>check<span class="w"> </span>.
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>pyright<span class="w"> </span>--outputjson
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>bandit<span class="w"> </span>-r<span class="w"> </span>airecon/<span class="w"> </span>-x<span class="w"> </span><span class="s1">'**/tests/**,**/__pycache__/**'</span><span class="w"> </span>--skip<span class="w"> </span>B105,B107<span class="w"> </span>-ll
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>git<span class="w"> </span>diff<span class="w"> </span>--check
 </span></code></pre></div>
 <p>Observed results:</p>
 <ul>
-<li><code>pyright</code>: <strong>12 errors</strong> (browser, fuzzer, startup, chat widgets).</li>
-<li><code>pytest --collect-only</code>: <strong>1376 tests collected</strong>.</li>
-<li><code>tests/benchmark</code>: <strong>17 passed</strong>.</li>
-<li><code>tests/tui</code>: <strong>timeout</strong> (hang).</li>
-<li><code>tests/proxy</code>: <strong>timeout</strong> (hang near completion).</li>
-<li>Per-file scan in <code>tests/proxy</code>: timeout concentrated in <code>tests/proxy/test_server.py</code>.</li>
+<li>Python 3.12.12: <strong>2665 passed, 5 skipped</strong>, in 164.13 seconds. One upstream
+  Starlette deprecation warning concerns its test-client httpx adapter.</li>
+<li>Python 3.13.15: <strong>2665 passed, 5 skipped</strong>, in 134.93 seconds, without warnings.</li>
+<li>Both runs have no test failures/errors; coverage is <strong>63.54%</strong>, above the
+  configured 52% threshold. Neither run proves real-model planning quality.</li>
+<li>All five skips are existing output-merge tests whose feature is not implemented;
+  they are not successful feature checks.</li>
+<li>Configured production type check: <strong>0 errors and 0 warnings</strong>, 108 files analyzed.
+  This is <code>pyright</code> using the project configuration, not a type check of every test.</li>
+<li>Ruff and whitespace checks: passed.</li>
+<li>Bandit: no medium/high findings with B105 and B107 excluded; this is not a
+  claim that all security findings or all lower-severity checks are absent.</li>
+<li>The wheel built in a read-only checkout, installed in a separate clean Python
+  3.12 environment, and passed dependency compatibility checks. Packaged source
+  and required data/container assets matched the candidate. CLI version/help,
+  start help, and proxy help all exited successfully outside the checkout.</li>
+<li>Three installed-wheel runs exercised a real localhost API, TUI shell rendering,
+  Playwright CDP connection to Chromium, synthetic LLM wire response, and report
+  file round trip. A uniquely named disposable Docker sandbox also preserved
+  partial timeout output, spared a concurrent job, reaped the timed-out job,
+  survived misleading stderr, and recovered after deliberate container removal.
+  The disposable container was confirmed absent afterward.</li>
+<li>Ten follow-up syntax-valid mutations were killed by named regressions covering
+  SQLite locks/transactions/ownership/publication, browser cancellation/shared
+  startup/reaping, partial startup cleanup, and LLM health status. No fixture or
+  import errors counted as kills. The earlier scope/redirect audit also killed
+  five guards before this follow-up.</li>
+<li>Gitleaks found no leaks in the tracked diff or the new test files. This is a
+  bounded candidate scan, not a claim about all stored assessment data.</li>
 </ul>
-<h2 id="current-blockers">Current Blockers<a class="headerlink" href="#current-blockers" title="Permanent link">&para;</a></h2>
-<ol>
-<li>Type-check regressions (<code>pyright</code> not clean):</li>
-<li><code>airecon/proxy/browser.py</code> optional-member errors.</li>
-<li><code>airecon/proxy/fuzzer.py</code> optional-member errors.</li>
-<li><code>airecon/tui/startup.py</code> unused coroutine warning/error path.</li>
-<li>
-<p><code>airecon/tui/widgets/chat.py</code> optional-member errors.</p>
-</li>
-<li>
-<p>Hanging tests prevent full CI confidence:</p>
-</li>
-<li><code>tests/proxy/test_server.py</code> hangs from first status test in current environment.</li>
-<li>
-<p><code>tests/tui/test_app.py</code> and <code>tests/tui/test_widgets.py</code> time out.</p>
-</li>
-<li>
-<p>End-to-end runtime coverage is still limited:</p>
-</li>
-<li>No complete local proof yet for all real integrations together (<code>Ollama + Docker + Browser + TUI</code>) in one automated run.</li>
-</ol>
+<h2 id="reproduced-fixes">Reproduced Fixes<a class="headerlink" href="#reproduced-fixes" title="Permanent link">&para;</a></h2>
+<p>The parent validated accepted review hypotheses with failing regression tests
+before applying fixes. Unit tests isolate external boundaries. Installed-wheel
+acceptance additionally exercises real disposable Docker, Playwright, localhost
+HTTP, and headless TUI components; only the LLM model itself is a protocol fixture.</p>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Corrected behavior</th>
+<th>Regression coverage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Docker recovery</td>
+<td>Ordinary stderr cannot reset a running sandbox; failed inspection is unknown, not confirmed loss.</td>
+<td><code>tests/proxy/test_docker.py</code></td>
+</tr>
+<tr>
+<td>Scope failures</td>
+<td>Execution and <code>/api/shell</code> fail closed if the scope guard raises.</td>
+<td><code>test_network_scope_regressions.py</code>, <code>test_server.py</code></td>
+</tr>
+<tr>
+<td>Host extraction</td>
+<td>Path-qualified local files are not hosts; single/triple-slash URLs, scheme-relative hosts, and escaped slashes remain checked.</td>
+<td><code>test_scope_guard.py</code></td>
+</tr>
+<tr>
+<td>MCP policy</td>
+<td>Scope is checked at the shared transport boundary using raw nested strings and keys, including supported JSON-encoded argument objects.</td>
+<td><code>test_mcp_scope.py</code></td>
+</tr>
+<tr>
+<td>Workspace operands</td>
+<td>Absolute container paths retain their meaning after <code>cd</code> and in symbolic links.</td>
+<td><code>test_workspace_path_remap.py</code></td>
+</tr>
+<tr>
+<td>Command timeout</td>
+<td>Partial output survives; cleanup targets only the invocation marker, not unrelated process names.</td>
+<td><code>test_docker_job_cleanup.py</code></td>
+</tr>
+<tr>
+<td>Parallel cancellation</td>
+<td>Only newly added tool blocks are removed in <code>finally</code>; pre-existing blocks survive.</td>
+<td><code>test_parallel_tool_cleanup.py</code></td>
+</tr>
+<tr>
+<td>HTTP redirects</td>
+<td>Each hop is bounded and scope-checked; loops, malformed destinations, HTTPS downgrades, and cross-origin request-body forwarding are rejected.</td>
+<td><code>test_http_observe_redirects.py</code></td>
+</tr>
+<tr>
+<td>Browser evaluation</td>
+<td>The CAPTCHA DOM coroutine is scheduled and awaited on the browser loop.</td>
+<td><code>test_browser.py</code></td>
+</tr>
+<tr>
+<td>Fuzzer evolution</td>
+<td>Vulnerability-type metadata reaches the evolution grouping.</td>
+<td><code>test_fuzzer.py</code></td>
+</tr>
+<tr>
+<td>Finding verification</td>
+<td>Verification uses captured response evidence and the actual status, not the input payload or an invented HTTP 200.</td>
+<td><code>test_fuzzer_verification_evidence.py</code></td>
+</tr>
+<tr>
+<td>MCP lifecycle</td>
+<td>Stdio servers that ignore EOF are killed and reaped, including cancellation during cleanup.</td>
+<td><code>test_mcp_process_cleanup.py</code></td>
+</tr>
+<tr>
+<td>Integration fixture</td>
+<td>Filesystem round trips write into the test workspace, not the real checkout workspace.</td>
+<td><code>tests/test_integration.py</code></td>
+</tr>
+<tr>
+<td>SQLite ownership/concurrency</td>
+<td>Managers own connections, serialize each connection, reserve writes before read/update sequences, and roll back failed batches. Busy writers do not stall readers on another manager.</td>
+<td><code>test_memory_concurrency.py</code></td>
+</tr>
+<tr>
+<td>SQLite initialization</td>
+<td>Failed schema setup closes its connection; the singleton is published only after successful connection and can retry a failed initialization.</td>
+<td><code>test_memory_concurrency.py</code></td>
+</tr>
+<tr>
+<td>Browser startup</td>
+<td>Startup has a bounded retry/fallback budget, overlapping callers share one future/deadline, and timeout/cancellation cleans up the driver and Docker exec process.</td>
+<td><code>test_browser_startup.py</code></td>
+</tr>
+<tr>
+<td>Server lifespan</td>
+<td>Partial startup, serving exceptions, and initialization cancellation still clean up created resources; one cleanup failure does not skip other resources.</td>
+<td><code>test_server_lifecycle.py</code></td>
+</tr>
+<tr>
+<td>LLM readiness</td>
+<td>Authentication, quota, missing endpoints, malformed model payloads, and HTML proxy fallbacks no longer appear connected. A successful models response is required.</td>
+<td><code>test_llm_health_contract.py</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="remaining-risks-and-untested-boundaries">Remaining Risks and Untested Boundaries<a class="headerlink" href="#remaining-risks-and-untested-boundaries" title="Permanent link">&para;</a></h2>
+<ul>
+<li>The former SQLite and browser-startup risks were reproduced and corrected.
+  Cancellation during Playwright's own driver startup, before it returns a handle,
+  was not separately fault-injected and is not certified by the later-stage mocks.</li>
+<li>Console-log stringification was not shown to cause measurable lag; no
+  performance fix was applied on that hypothesis alone.</li>
+<li>Claude's lower-priority long-line retrieval advisory and absolute-host-path
+  file creation concerns were not reproduced or traced through their callers;
+  neither is certified as a fixed defect.</li>
+<li>Scope parsing is a heuristic, not universal network isolation for arbitrary
+  commands or third-party MCP implementations. Unqualified dotted filenames
+  still receive conservative host treatment.</li>
+<li>Real Docker recovery/job cleanup and live Playwright/API/TUI/report round trips
+  are now observed. An autonomous workflow using the chosen real model/provider
+  still needs environment-specific acceptance; synthetic protocol replies do not
+  establish model correctness, performance, or production provider availability.</li>
+<li>Both supported Python versions pass locally. Remote PR checks were green for
+  <code>5e4b641</code>, not this uncommitted candidate; they cannot certify the new changes.</li>
+</ul>
 <h2 id="is-ollama-performance-degraded">Is Ollama Performance Degraded?<a class="headerlink" href="#is-ollama-performance-degraded" title="Permanent link">&para;</a></h2>
 <p>Short answer: <strong>it depends on model size and context configuration</strong>, not only AIRecon code.</p>
 <ul>
@@ -757,12 +968,167 @@
 <li>As model size shrinks, expect weaker planning, more hallucinations, and less reliable tool calls.</li>
 <li>Context settings still matter: very small <code>llm_context_window</code> values or aggressive truncation can reduce output quality even on larger models.</li>
 </ul>
+<h2 id="ollama-repeated-no-user-query-found-in-messages">Ollama: repeated <code>no user query found in messages</code><a class="headerlink" href="#ollama-repeated-no-user-query-found-in-messages" title="Permanent link">&para;</a></h2>
+<p>Ollama may return HTTP 500 with this error after server-side context truncation
+removes the user turn while retaining assistant tool calls and tool results.
+This can happen even when AIRecon sent a valid, non-empty user message.</p>
+<ul>
+<li>Check the running model's <code>context_length</code> in Ollama's <code>/api/ps</code> response;
+  the model's advertised maximum is not its currently allocated context.</li>
+<li>Ollama's OpenAI-compatible <code>/v1</code> endpoint ignores per-request <code>num_ctx</code>.
+  Configure <code>OLLAMA_CONTEXT_LENGTH</code> on the server or <code>PARAMETER num_ctx</code> in
+  the model's Modelfile, within the server's memory capacity.</li>
+<li>Match AIRecon's <code>llm_context_window</code> to the actual server context. Changing
+  only the client setting does not allocate a larger context on Ollama.</li>
+<li>If prompt and tool schemas alone exceed that capacity, use a larger supported
+  server context or a different model/backend; trimming tool results is not enough.</li>
+</ul>
+<p>The HTTP client does not retry an identical rejected context. The agent can
+retry up to three times after shrinking the actual serialized request and
+reducing the output reservation. The learned byte ceiling is saved with the
+session. If required instructions, schemas, or the latest complete tool group
+cannot fit, it stops with an actionable error rather than repeatedly compacting
+the same state. Common context errors from other OpenAI-compatible backends use
+the same bounded recovery; only the Ollama-specific error gets Ollama advice.</p>
+<p>All user instructions and explicitly protected context remain mandatory.
+The request estimate includes tool schemas, call arguments and JSON framing.
+It is a conservative UTF-8-byte heuristic, not exact model tokenization.
+Restart AIRecon after applying code/config changes; an already-running process
+does not reload modified Python modules automatically.</p>
+<h2 id="provider-conversation-state">Provider conversation state<a class="headerlink" href="#provider-conversation-state" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Native Anthropic and OpenAI-compatible requests share trailing-instruction
+  normalization: a retry after a text-only assistant response stays a final
+  user turn, rather than becoming an unsupported assistant prefill. Pending
+  native tool-use blocks and their signed thinking blocks remain unchanged.</li>
+<li>OpenAI-compatible tool-call streams preserve opaque <code>extra_content</code>, including
+  Gemini's <code>google.thought_signature</code>, across deltas and replay.</li>
+<li>Explicit <code>reasoning_content</code> returned by a provider is retained separately
+  from UI-only <code>thinking</code> and stored in conversation history. Filtering old UI
+  thinking does not remove provider state.</li>
+<li><code>llm_reasoning_replay: auto</code> sends stored reasoning back only where it is
+  needed: DeepSeek API hosts and <code>deepseek/</code>-prefixed gateway models, whose
+  thinking mode rejects tool requests that omit earlier reasoning, and any
+  host+model whose backend returns a 400 asking for missing <code>reasoning_content</code>
+  (learned once per process for that host, then the same request is resent;
+  streaming and non-streaming calls both learn). A locally served
+  DeepSeek-named model is not matched by name. Local and other gateways do not receive it, and the request
+  budget counts exactly what is sent. <code>always</code> and <code>off</code> force the behavior;
+  <code>off</code> is never overridden by learning.</li>
+<li>Missing reasoning history or thought signatures are not treated as evidence
+  that the model lacks optional reasoning-parameter support. No replacement
+  signatures or reasoning text are fabricated. Sessions that already lost this
+  state cannot recover it from the fix; start a new session in that case.</li>
+</ul>
+<h2 id="recoverable-output-compression-rtk-and-caveman">Recoverable output compression: RTK and Caveman<a class="headerlink" href="#recoverable-output-compression-rtk-and-caveman" title="Permanent link">&para;</a></h2>
+<p>Install the optional native tools on the machine running the AIRecon proxy:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>python<span class="w"> </span>-m<span class="w"> </span>airecon.compressors_install
+</span></code></pre></div>
+<p>This downloads pinned, SHA-256-verified Linux x86-64/aarch64 release assets into
+<code>~/.airecon/bin</code>: RTK OSS <code>v1.1.0</code> and Caveman Engine <code>bin-v4.0.2</code>.
+The manifest ships in <code>airecon/proxy/data/compressors.json</code>. It does not install
+shell hooks, rewrite scan commands, add LLM proxies, or change Ollama/systemd.
+Existing different binaries are not overwritten. Unsupported platforms retain
+built-in compaction and can supply their own compatible executables.</p>
+<ul>
+<li>RTK <code>pipe</code> is preferred for development/test output; Caveman <code>compress</code> is
+  preferred for other tool output. They are alternatives, not stacked lossy passes.</li>
+<li>Discovery checks <code>AIRECON_RTK_BIN</code> / <code>AIRECON_CAVEMAN_BIN</code>, then the managed
+  install, then PATH. Set either variable to <code>off</code> to disable that native tool.</li>
+<li>Missing, failed, oversized, or timed-out native output falls back to built-in
+  compaction. Native invocations have a three-second timeout and fixed argv,
+  not shell execution. No API or network compression service is configured.</li>
+<li>Tool output is saved locally before replacing it with a preview, including
+  short results that a future summary may omit. Artifacts are content-addressed
+  UTF-8 files with SHA-256 checks under the target workspace's
+  <code>output/context/&lt;session-key&gt;/</code> directory. Files use mode <code>0600</code>.</li>
+<li>Previews prioritize error/finding lines, mark omissions explicitly, and carry
+  a <code>read_file</code> path to the original. A preview is never proof of a clean scan.
+  Exact <code>read_file</code> results are not passed through lossy native compressors,
+  in either tool-result role.</li>
+<li><code>read_file</code> pages are bounded in bytes as well as lines. One result is at
+  most 8192 bytes measured as JSON-escaped UTF-8 (7680 for file content, 512
+  reserved for the page header), and contains whole lines only, with their
+  original line endings. A page closes at <code>limit</code> lines or at the byte bound,
+  whichever comes first; <code>next_offset</code>, <code>has_more</code> and <code>byte_limited</code> say where
+  to continue. Small files that fit are still returned verbatim with no header.</li>
+<li>A single line that cannot fit a page is never cut: the result is a short
+  <code>line_too_large</code> notice with the line number, byte length, byte offset and an
+  <code>execute</code>-based retrieval plan, and no file content. Advisory samples follow
+  the same rule and label any line they leave out. The file itself is never
+  modified. Bytes that are not valid UTF-8 are flagged with <code>lossy_decode</code>.</li>
+<li>When a context window is tight, optional tool schemas are left out of the
+  request before any instruction or exact read is touched, both on the normal
+  path and when recovering from a backend context rejection. The core tools
+  (<code>execute</code>, <code>read_file</code>, <code>web_search</code>, <code>create_note</code>,
+  <code>create_vulnerability_report</code>) are always sent. If instructions, core schemas
+  and the latest exact tool group still cannot fit, the run stops with a
+  context-budget error instead of dropping them.</li>
+<li>Archive failure keeps the original result; the request budget can stop the
+  run rather than pretend the omitted evidence is recoverable. Old sessions
+  whose results were already truncated cannot have those missing bytes restored.</li>
+<li>Older tool groups are evicted whole (assistant turn plus every result, in
+  both <code>tool_response_role</code> modes) into line-oriented archives under
+  <code>output/context/&lt;session&gt;/</code> that <code>read_file</code> can page: a legend line, then
+  <code>@</code> JSON headers, <code>|</code> content lines and <code>»</code> continuations for lines split
+  to stay under the page byte bound. The latest real tool group and its exact
+  <code>read_file</code> page are never evicted, and a second budget pass on an
+  already-packed history changes nothing.</li>
+<li>The single archive notice is a system-role message, so it joins the system
+  prompt on the wire instead of becoming a synthetic assistant turn (which
+  DeepSeek thinking mode and Anthropic signed thinking would reject).</li>
+</ul>
+<p>Licensing is component-specific: this integration invokes the Apache-2.0 RTK
+OSS CLI, not RTK's separately licensed engine/proxy. Caveman's standalone engine
+is optional too; retain upstream release licenses and third-party notices when
+redistributing binaries. Neither executable is bundled in AIRecon's wheel.</p>
+<h2 id="python-execution-no-host-repl-python_session-removed">Python execution: no host REPL (python_session removed)<a class="headerlink" href="#python-execution-no-host-repl-python_session-removed" title="Permanent link">&para;</a></h2>
+<p>The <code>python_session</code> tool has been <strong>removed</strong>. It executed model-generated
+Python on the proxy host via in-process <code>exec()</code>/<code>eval()</code> — giving model code
+the host filesystem, subprocess and network with no sandbox. That seam is
+closed fail-closed:</p>
+<ul>
+<li>The in-process session machinery (<code>_PythonSession</code>) is deleted from
+  <code>airecon/proxy/agent/executors_utils.py</code>.</li>
+<li>The <code>python_session</code> handler still exists only as a defense for persisted
+  or attempted old calls: it rejects every call with a structured
+  <code>{"success": false, "error": ...}</code> before any code execution or
+  utility-state side effect. Both dispatch entry paths (<code>_dispatch_tool</code> and
+  <code>_execute_tool_and_record</code>) reach this rejection.</li>
+<li>The tool is removed from the advertised catalog (<code>tools.json</code>) and from
+  <code>tools_meta.json</code> (<code>callable_core_tools</code>), so models are no longer offered
+  a Python REPL.</li>
+<li>There is deliberately <strong>no configuration switch</strong> that re-enables host
+  execution.</li>
+</ul>
+<p><strong>Limitation / intended usage:</strong> to run Python, use the <code>execute</code> tool so the
+code runs INSIDE the Docker target sandbox (for example a <code>python3 - &lt;&lt;'PY'</code>
+heredoc command through <code>execute</code>). No persistent, stateful Python REPL is
+offered; state must be kept in workspace files between <code>execute</code> calls.
+Pinned by <code>tests/proxy/agent/test_python_session_isolation.py</code>.</p>
 <h2 id="stability-exit-criteria">Stability Exit Criteria<a class="headerlink" href="#stability-exit-criteria" title="Permanent link">&para;</a></h2>
+<h3 id="invalid-or-empty-native-tool-arguments">Invalid or empty native tool arguments<a class="headerlink" href="#invalid-or-empty-native-tool-arguments" title="Permanent link">&para;</a></h3>
+<p>A model can emit an empty tool request, incomplete JSON, or a tool response
+truncated by its output limit. The client rejects those calls before completing
+the batch; malformed JSON is never replaced with invented <code>{}</code> arguments.
+Required fields are checked against the advertised schema, while the existing
+scope/security validators still run before execution. Empty strings remain valid
+where the tool contract permits them (for example empty file content).</p>
+<p>The agent makes at most two correction requests with the relevant schema and
+then stops with <code>invalid_tool_arguments</code> if the model cannot correct its output.
+It neither invents a shell command nor applies the connection-error backoff to
+this model-output error. In-band streaming errors also fail instead of finalizing
+partial calls. Restart AIRecon to load this behavior in an existing process.</p>
+<h3 id="release-criteria">Release criteria<a class="headerlink" href="#release-criteria" title="Permanent link">&para;</a></h3>
 <p>AIRecon can be labeled "stable" after all are true:</p>
 <ol>
-<li><code>pyright airecon tests</code> reports <strong>0 errors</strong>.</li>
+<li>The configured production-source <code>pyright</code> gate reports <strong>0 errors</strong>;
+   test-source type checking is not implied by that configuration.</li>
 <li>Full <code>pytest</code> suite finishes without hangs/timeouts.</li>
-<li>One automated smoke run validates startup + chat + tool call + report flow against real local dependencies.</li>
+<li>Installed-package startup + chat/tool/report flows pass with the chosen real
+   provider/model and approved local dependencies, not only synthetic replies.</li>
+<li>Exact-candidate remote CI and environment-specific rollout/rollback evidence
+   are recorded before declaring a production release.</li>
 </ol>
 
 
