@@ -61,23 +61,70 @@ def _to_openai_tool_calls(tool_calls: list[dict[str, Any]]) -> list[dict[str, An
 def _coalesce_system_messages(
     messages: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
+    # System text positioned after the last conversational turn is not part
+    # of the system prompt — it is an instruction for the *next* reply (the
+    # reflector's retry prompt is appended this way after a text-only turn).
+    # Hoisting it to the top would leave the request ending on the
+    # assistant's own text, which current Claude models reject with a 400
+    # (prefilled-assistant rejection), so it is handled separately below.
+    last_turn = -1
+    for i, m in enumerate(messages):
+        if m.get("role") != "system":
+            last_turn = i
+
     system_parts: list[str] = []
+    trailing_parts: list[str] = []
     others: list[dict[str, Any]] = []
-    for m in messages:
+    for i, m in enumerate(messages):
         if m.get("role") == "system":
             text = str(m.get("content", "")).strip()
             if text:
-                system_parts.append(text)
+                if i > last_turn:
+                    trailing_parts.append(text)
+                else:
+                    system_parts.append(text)
         else:
             others.append(m)
 
-    if not system_parts:
+    if not system_parts and not trailing_parts:
         return others
-    if len(system_parts) == 1 and messages and messages[0].get("role") == "system":
+    if (
+        len(system_parts) == 1
+        and not trailing_parts
+        and messages
+        and messages[0].get("role") == "system"
+    ):
         # Already a single leading system message — nothing to reorder.
         return messages
-    merged = {"role": "system", "content": "\n\n".join(system_parts)}
-    return [merged] + others
+
+    out: list[dict[str, Any]] = []
+    if system_parts:
+        merged = {"role": "system", "content": "\n\n".join(system_parts)}
+        out.append(merged)
+    out.extend(others)
+
+    if trailing_parts:
+        last = others[-1] if others else None
+        if (
+            last is not None
+            and last.get("role") == "assistant"
+            and not last.get("tool_calls")
+        ):
+            # Keep the trailing instruction at the end as a user turn so
+            # the request ends on the user, carrying the prompt with it.
+            out.append({"role": "user", "content": "\n\n".join(trailing_parts)})
+        elif out and out[0].get("role") == "system":
+            # The conversation does not end on a plain assistant turn, so
+            # the trailing text can join the system prompt as before.
+            out[0] = {
+                "role": "system",
+                "content": "\n\n".join(system_parts + trailing_parts),
+            }
+        else:
+            out.insert(
+                0, {"role": "system", "content": "\n\n".join(trailing_parts)}
+            )
+    return out
 
 
 def _to_openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
