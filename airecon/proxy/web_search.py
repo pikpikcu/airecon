@@ -165,6 +165,15 @@ def _is_target_specific_query(query: str) -> bool:
         return True
     return False
 
+def _is_local_searxng(url: str) -> bool:
+    """True when searxng_url points at the container AIRecon manages itself.
+
+    Startup and shutdown use the same rule: a localhost URL is the managed
+    Docker instance, and any other URL is a remote instance that AIRecon must
+    not start or recover.
+    """
+    return "localhost" in url or "127.0.0.1" in url
+
 async def web_search(query: str, max_results: int = 10, use_cache: bool = True) -> dict[str, Any]:
     effective_cache = use_cache and not _is_target_specific_query(query)
 
@@ -186,10 +195,11 @@ async def web_search(query: str, max_results: int = 10, use_cache: bool = True) 
             return cached
 
     if searxng_url:
+        managed = _is_local_searxng(searxng_url)
         try:
             from .searxng import get_shared_manager
             searxng_mgr = get_shared_manager()
-            if not await searxng_mgr._is_running():
+            if managed and not await searxng_mgr._is_running():
                 logger.info("SearXNG not running — auto-starting on first web_search use")
 
                 await asyncio.wait_for(
@@ -217,7 +227,8 @@ async def web_search(query: str, max_results: int = 10, use_cache: bool = True) 
             try:
                 from .searxng import ensure_searxng_running
 
-                recovered = await asyncio.wait_for(
+                # A remote instance is not ours to restart; go straight to DDG.
+                recovered = managed and await asyncio.wait_for(
                     ensure_searxng_running(),
                     timeout=60.0
                 )

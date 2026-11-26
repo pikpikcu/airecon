@@ -218,6 +218,7 @@ The `web_search` tool supports two backends:
 | Backend | Setup | Capabilities |
 |---------|-------|-------------|
 | **SearXNG** (recommended) | Docker container, auto-managed | Full Google dork operators, multi-engine, 50 results |
+| **Remote SearXNG** | Any non-localhost `searxng_url`, no container started | What that instance supports ([configuration](configuration.md#searxng_url)) |
 | **DuckDuckGo** (fallback) | No setup needed | Limited operators, rate-limited, ~5 results |
 
 ### SearXNG Engines
@@ -247,7 +248,7 @@ intitle:"index of" intext:password
 docker run -d --name searxng -p 8080:8080 searxng/searxng
 ```
 
-AIRecon will start/stop the SearXNG container automatically. Falls back to DuckDuckGo if the container is unavailable.
+For a localhost URL, AIRecon will start/stop the SearXNG container automatically. A remote URL is used as is, with no container started. Either way it falls back to DuckDuckGo if SearXNG is unavailable.
 
 ---
 
