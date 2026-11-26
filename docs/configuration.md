@@ -673,13 +673,24 @@ searxng_url: "http://localhost:8080"
 
 # Empty = DuckDuckGo fallback (limited operators, rate-limited)
 searxng_url: ""
+
+# Remote instance: AIRecon queries it and never starts a container for it
+searxng_url: "https://searx.example.org"
 ```
 
-AIRecon auto-manages the SearXNG Docker container lifecycle (start on use, stop on exit). To start manually:
+For a `localhost` or `127.0.0.1` URL, AIRecon auto-manages the SearXNG Docker container lifecycle (start on use, stop on exit). Any other URL is treated as a remote instance: AIRecon does not start, recover or stop a container for it, and falls back to DuckDuckGo if it is unreachable. To start the local one manually:
 
 ```bash
 docker run -d --name searxng -p 8080:8080 searxng/searxng
 ```
+
+**Hosted option without Docker.** [SpecStream](https://specstream.ai) serves the SearXNG JSON API, so it works as a remote `searxng_url` with the API key in the path:
+
+```yaml
+searxng_url: "https://api.specstream.ai/searxng/<SPECSTREAM_API_KEY>"
+```
+
+Each `web_search` call is one search at $0.001 for up to 10 results; new accounts get $10 of credit. `site:`, `intitle:` and quoted phrases are honored, `inurl:` only loosely, and `filetype:` / `ext:` are ignored, as is `searxng_engines`. The key is part of the URL, and AIRecon prints `searxng_url` in its service status and in SearXNG connection errors, so treat those logs as holding the key. Queries go to SpecStream, so keep private target data out of them.
 
 ---
 
